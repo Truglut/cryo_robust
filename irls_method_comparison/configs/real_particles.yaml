@@ -1,0 +1,73 @@
+# Global random seed for reproducibility
+seed: 42
+
+# Maps to: cfg["data"]
+data:
+  image_path: "data/particles.mrc"
+
+# Maps to: cfg["mask"]
+mask:
+  type: "circular"
+  params:
+    radius: 48
+
+# Maps to: cfg["experiment"]
+experiment:
+  methods:
+    - name: "beta_m_estimator 1e-6"
+      type: "m_estimator"
+      params:
+        weight_function: "global"
+        weight_params:
+          beta: 0.000001
+        max_iter: 75
+
+    - name: "beta_m_estimator 5e-7"
+      type: "m_estimator"
+      params:
+        weight_function: "global"
+        weight_params:
+          beta: 0.0000005
+        max_iter: 75
+
+    - name: "beta_m_estimator 1e-7"
+      type: "m_estimator"
+      params:
+        weight_function: "global"
+        weight_params:
+          beta: 0.0000001
+        max_iter: 75
+    
+    - name: "beta_m_estimator 1e-8"
+      type: "m_estimator"
+      params:
+        weight_function: "global"
+        weight_params:
+          beta: 1.0e-8
+        max_iter: 75
+
+    # --- GMM Estimators ---
+    - name: "gmm_standard_l2"
+      type: "gmm"
+      params:
+        distance_function: "l2"      # Matches "l2" in FUNCTION_REGISTRY
+        distance_params: {}          # Pass kwargs to distance func here if needed
+        random_state: 42
+
+    - name: "recursive_gmm_l1 (20 its)"
+      type: "recursive_gmm"
+      params:
+        distance_function: "l1"      # Matches "l1" in FUNCTION_REGISTRY
+        distance_params: {}
+        random_state: 42
+        max_iter: 20
+        tol: 1.0e-3
+
+    - name: "recursive_gmm_l2 (20 its)"
+      type: "recursive_gmm"
+      params:
+        distance_function: "l2"      # Matches "l2" in FUNCTION_REGISTRY
+        distance_params: {}
+        random_state: 42
+        max_iter: 20
+        tol: 1.0e-3
