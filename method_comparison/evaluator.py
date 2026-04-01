@@ -1,9 +1,11 @@
-import torch
 import numpy as np
+import torch
+import matplotlib.pyplot as plt
+import warnings
 from scipy.stats import pearsonr
 from sklearn.metrics import mean_squared_error, average_precision_score
 from estimators.base import Space
-import matplotlib.pyplot as plt
+from typing import Iterable, Tuple, Dict
 
 
 # Helper for consistent coloring
@@ -13,8 +15,11 @@ LABEL_MAP = {
     2: {"name": "Misclassified", "color": "red"},
 }
 
+# List of all implemented recall methods
+ALL_RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
 
-def aggregate_weights(weights_tensor) -> np.ndarray:
+
+def aggregate_weights(weights_tensor: torch.Tensor) -> np.ndarray:
     """
     Converts PyTorch tensor weights to a 1D NumPy array of per-image scores.
     If weights are per-pixel (N, H, W), takes the spatial average.
@@ -31,30 +36,42 @@ def aggregate_weights(weights_tensor) -> np.ndarray:
         return w.flatten()
 
 
-def get_precision(
-    weights: torch.Tensor, idx_good: np.ndarray | torch.Tensor
-) -> torch.Tensor:
+def get_precision(weights: np.ndarray, idx_good: np.ndarray | torch.Tensor) -> float:
     """
     Calculates the precision metric \\hat{P} proposed in Huang and Tagare, 2016.
     """
-    return weights[idx_good].sum(axis=0) / weights.sum(axis=0)
+    return float(weights[idx_good].sum(axis=0) / weights.sum(axis=0))
 
 
 def get_recall(
-    weights: torch.Tensor, idx_good: np.ndarray | torch.Tensor
-) -> torch.Tensor:
+    weights: torch.Tensor,
+    idx_good: np.ndarray | torch.Tensor,
+    average_type: str = "huang_tagare",
+) -> float:
     """
     Calculates the recall metric \\hat{R} proposed in Huang and Tagare, 2016.
+    weights should have shape (N, ).
     """
-    weights_sum = weights.sum(axis=0)
-
     n_in = idx_good.sum()
-    return (
-        np.sum(np.clip((weights / weights_sum * n_in)[idx_good], max=1), axis=0) / n_in
-    )
+
+    if average_type == "inlier_avg":
+        omega_bar = weights[idx_good].mean()
+    elif average_type == "global_avg":
+        omega_bar = weights.mean()
+    elif average_type == "huang_tagare":
+        omega_bar = weights.sum() / n_in
+    else:
+        warnings.warn(
+            "Unrecognised average type in get_recall(): using 'huang_tagare' method"
+        )
+        omega_bar = weights.sum() / n_in
+
+    return float(np.clip(weights[idx_good] / omega_bar, max=1).mean())
 
 
-def calculate_soft_metrics(scores: np.ndarray, idx_good: np.ndarray):
+def calculate_soft_metrics(
+    scores: np.ndarray, idx_good: np.ndarray, recall_methods: Iterable[str]
+) -> Tuple[float, float, Dict[str, float]]:
     """
     Calculates average precision together with soft precision and soft recall.
     Scores should ideally be bounded between [0, 1].
@@ -64,7 +81,10 @@ def calculate_soft_metrics(scores: np.ndarray, idx_good: np.ndarray):
     ap = average_precision_score(idx_good, scores)
 
     soft_precision = get_precision(scores, idx_good)
-    soft_recall = get_recall(scores, idx_good)
+
+    soft_recall = {
+        method: get_recall(scores, idx_good, method) for method in recall_methods
+    }
 
     return ap, soft_precision, soft_recall
 
@@ -134,6 +154,7 @@ def compare_and_report(
     labels: np.ndarray,
     plot_weights: bool,
     max_subplots: int = 4,
+    recall_methods: Iterable[str] = ALL_RECALL_METHODS,
 ):
     print("\n" + "=" * 50 + "\nEVALUATION RESULTS\n" + "=" * 50)
 
@@ -157,16 +178,21 @@ def compare_and_report(
         scores = aggregate_weights(weights)
         all_scores[method_name] = scores
 
-        ap, soft_prec, soft_rec = calculate_soft_metrics(scores, idx_good)
+        ap, soft_prec, soft_rec = calculate_soft_metrics(
+            scores, idx_good, recall_methods
+        )
 
-        ap = average_precision_score(idx_good, scores)
         # Print Report
         print(f"--- {method_name.upper()} ---")
         print(f"  RMSE:           {rmse:.4f}")
         print(f"  Correlation:    {corr:.4f}")
         print(f"  Avg Precision:  {ap:.4f}")
         print(f"  Soft Precision: {soft_prec:.4f}")
-        print(f"  Soft Recall:    {soft_rec:.4f}\n")
+        print(f"  Soft Recall:")
+        max_len = max(len(method) for method in soft_rec)
+        for recall_method, value in soft_rec.items():
+            print(f"\t- {recall_method:<{max_len}}: {value:.4f}")
+        print("")
 
     if plot_weights:
         # Plot Weight Distributions (3-class)
@@ -179,10 +205,9 @@ def compare_and_report(
         )
 
 
-def report_unlabeled(results: dict, estimators: dict, images_tensor):
+def report_unlabeled(results: dict):
     """
-    Evaluates results on unlabeled data by showing the estimated averages
-    and the overall weight distributions.
+    Evaluates results on unlabeled data by showing the overall weight distributions.
     """
     all_scores = {}
 

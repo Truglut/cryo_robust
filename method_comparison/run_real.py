@@ -84,8 +84,8 @@ def main():
             "weights": estimator.final_weights
         }
 
-    # Show Results
-    report_unlabeled(results, estimators, tensor_images)
+    # Show report of results
+    report_unlabeled(results)
 
     # Evaluate gmm fits
     if args.gmm_evaluation:

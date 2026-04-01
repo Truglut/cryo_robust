@@ -55,8 +55,10 @@ def build_estimator(method_cfg: dict, images: np.ndarray, device: str = "cpu"):
         )
 
     elif est_type == "admm":
-        irls_real = build_estimator(params["real_estimator"], device=device)
-        irls_fourier = build_estimator(params["fourier_estimator"], device=device)
+        irls_real = build_estimator(params["real_estimator"], images, device=device)
+        irls_fourier = build_estimator(
+            params["fourier_estimator"], images, device=device
+        )
         return ADMMSolver(
             irls_real, irls_fourier, device=device, **params.get("solver_params", {})
         )

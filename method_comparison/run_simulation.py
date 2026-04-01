@@ -109,7 +109,13 @@ def main():
         }
 
     # Evaluate and compare
-    compare_and_report(results, ground_truth, labels, args.plot_weights, max_subplots=4)
+    compare_and_report(
+        results,
+        ground_truth,
+        labels,
+        args.plot_weights,
+        max_subplots=4,
+    )
 
     # Evaluate gmm fits
     if args.gmm_evaluation:
