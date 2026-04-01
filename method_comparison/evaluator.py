@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from scipy.stats import pearsonr
 from sklearn.metrics import mean_squared_error, average_precision_score
+from estimators.base import Space
 import matplotlib.pyplot as plt
 
 
@@ -152,7 +153,8 @@ def compare_and_report(
         corr, _ = pearsonr(ground_truth_img.flatten(), estimated_img.flatten())
 
         # 2. Outlier Rejection Metrics
-        scores = aggregate_weights(data["weights"])
+        weights = data["weights"][Space.REAL]
+        scores = aggregate_weights(weights)
         all_scores[method_name] = scores
 
         ap, soft_prec, soft_rec = calculate_soft_metrics(scores, idx_good)
@@ -186,9 +188,10 @@ def report_unlabeled(results: dict, estimators: dict, images_tensor):
 
     for method_name, data in results.items():
         print(f"Processed: {method_name}")
+        weights = data["weights"][Space.REAL]
 
         # Store weights for the next plot
-        all_scores[method_name] = aggregate_weights(data["weights"])
+        all_scores[method_name] = aggregate_weights(weights)
 
     # Plot overall weight distributions
     plot_distributions(all_scores, labels=None)

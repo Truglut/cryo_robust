@@ -2,7 +2,7 @@ data/
 results/
 view.py
 admm/configs/
-irls_method_comparison/configs/
+method_comparison/configs/
 
 ## .gitignore for Python: from https://github.com/github/gitignore/blob/main/Python.gitignore
 

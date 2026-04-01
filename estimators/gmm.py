@@ -2,9 +2,12 @@ import torch
 import numpy as np
 from sklearn.mixture import GaussianMixture
 from typing import Callable
-from .base import Estimator
-from .utils import weighted_average
-import matplotlib.pyplot as plt
+from estimators.base import Estimator, Space
+
+
+@torch.no_grad()
+def weighted_average(y, weights, dim=0, eps: float = 0.0):
+    return (weights * y).sum(dim=dim) / (weights.sum(dim=0) + eps)
 
 
 class GMMEstimator(Estimator):
@@ -38,10 +41,17 @@ class GMMEstimator(Estimator):
         # Identify "good" class and get predictions
         idx_good = np.argmin(self.model.means_)
         predicted_proba = self.model.predict_proba(mean_distances_np)
-        self.final_weights = torch.tensor(predicted_proba.T[idx_good]).view(-1, 1, 1)
+        weights = torch.tensor(predicted_proba.T[idx_good]).view(-1, 1, 1)
 
         # Weighted average according to predicted responsibilities
-        self.avg = weighted_average(images, self.final_weights)
+        self.avg = weighted_average(images, weights)
+
+        # Store final weights in the standard format
+        self.final_weights = {
+            Space.REAL: weights,
+            Space.FOURIER_REAL: None,
+            Space.FOURIER_IMAG: None,
+        }
 
 
 class RecursiveGMMEstimator(Estimator):
@@ -84,9 +94,11 @@ class RecursiveGMMEstimator(Estimator):
             if mean_distances_np.ndim == 1:
                 mean_distances_np = mean_distances_np.reshape(-1, 1)
             n_features = mean_distances_np.shape[1]
-            
+
             # Initiliaze means
-            self.model.means_init = np.array([-np.ones(n_features), np.ones(n_features)])
+            self.model.means_init = np.array(
+                [-np.ones(n_features), np.ones(n_features)]
+            )
             # print(
             #     "Initializing means to "
             #     f"{self.model.means_init}"
@@ -129,4 +141,8 @@ class RecursiveGMMEstimator(Estimator):
 
         self.avg = reference_avg
         self.n_its = i + 1
-        self.final_weights = weights
+        self.final_weights = {
+            Space.REAL: weights,
+            Space.FOURIER_REAL: weights,
+            Space.FOURIER_IMAG: weights,
+        }

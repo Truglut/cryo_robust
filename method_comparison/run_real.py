@@ -5,9 +5,9 @@ import torch
 import napari
 import mrcfile
 from estimators import build_estimator
-from evaluator import report_unlabeled
-from gmm_evaluation import evaluate_gmm_fits_unlabeled
-from masks import create_circular_mask
+from method_comparison.evaluator import report_unlabeled
+from method_comparison.gmm_evaluation import evaluate_gmm_fits_unlabeled
+from utils.masks import create_circular_mask
 
 
 def load_config(config_path: str, snr: float | None = None):
@@ -75,7 +75,7 @@ def main():
         method_name = method_cfg["name"]
         print(f"Running {method_name}...")
         
-        estimator = build_estimator(method_cfg, device=args.device) # Use your builder function
+        estimator = build_estimator(method_cfg, images, device=args.device) # Use your builder function
         estimator.fit(tensor_images)
         
         estimators[method_name] = estimator

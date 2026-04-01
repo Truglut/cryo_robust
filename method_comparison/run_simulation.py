@@ -3,11 +3,11 @@ import yaml
 import numpy as np
 import torch
 import napari
-from dataset_builder import create_evaluation_dataset
 from estimators import build_estimator
-from evaluator import compare_and_report
-from gmm_evaluation import evaluate_gmm_fits
-from masks import create_circular_mask
+from method_comparison.dataset_builder import create_evaluation_dataset
+from method_comparison.evaluator import compare_and_report
+from method_comparison.gmm_evaluation import evaluate_gmm_fits
+from utils.masks import create_circular_mask
 
 
 LABEL_TYPES = {
@@ -96,7 +96,7 @@ def main():
         print(f"Running {method_name} on {args.device.upper()}...")
 
         # 1. Build the estimator, passing the command-line device
-        estimator = build_estimator(method_cfg, device=args.device)
+        estimator = build_estimator(method_cfg, images, device=args.device)
         estimators[method_name] = estimator
 
         # 2. Fit the data
@@ -156,7 +156,8 @@ def main():
 
         # Show examples of all image types (good, very rotated, misclassified)
         for label in LABEL_TYPES:
-            n_show = min(50, (labels == label).sum())
+            max_show = 25
+            n_show = min(max_show, (labels == label).sum())
             if n_show:
                 viewer.add_image(
                     images[labels == label][:n_show],
