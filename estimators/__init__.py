@@ -21,7 +21,12 @@ def build_estimator(method_cfg: dict, images: np.ndarray, device: str = "cpu"):
         ):
             mult = params.get("weight_parms", {}).get("auto_multiplier", 1)
             beta = mult * 1.0e-5 / images.var(axis=(1, 2)).mean()
-            weight_func = get_weight_function("global", beta=beta)
+            est_name = method_cfg.get("name", None)
+            if est_name is not None:
+                print(f"Auto-calculated beta parameter for {est_name}: {beta = }")
+            else:
+                print(f"Auto-calculated beta parameter: {beta = }")
+            weight_func = get_weight_function("global", {"beta": beta})
         else:
             weight_func = get_weight_function(
                 params["weight_function"], params.get("weight_params", {})
