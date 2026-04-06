@@ -197,7 +197,7 @@ class IRLSFourier(Estimator):
             prior_variance=prior_variance,
         )
 
-        self.avg = torch.fft.irfft2(torch.complex(ref_real, ref_imag))
+        self.avg = torch.fft.irfft2(torch.complex(ref_real, ref_imag), norm="ortho")
         self.final_weights = {
             Space.REAL: None,
             Space.FOURIER_REAL: weights_real,
