@@ -1,12 +1,16 @@
-import numpy as np
-from .irls import IRLSSolver
+import torch
+from .irls import IRLSSolver, IRLSFourier
 from .gmm import GMMEstimator, RecursiveGMMEstimator
 from .admm import ADMMSolver
 from .weights import get_weight_function
 from .distances import get_distance_function
+from utils.space import Space
+from typing import Dict
 
 
-def build_estimator(method_cfg: dict, images: np.ndarray, device: str = "cpu"):
+def build_estimator(
+    method_cfg: dict, images: Dict[Space, torch.Tensor], device: str = "cpu"
+):
     """
     Factory function that reads the YAML config block and returns
     the instantiated Estimator object on the specified device.
@@ -15,12 +19,15 @@ def build_estimator(method_cfg: dict, images: np.ndarray, device: str = "cpu"):
     params = method_cfg.get("params", {})
 
     if est_type == "m_estimator":
+        params["solver_params"] = params.get("solver_params", {})
+        params["solver_params"]["space"] = params["solver_params"].get("space", Space.REAL)
         if params["weight_function"] == "global" and (
             params.get("weight_params", None) is None
             or params["weight_params"].get("beta", "auto") == "auto"
         ):
-            mult = params.get("weight_parms", {}).get("auto_multiplier", 1)
-            beta = mult * 1.0e-5 / images.var(axis=(1, 2)).mean()
+            mult = params.get("weight_params", {}).get("auto_multiplier", 1)
+            imgs = images[params["solver_params"]["space"]]
+            beta = mult * 1.0e-5 / imgs.var(dim=(1, 2)).mean().item()
             est_name = method_cfg.get("name", None)
             if est_name is not None:
                 print(f"Auto-calculated beta parameter for {est_name}: {beta = }")
@@ -36,6 +43,15 @@ def build_estimator(method_cfg: dict, images: np.ndarray, device: str = "cpu"):
             device=device,
             **params.get("solver_params", {}),
         )
+
+    elif est_type == "fourier_m_estimator":
+        config_real = params["real_estimator"]
+        config_imag = params["imag_estimator"]
+        config_real["params"]["solver_params"]["space"] = Space.FOURIER_REAL
+        config_imag["params"]["solver_params"]["space"] = Space.FOURIER_IMAG
+        irls_real = build_estimator(config_real, images, device)
+        irls_imag = build_estimator(config_imag, images, device)
+        return IRLSFourier(irls_real, irls_imag, device)
 
     elif est_type == "gmm":
         distance_func = get_distance_function(

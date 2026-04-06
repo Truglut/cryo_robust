@@ -8,6 +8,7 @@ from method_comparison.dataset_builder import create_evaluation_dataset
 from method_comparison.evaluator import compare_and_report
 from method_comparison.gmm_evaluation import evaluate_gmm_fits
 from utils.masks import create_circular_mask
+from utils.space import Space
 
 
 LABEL_TYPES = {
@@ -86,7 +87,14 @@ def main():
     images = mask * images
     ground_truth = ground_truth * mask
 
+    # Prepare images (real space and fourier) on pytorch
     tensor_images = torch.from_numpy(images).to(dtype=torch.float32, device=args.device)
+    fourier_images = torch.fft.rfft2(tensor_images, norm="ortho")
+    images_dict = {
+        Space.REAL: tensor_images,
+        Space.FOURIER_REAL: fourier_images.real,
+        Space.FOURIER_IMAG: fourier_images.imag,
+    }
 
     # Run the Estimation Methods
     results = {}
@@ -96,11 +104,11 @@ def main():
         print(f"Running {method_name} on {args.device.upper()}...")
 
         # 1. Build the estimator, passing the command-line device
-        estimator = build_estimator(method_cfg, images, device=args.device)
+        estimator = build_estimator(method_cfg, images_dict, device=args.device)
         estimators[method_name] = estimator
 
         # 2. Fit the data
-        estimator.fit(tensor_images)
+        estimator.fit(images_dict)
 
         # 3. Store results (final weights and estimated average)
         results[method_name] = {

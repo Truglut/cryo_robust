@@ -19,21 +19,33 @@ LABEL_MAP = {
 ALL_RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
 
 
-def aggregate_weights(weights_tensor: torch.Tensor) -> np.ndarray:
-    """
-    Converts PyTorch tensor weights to a 1D NumPy array of per-image scores.
-    If weights are per-pixel (N, H, W), takes the spatial average.
-    """
-    # Move to CPU and convert to numpy
-    w = weights_tensor.detach().cpu().numpy()
+def aggregate_weights(
+    weights: Dict[Space, torch.Tensor] | torch.Tensor | None,
+) -> np.ndarray:
+    if weights is None:
+        return None
+    if isinstance(weights, torch.Tensor):
+        # Move to CPU and convert to numpy
+        w = weights.detach().cpu().numpy()
 
-    # Check if weights are per-pixel (e.g., shape is N x H x W)
-    if w.ndim == 3 and (w.shape[1] > 1 or w.shape[2] > 1):
-        # Average across height and width
-        return w.mean(axis=(1, 2))
-    else:
-        # Already per-image (e.g., shape is N x 1 x 1 or N)
-        return w.flatten()
+        # Check if weights are per-pixel (e.g., shape is N x H x W)
+        if w.ndim == 3 and (w.shape[1] > 1 or w.shape[2] > 1):
+            # Average across height and width
+            return w.mean(axis=(1, 2))
+        else:
+            # Already per-image (e.g., shape is N x 1 x 1 or N)
+            return w.flatten()
+
+    # TODO: improve the following
+    # If there are real-space weights, use those
+    if weights[Space.REAL] is not None:
+        return aggregate_weights(weights[Space.REAL])
+
+    # Otherwise, take the average of fourier real part and imaginary part
+    agg_fourier_real = aggregate_weights(weights[Space.FOURIER_REAL])
+    agg_fourier_imag = aggregate_weights(weights[Space.FOURIER_IMAG])
+
+    return (agg_fourier_real + agg_fourier_imag) / 2
 
 
 def get_precision(weights: np.ndarray, idx_good: np.ndarray | torch.Tensor) -> float:
@@ -174,7 +186,7 @@ def compare_and_report(
         corr, _ = pearsonr(ground_truth_img.flatten(), estimated_img.flatten())
 
         # 2. Outlier Rejection Metrics
-        weights = data["weights"][Space.REAL]
+        weights = data["weights"]
         scores = aggregate_weights(weights)
         all_scores[method_name] = scores
 

@@ -1,8 +1,9 @@
 import torch
 import numpy as np
 from sklearn.mixture import GaussianMixture
-from typing import Callable
-from estimators.base import Estimator, Space
+from typing import Callable, Dict
+from estimators.base import Estimator
+from utils.space import Space
 
 
 @torch.no_grad()
@@ -15,19 +16,23 @@ class GMMEstimator(Estimator):
         self,
         distance_function: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
         random_state: int | None = None,
+        space: Space = Space.REAL,
         device: str = "cpu",
     ):
         super().__init__(device=device)
         self.model = GaussianMixture(n_components=2, random_state=random_state)
         self.distance_function = distance_function
+        self.space = space
 
         # Possible extensions:
         # hard binary classification with a threshold
         # classify on more than one property
         # iterative recursive estimation
 
-    def fit(self, images):
+    def fit(self, images: Dict[Space, torch.Tensor] | torch.Tensor):
         # ensure images are a pytorch tensor on the correct device
+        if isinstance(images, dict):
+            images = images[self.space]
         images = self._prepare_data(images)
 
         # Calculate average and distances
@@ -61,6 +66,7 @@ class RecursiveGMMEstimator(Estimator):
         random_state: int | None = None,
         max_iter: int = 1,
         tol: float = 1e-3,
+        space: Space = Space.REAL,
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -72,14 +78,17 @@ class RecursiveGMMEstimator(Estimator):
         self.n_its = None
         self.converged = False
         self.tol = tol
+        self.space = space
 
         # Possible extensions:
         # hard binary classification with a threshold
         # classify on more than one property
         # iterative recursive estimation
 
-    def fit(self, images):
+    def fit(self, images: Dict[Space, torch.Tensor] | torch.Tensor):
         # Ensure images are a pytorch tensor on the correct device
+        if isinstance(images, dict):
+            images = images[self.space]
         images = self._prepare_data(images)
 
         reference_avg = images.mean(dim=0)

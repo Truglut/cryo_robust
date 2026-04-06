@@ -1,27 +1,31 @@
 import torch
 import numpy as np
-from typing import Optional
-from enum import Enum
+from typing import Dict
+from utils.space import Space
 
-class Space(Enum):
-    REAL = 1
-    FOURIER_REAL = 2
-    FOURIER_IMAG = 3
 
 class Estimator:
-    def __init__(self, device: Optional[str] = None):
+    def __init__(self, device: str | None = None):
         self.avg = None
-        self.final_weights = {
-            space: None for space in Space
-        }
+        self.final_weights = {space: None for space in Space}
         self.device = torch.device(device) if device is not None else None
 
-    def _prepare_data(self, images) -> torch.Tensor:
+    def _prepare_data(
+        self, images: Dict[Space, torch.Tensor | np.ndarray] | torch.Tensor | np.ndarray
+    ) -> Dict[Space, torch.Tensor]:
         """Ensures input is a PyTorch tensor on the correct device."""
         device = self.device if self.device is not None else images.device
+        if isinstance(images, dict):
+            for space, image in images.items():
+                if isinstance(image, np.ndarray):
+                    image = torch.from_numpy(image)
+                # Convert to float32 for stable gradient/division operations
+                images[space] = image.to(dtype=torch.float32, device=device)
+            return images
+        
         if isinstance(images, np.ndarray):
             images = torch.from_numpy(images)
-        # Convert to float32 for stable gradient/division operations
+        
         return images.to(dtype=torch.float32, device=device)
 
     def fit(self, images):
