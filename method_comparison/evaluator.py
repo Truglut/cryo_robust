@@ -4,8 +4,17 @@ import matplotlib.pyplot as plt
 import warnings
 from scipy.stats import pearsonr
 from sklearn.metrics import mean_squared_error, average_precision_score
-from estimators.base import Space
-from typing import Iterable, Tuple, Dict
+from typing import Iterable, Tuple, Dict, Any
+from estimators.admm import ADMMSolver
+from utils.space import Space
+from utils.evaluation import (
+    aggregate_weights,
+    get_precision,
+    get_recall,
+    ALL_RECALL_METHODS,
+    LABEL_MAP,
+    compute_soft_metrics,
+)
 
 
 # Helper for consistent coloring
@@ -15,123 +24,29 @@ LABEL_MAP = {
     2: {"name": "Misclassified", "color": "red"},
 }
 
-# List of all implemented recall methods
-ALL_RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
 
-
-def aggregate_weights(
-    weights: Dict[Space, torch.Tensor] | torch.Tensor | None,
-) -> np.ndarray:
-    if weights is None:
-        return None
-    if isinstance(weights, torch.Tensor):
-        # Move to CPU and convert to numpy
-        w = weights.detach().cpu().numpy()
-
-        # Check if weights are per-pixel (e.g., shape is N x H x W)
-        if w.ndim == 3 and (w.shape[1] > 1 or w.shape[2] > 1):
-            # Average across height and width
-            return w.mean(axis=(1, 2))
-        else:
-            # Already per-image (e.g., shape is N x 1 x 1 or N)
-            return w.flatten()
-
-    # TODO: improve the following
-    # If there are real-space weights, use those
-    if weights[Space.REAL] is not None:
-        return aggregate_weights(weights[Space.REAL])
-
-    # Otherwise, take the average of fourier real part and imaginary part
-    agg_fourier_real = aggregate_weights(weights[Space.FOURIER_REAL])
-    agg_fourier_imag = aggregate_weights(weights[Space.FOURIER_IMAG])
-
-    return (agg_fourier_real + agg_fourier_imag) / 2
-
-
-def get_precision(weights: np.ndarray, idx_good: np.ndarray | torch.Tensor) -> float:
-    """
-    Calculates the precision metric \\hat{P} proposed in Huang and Tagare, 2016.
-    """
-    return float(weights[idx_good].sum(axis=0) / weights.sum(axis=0))
-
-
-def get_recall(
-    weights: torch.Tensor,
-    idx_good: np.ndarray | torch.Tensor,
-    average_type: str = "huang_tagare",
-) -> float:
-    """
-    Calculates the recall metric \\hat{R} proposed in Huang and Tagare, 2016.
-    weights should have shape (N, ).
-    """
-    n_in = idx_good.sum()
-
-    if average_type == "inlier_avg":
-        omega_bar = weights[idx_good].mean()
-    elif average_type == "global_avg":
-        omega_bar = weights.mean()
-    elif average_type == "huang_tagare":
-        omega_bar = weights.sum() / n_in
-    else:
-        warnings.warn(
-            "Unrecognised average type in get_recall(): using 'huang_tagare' method"
-        )
-        omega_bar = weights.sum() / n_in
-
-    return float(np.clip(weights[idx_good] / omega_bar, max=1).mean())
-
-
-def calculate_soft_metrics(
-    scores: np.ndarray, idx_good: np.ndarray, recall_methods: Iterable[str]
-) -> Tuple[float, float, Dict[str, float]]:
-    """
-    Calculates average precision together with soft precision and soft recall.
-    Scores should ideally be bounded between [0, 1].
-    """
-    # Average Precision (Area under the PR curve - standard ML metric)
-    # This evaluates how well the weights rank inliers above outliers.
-    ap = average_precision_score(idx_good, scores)
-
-    soft_precision = get_precision(scores, idx_good)
-
-    soft_recall = {
-        method: get_recall(scores, idx_good, method) for method in recall_methods
-    }
-
-    return ap, soft_precision, soft_recall
+### Plotting utilities ###
 
 
 def plot_distributions(
-    data_dict: dict,
-    labels: np.ndarray | None = None,
-    metric_name: str = "Final weight distribution",
+    scores_dict: dict,
+    labels: np.ndarray,
+    metric_name: str = "Final Weight Distribution",
     max_subplots: int = 4,
-    subplot_height: float = 3.0,
-    figure_width: float = 8.0,
 ):
-    """Plots histograms separated by the 3 classes, creating new figures if necessary."""
-    if not data_dict:
+    """Plots histograms of image scores separated by class."""
+    if not scores_dict:
         return
 
-    # Convert dict items to a list so we can slice it into chunks
-    items = list(data_dict.items())
-
-    # Iterate through the items in chunks of 'max_subplots'
+    items = list(scores_dict.items())
     for i in range(0, len(items), max_subplots):
         chunk = items[i : i + max_subplots]
         n_items = len(chunk)
-
-        # Create a new figure for each chunk
-        fig, axes = plt.subplots(
-            n_items, 1, figsize=(figure_width, subplot_height * n_items), sharex=False
-        )
-
-        # Ensure axes is always iterable, even if there's only 1 item in the chunk
+        fig, axes = plt.subplots(n_items, 1, figsize=(8.0, 3.0 * n_items), sharex=False)
         if n_items == 1:
             axes = [axes]
 
         for ax, (name, values) in zip(axes, chunk):
-            # Calculate safe bins
             min_val, max_val = values.min(), values.max()
             bins = (
                 np.linspace(min_val - 0.01, max_val + 0.01, 40)
@@ -139,82 +54,205 @@ def plot_distributions(
                 else np.linspace(min_val, max_val, 40)
             )
 
-            if labels is None:
-                ax.hist(values, bins=bins, alpha=0.8, density=True)
-            else:
-                for label_idx, config in LABEL_MAP.items():
-                    mask = labels == label_idx
-                    if mask.any():
-                        ax.hist(
-                            values[mask],
-                            bins=bins,
-                            alpha=0.5,
-                            label=config["name"],
-                            color=config["color"],
-                            density=True,
-                        )
-                    ax.legend()
+            for label_idx, config in LABEL_MAP.items():
+                mask = labels == label_idx
+                if mask.any():
+                    ax.hist(
+                        values[mask],
+                        bins=bins,
+                        alpha=0.5,
+                        label=config["name"],
+                        color=config["color"],
+                        density=True,
+                    )
+            ax.legend()
             ax.set_title(f"{metric_name}: {name}")
 
         plt.tight_layout()
-        plt.show()  # Display the current figure of up to 4 subplots before making the next one
+        plt.show()
+
+
+### ADMM comparison with IRLS ###
+
+def compute_baseline_irls(admm_estimator: ADMMSolver, images_dict: dict) -> torch.Tensor:
+    """Clones the internal IRLS solver of an ADMM estimator and fits it without priors."""
+    # Assuming standard IRLSSolver structure. We avoid deepcopying PyTorch modules/tensors directly.
+    template = admm_estimator.irls_real
+    
+    # Create an identical, fresh instance
+    baseline_solver = template.__class__(
+        weight_function=template.weight_function,
+        max_iter=template.max_iter,
+        tol=template.tol,
+        damping_coef=template.damping_coef,
+        min_weight=template.min_weight,
+        max_weight=template.max_weight,
+        space=template.space,
+        device=template.device,
+        eps=template.eps
+    )
+    
+    # Fit strictly without the prior to establish the true baseline
+    _, weights = baseline_solver.fit(
+        images=images_dict[Space.REAL], 
+        prior_mean=None, 
+        prior_variance=None
+    )
+    return weights
+
+
+def plot_admm_vs_irls_scatter(
+    admm_scores: np.ndarray, irls_scores: np.ndarray, labels: np.ndarray, admm_name: str
+):
+    """Visualizes how the Fourier prior in ADMM changes the real-space weights compared to pure IRLS."""
+    plt.figure(figsize=(7, 7))
+
+    for label_idx, config in LABEL_MAP.items():
+        mask = labels == label_idx
+        if mask.any():
+            plt.scatter(
+                irls_scores[mask],
+                admm_scores[mask],
+                alpha=0.6,
+                label=config["name"],
+                color=config["color"],
+                edgecolors="none",
+            )
+
+    # Identity line
+    max_val = max(irls_scores.max(), admm_scores.max())
+    min_val = min(irls_scores.min(), admm_scores.min())
+    plt.plot(
+        [min_val, max_val],
+        [min_val, max_val],
+        "k--",
+        alpha=0.5,
+        label="Identity (No change)",
+    )
+
+    plt.xlabel("Pure Real-Space IRLS Score")
+    plt.ylabel("ADMM Real-Space Score")
+    plt.title(admm_name)
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.axis("equal")
+    plt.show()
+
+
+### Main evaluation pipeline ###
 
 
 def compare_and_report(
-    results: dict,
+    estimators: Dict[str, Any],
+    images_dict: Dict[Space, torch.Tensor],
     ground_truth_img: np.ndarray,
     labels: np.ndarray,
-    plot_weights: bool,
+    plot_weights: bool = False,
     max_subplots: int = 4,
     recall_methods: Iterable[str] = ALL_RECALL_METHODS,
-):
-    print("\n" + "=" * 50 + "\nEVALUATION RESULTS\n" + "=" * 50)
+    real_agg_strategies: Iterable[str] = ("mean", "energy"),
+    fourier_agg_strategies: Iterable[str] = ("energy",),
+    energy_reference: str = "ground_truth"  # "ground_truth" or "global_avg"
+) -> Dict[str, Any]:
+    
+    print("\n" + "=" * 60 + "\nEVALUATION RESULTS\n" + "=" * 60)
 
-    # Recreate idx_good for the soft metrics (Inliers = 0)
-    idx_good = labels == 0
-    all_scores = {}
+    idx_good = (labels == 0)
+    all_scores_for_plotting = {}
+    metrics_summary = {}
 
-    for method_name, data in results.items():
+    # Setup the unbiased references for energy calculations
+    gt_tensor = torch.from_numpy(ground_truth_img).to(dtype=torch.float32, device=images_dict[Space.REAL].device)
+    
+    if energy_reference == "ground_truth":
+        ref_real = gt_tensor
+    elif energy_reference == "global_avg":
+        ref_real = images_dict[Space.REAL].mean(dim=0)
+    else:
+        raise ValueError("energy_reference must be 'ground_truth' or 'global_avg'")
+        
+    ref_fourier = torch.fft.rfft2(ref_real, norm="ortho")
+
+    for method_name, estimator in estimators.items():
+        metrics_summary[method_name] = {}
+        
         # 1. Image Quality Metrics
-        estimated_img = data["avg"].detach().cpu().numpy()
-
-        # Root Mean Squared Error
-        mse = mean_squared_error(ground_truth_img, estimated_img)
-        rmse = np.sqrt(mse)
-
-        # Pearson Correlation (requires flattening the 2D images)
+        estimated_img = estimator.avg.detach().cpu().numpy()
+        rmse = np.sqrt(mean_squared_error(ground_truth_img, estimated_img))
         corr, _ = pearsonr(ground_truth_img.flatten(), estimated_img.flatten())
-
-        # 2. Outlier Rejection Metrics
-        weights = data["weights"]
-        scores = aggregate_weights(weights)
-        all_scores[method_name] = scores
-
-        ap, soft_prec, soft_rec = calculate_soft_metrics(
-            scores, idx_good, recall_methods
-        )
-
-        # Print Report
+        
+        metrics_summary[method_name]["RMSE"] = rmse
+        metrics_summary[method_name]["Pearson_Corr"] = corr
+        
         print(f"--- {method_name.upper()} ---")
-        print(f"  RMSE:           {rmse:.4f}")
-        print(f"  Correlation:    {corr:.4f}")
-        print(f"  Avg Precision:  {ap:.4f}")
-        print(f"  Soft Precision: {soft_prec:.4f}")
-        print(f"  Soft Recall:")
-        max_len = max(len(method) for method in soft_rec)
-        for recall_method, value in soft_rec.items():
-            print(f"\t- {recall_method:<{max_len}}: {value:.4f}")
+        print(f"  Reconstruction RMSE: {rmse:.4f} | Corr: {corr:.4f}")
+
+        # 2. Outlier Rejection Metrics (Evaluating EVERY space)
+        for space, w in estimator.final_weights.items():
+            if w is None: continue
+            
+            # Select reference and strategies based on space
+            if space == Space.REAL:
+                ref = ref_real
+                strategies = real_agg_strategies
+            elif space == Space.FOURIER_REAL:
+                ref = ref_fourier.real
+                strategies = fourier_agg_strategies
+            elif space == Space.FOURIER_IMAG:
+                ref = ref_fourier.imag
+                strategies = fourier_agg_strategies
+            else:
+                continue
+
+            for strategy in strategies:
+                scores = aggregate_weights(w, strategy=strategy, reference=ref)
+                
+                # Tag clearly for plots
+                plot_key = f"{method_name} ({space.name} | {strategy})"
+                all_scores_for_plotting[plot_key] = scores
+                
+                space_metrics = compute_soft_metrics(scores, idx_good, recall_methods)
+                
+                # Store in summary
+                for metric_k, metric_v in space_metrics.items():
+                    metrics_summary[method_name][f"{space.name}_{strategy}_{metric_k}"] = metric_v
+
+                print(f"  Space: {space.name} (Agg: {strategy})")
+                print(f"    Avg Precision:   {space_metrics['ap']:.4f}")
+                print(f"    Soft Precision:  {space_metrics['soft_precision']:.4f}")
+                for recall_method in ALL_RECALL_METHODS:
+                    metric = space_metrics.get(f'soft_recall_{recall_method}', None)
+                    if metric is not None:
+                        print(f"    Soft Recall:  {metric:.4f}\t({recall_method})")
+
+        # 3. Handle ADMM Baseline Extraction
+        is_admm = isinstance(estimator, ADMMSolver)
+        if is_admm and plot_weights:
+            print(f"  -> Extracting baseline IRLS weights for {method_name}...")
+            baseline_weights = compute_baseline_irls(estimator, images_dict)
+            
+            for strategy in real_agg_strategies:
+                baseline_scores = aggregate_weights(baseline_weights, strategy=strategy, reference=ref_real)
+                admm_scores = all_scores_for_plotting[f"{method_name} ({Space.REAL.name} | {strategy})"]
+                
+                plot_admm_vs_irls_scatter(
+                    admm_scores=admm_scores,
+                    irls_scores=baseline_scores,
+                    labels=labels,
+                    admm_name=f"{method_name} (Agg: {strategy})"
+                )
         print("")
 
+    # 4. Standard Distribution Visualizations
     if plot_weights:
-        # Plot Weight Distributions (3-class)
         plot_distributions(
-            all_scores,
-            labels,
-            "Final weight distribution",
-            max_subplots=max_subplots,
-            subplot_height=2.5,
+            all_scores_for_plotting, 
+            labels, 
+            metric_name="Score Distribution", 
+            max_subplots=max_subplots
         )
+
+    return metrics_summary
 
 
 def report_unlabeled(results: dict):

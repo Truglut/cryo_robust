@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from typing import Tuple, Optional, Dict, Union
+from typing import Tuple, Dict
 from .base import Estimator
 from .irls import IRLSSolver
 from utils.space import Space
@@ -69,7 +69,7 @@ class ADMMSolver(Estimator):
         # Imaginary part
         next_fourier_imag, final_weights_fourier_imag = self.irls_fourier.fit(
             images=images[Space.FOURIER_IMAG],
-            image_variance=image_variance[Space.FOURIER_IMAG] / self.fourier_multiplier,
+            image_variance=image_variance[Space.FOURIER_IMAG],
             ctf=ctf,
             initial_reference=ref_fourier.imag,
             prior_mean=prior_mean_fourier.imag,
@@ -120,7 +120,7 @@ class ADMMSolver(Estimator):
         if initial_ref_fourier is None:
             initial_ref_fourier = torch.complex(
                 torch.mean(images[Space.FOURIER_REAL], dim=0),
-                torch.mean(images[Space.FOURIER_IMAG], dim=0)
+                torch.mean(images[Space.FOURIER_IMAG], dim=0),
             )
             # initial_ref_fourier = torch.zeros_like(fourier_images[0])
 

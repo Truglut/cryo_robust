@@ -118,11 +118,15 @@ def main():
 
     # Evaluate and compare
     compare_and_report(
-        results,
-        ground_truth,
-        labels,
-        args.plot_weights,
+        estimators=estimators,
+        images_dict=images_dict,        # Pass images to allow baseline fits / global avg
+        ground_truth_img=ground_truth,
+        labels=labels,
+        plot_weights=args.plot_weights,
         max_subplots=4,
+        real_agg_strategies=["mean"],
+        fourier_agg_strategies=["energy"],
+        energy_reference="ground_truth" # Or "global_avg"
     )
 
     # Evaluate gmm fits
