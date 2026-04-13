@@ -1,7 +1,11 @@
+import numpy as np
 import torch
 from typing import Callable, Tuple, Dict
 from .base import Estimator
 from utils.space import Space
+from utils.evaluation import LABEL_MAP
+import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 
 
 class IRLSSolver(Estimator):
@@ -118,11 +122,8 @@ class IRLSSolver(Estimator):
             reference = next_reference
 
         self.avg = reference
-        self.final_weights = {
-            Space.REAL: weights,
-            Space.FOURIER_REAL: None,
-            Space.FOURIER_IMAG: None,
-        }
+        self.final_weights = {space: None for space in Space}
+        self.final_weights[self.space] = weights
 
         return reference, weights
 
@@ -203,5 +204,3 @@ class IRLSFourier(Estimator):
             Space.FOURIER_REAL: weights_real,
             Space.FOURIER_IMAG: weights_imag,
         }
-
-        return self.avg, self.final_weights

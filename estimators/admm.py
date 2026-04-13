@@ -60,11 +60,11 @@ class ADMMSolver(Estimator):
         # Real part
         next_fourier_real, final_weights_fourier_real = self.irls_fourier.fit(
             images=images[Space.FOURIER_REAL],
-            image_variance=image_variance[Space.FOURIER_REAL] / self.fourier_multiplier,
+            image_variance=image_variance[Space.FOURIER_REAL],
             ctf=ctf,
             initial_reference=ref_fourier.real,
             prior_mean=prior_mean_fourier.real,
-            prior_variance=prior_variance,
+            prior_variance=prior_variance * self.fourier_multiplier,
         )
         # Imaginary part
         next_fourier_imag, final_weights_fourier_imag = self.irls_fourier.fit(
@@ -73,7 +73,7 @@ class ADMMSolver(Estimator):
             ctf=ctf,
             initial_reference=ref_fourier.imag,
             prior_mean=prior_mean_fourier.imag,
-            prior_variance=prior_variance,
+            prior_variance=prior_variance * self.fourier_multiplier,
         )
         next_fourier = torch.complex(next_fourier_real, next_fourier_imag)
 

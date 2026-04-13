@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from typing import Dict
+from typing import Dict, Tuple
 from utils.space import Space
 
 
@@ -22,11 +22,13 @@ class Estimator:
                 # Convert to float32 for stable gradient/division operations
                 images[space] = image.to(dtype=torch.float32, device=device)
             return images
-        
+
         if isinstance(images, np.ndarray):
             images = torch.from_numpy(images)
-        
+
         return images.to(dtype=torch.float32, device=device)
 
-    def fit(self, images):
+    def fit(
+        self, images: Dict[Space, torch.Tensor]
+    ) -> Tuple[torch.Tensor, Dict[Space, torch.Tensor]]:
         raise NotImplementedError("Subclasses must implement the fit method.")
