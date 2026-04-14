@@ -16,6 +16,7 @@ class ADMMSolver(Estimator):
         fourier_multiplier: float,
         atol: float,
         rtol: float,
+        initialization: str = "mean",
         device: str | None = None,
     ):
         super().__init__(device=device)
@@ -26,7 +27,13 @@ class ADMMSolver(Estimator):
         self.rtol = rtol
         self.initial_mu = initial_mu
         self.fourier_multiplier = fourier_multiplier
+        self.initialization = initialization
         self.converged = False
+
+        if initialization not in ["mean", "zeros"]:
+            raise ValueError(f"Unrecognized ADMM initialization strategy: {initialization}")
+        
+        self.initialization = initialization
 
     def step(
         self,
@@ -120,6 +127,7 @@ class ADMMSolver(Estimator):
             fourier_images = torch.fft.rfft2(images, norm="ortho")
             images[Space.FOURIER_REAL] = fourier_images.real
             images[Space.FOURIER_IMAG] = fourier_images.imag
+            del fourier_images
         
         # Calculate image variance (per-pixel) if not provided
         if image_variance is None:
@@ -150,17 +158,26 @@ class ADMMSolver(Estimator):
 
         # Initial references
         if initial_ref_real is None:
-            # initial_ref_real = torch.mean(images[Space.REAL], dim=0)
-            initial_ref_real = torch.zeros_like(images[Space.REAL][0])
+            if self.initialization == "mean":
+                initial_ref_real = torch.mean(images[Space.REAL], dim=0)
+            elif self.initialization == "zeros":
+                initial_ref_real = torch.zeros_like(images[Space.REAL][0])
+            else:
+                raise ValueError(f"Unrecognized ADMM initialization strategy: {self.initialization}")
+
         if initial_ref_fourier is None:
-            # initial_ref_fourier = torch.complex(
-            #     torch.mean(images[Space.FOURIER_REAL], dim=0),
-            #     torch.mean(images[Space.FOURIER_IMAG], dim=0),
-            # )
-            initial_ref_fourier = torch.complex(
-                torch.zeros_like(images[Space.FOURIER_REAL][0]),
-                torch.zeros_like(images[Space.FOURIER_IMAG][0])
-            )
+            if self.initialization == "mean":
+                initial_ref_fourier = torch.complex(
+                    torch.mean(images[Space.FOURIER_REAL], dim=0),
+                    torch.mean(images[Space.FOURIER_IMAG], dim=0),
+                )
+            elif self.initialization == "zeros":
+                initial_ref_fourier = torch.complex(
+                    torch.zeros_like(images[Space.FOURIER_REAL][0]),
+                    torch.zeros_like(images[Space.FOURIER_IMAG][0])
+                )
+            else:
+                raise ValueError(f"Unrecognized ADMM initialization strategy: {self.initialization}")
 
         # Algorithm initialisation
         ref_real = initial_ref_real
