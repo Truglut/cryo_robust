@@ -1,11 +1,7 @@
-import numpy as np
 import torch
 from typing import Callable, Tuple, Dict
 from .base import Estimator
 from utils.space import Space
-from utils.evaluation import LABEL_MAP
-import matplotlib.pyplot as plt
-from matplotlib.axes import Axes
 
 
 class IRLSSolver(Estimator):
@@ -38,7 +34,8 @@ class IRLSSolver(Estimator):
         self,
         images: torch.Tensor,
         image_variance: torch.Tensor,
-        ctf: torch.Tensor | float,
+        precomp_ctf_images: torch.Tensor,
+        precomp_ctf_squared: torch.Tensor | float,
         reference: torch.Tensor,
         prior_mean: torch.Tensor | None,
         prior_variance: torch.Tensor | float | None,
@@ -51,8 +48,8 @@ class IRLSSolver(Estimator):
         if self.min_weight is not None or self.max_weight is not None:
             weights = torch.clamp(weights, min=self.min_weight, max=self.max_weight)
 
-        s_1 = torch.sum(weights * ctf * images, dim=0)
-        s_2 = torch.sum(weights * ctf**2, dim=0)
+        s_1 = torch.sum(weights * precomp_ctf_images, dim=0)
+        s_2 = torch.sum(weights * precomp_ctf_squared, dim=0)
 
         # Calculate new point (update)
         if prior_mean is not None and prior_variance is not None:
@@ -68,6 +65,7 @@ class IRLSSolver(Estimator):
         new_ref = coef * reference + (1.0 - coef) * update
         return new_ref, weights
 
+    @torch.inference_mode()
     def fit(
         self,
         images: Dict[Space, torch.Tensor] | torch.Tensor,
@@ -76,23 +74,59 @@ class IRLSSolver(Estimator):
         initial_reference: torch.Tensor | None = None,
         prior_mean: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
         prior_variance: Dict[Space, torch.Tensor] | torch.Tensor | float | None = None,
+        precomp_ctf_images: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
+        precomp_ctf_squared: (
+            Dict[Space, torch.Tensor] | torch.Tensor | float | None
+        ) = None,
     ):
         """
         Executes the Iteratively Reweighted Least Squares (IRLS) optimization.
         """
-        images = self._prepare_data(images)
 
-        # Initialize missing arguments to default values
+        # Unpack dictionaries based on space
         if isinstance(images, dict):
             images = images[self.space]
+        images = self._prepare_data(images)
+        if isinstance(image_variance, dict):
+            image_variance = image_variance[self.space]
+        if isinstance(prior_mean, dict):
+            prior_mean = prior_mean[self.space]
+        if isinstance(prior_variance, dict):
+            prior_variance = prior_variance[self.space]
+        if isinstance(precomp_ctf_images, dict):
+            precomp_ctf_images = precomp_ctf_images[self.space]
+        if isinstance(precomp_ctf_squared, dict):
+            precomp_ctf_squared = precomp_ctf_squared[self.space]
+
+        # Initialize missing arguments to default values
+
+        # Image initialisation: choose relevant space
+        if isinstance(images, dict):
+            images = images[self.space]
+
+        # Image variance: compute or choose relevant space
         if image_variance is None:
             image_variance = torch.var(images, dim=0)
         elif isinstance(image_variance, dict):
             image_variance = image_variance[self.space]
+
+        # ctf
         if ctf is None:
             ctf = 1.0
+        # Precompute ctf * images and ctf**2 for efficiency
+        if precomp_ctf_images is None:
+            precomp_ctf_images = ctf * images
+        if precomp_ctf_squared is None:
+            if isinstance(ctf, torch.Tensor):
+                precomp_ctf_squared = torch.square(ctf)
+            else:
+                precomp_ctf_squared = ctf**2
+
+        # Initial reference
         if initial_reference is None:
             initial_reference = torch.mean(images, dim=0)
+
+        # Prior mean and variance: choose relevant space
         if isinstance(prior_mean, dict):
             prior_mean = prior_mean[self.space]
         if isinstance(prior_variance, dict):
@@ -107,7 +141,8 @@ class IRLSSolver(Estimator):
             next_reference, weights = self.step(
                 images,
                 image_variance=image_variance,
-                ctf=ctf,
+                precomp_ctf_images=precomp_ctf_images,
+                precomp_ctf_squared=precomp_ctf_squared,
                 reference=reference,
                 prior_mean=prior_mean,
                 prior_variance=prior_variance,
@@ -139,6 +174,7 @@ class IRLSFourier(Estimator):
             raise ValueError("irls_imag must be IRLSSolver with space FOURIER_IMAG")
         self.irls_imag = irls_imag
 
+    @torch.inference_mode()
     def fit(
         self,
         images: Dict[Space, torch.Tensor],
@@ -147,6 +183,8 @@ class IRLSFourier(Estimator):
         initial_reference: torch.Tensor | None = None,
         prior_mean: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
         prior_variance: Dict[Space, torch.Tensor] | float | None = None,
+        precomp_ctf_images: Dict[Space, torch.Tensor] | None = None,
+        precomp_ctf_squared: torch.Tensor | float | None = None,
     ):
         if isinstance(prior_variance, float):
             prior_variance = {
@@ -187,6 +225,8 @@ class IRLSFourier(Estimator):
             initial_reference=initial_reference[Space.FOURIER_REAL],
             prior_mean=prior_mean,
             prior_variance=prior_variance,
+            precomp_ctf_images=precomp_ctf_images,
+            precomp_ctf_squared=precomp_ctf_squared,
         )
 
         ref_imag, weights_imag = self.irls_imag.fit(
@@ -196,6 +236,8 @@ class IRLSFourier(Estimator):
             initial_reference=initial_reference[Space.FOURIER_IMAG],
             prior_mean=prior_mean,
             prior_variance=prior_variance,
+            precomp_ctf_images=precomp_ctf_images,
+            precomp_ctf_squared=precomp_ctf_squared,
         )
 
         self.avg = torch.fft.irfft2(torch.complex(ref_real, ref_imag), norm="ortho")

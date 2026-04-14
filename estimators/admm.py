@@ -33,6 +33,8 @@ class ADMMSolver(Estimator):
         images: Dict[Space, torch.Tensor],
         image_variance: Dict[Space, torch.Tensor],
         ctf: torch.Tensor,
+        precomp_ctf_images: Dict[Space, torch.Tensor],
+        precomp_ctf_squared: Dict[Space, torch.Tensor | float],
         ref_real: torch.Tensor,
         ref_fourier: torch.Tensor,
         dual_vars: torch.Tensor,
@@ -45,9 +47,10 @@ class ADMMSolver(Estimator):
         prior_mean = torch.fft.irfft2(ref_fourier + dual_vars / mu, norm="ortho")
         prior_variance = 1 / mu
         next_real, final_weights_real = self.irls_real.fit(
-            images,
-            image_variance=image_variance,
-            ctf=1.0,
+            images[Space.REAL],
+            image_variance=image_variance[Space.REAL],
+            precomp_ctf_images=precomp_ctf_images[Space.REAL],
+            precomp_ctf_squared=precomp_ctf_squared[Space.REAL],
             initial_reference=ref_real,
             prior_mean=prior_mean,
             prior_variance=prior_variance,
@@ -62,6 +65,8 @@ class ADMMSolver(Estimator):
             images=images[Space.FOURIER_REAL],
             image_variance=image_variance[Space.FOURIER_REAL],
             ctf=ctf,
+            precomp_ctf_images=precomp_ctf_images[Space.FOURIER_REAL],
+            precomp_ctf_squared=precomp_ctf_squared[Space.FOURIER_REAL],
             initial_reference=ref_fourier.real,
             prior_mean=prior_mean_fourier.real,
             prior_variance=prior_variance * self.fourier_multiplier,
@@ -71,6 +76,8 @@ class ADMMSolver(Estimator):
             images=images[Space.FOURIER_IMAG],
             image_variance=image_variance[Space.FOURIER_IMAG],
             ctf=ctf,
+            precomp_ctf_images=precomp_ctf_images[Space.FOURIER_IMAG],
+            precomp_ctf_squared=precomp_ctf_squared[Space.FOURIER_IMAG],
             initial_reference=ref_fourier.imag,
             prior_mean=prior_mean_fourier.imag,
             prior_variance=prior_variance * self.fourier_multiplier,
@@ -88,6 +95,7 @@ class ADMMSolver(Estimator):
             },
         )
 
+    @torch.inference_mode()
     def fit(
         self,
         images: Dict[Space, torch.Tensor] | torch.Tensor,
@@ -102,6 +110,8 @@ class ADMMSolver(Estimator):
         images = self._prepare_data(images)
 
         # Initialize missing arguments to default values
+        
+        # Images: compute fourier transform
         if (
             isinstance(images, torch.Tensor)
             or images[Space.FOURIER_REAL] is None
@@ -110,19 +120,47 @@ class ADMMSolver(Estimator):
             fourier_images = torch.fft.rfft2(images, norm="ortho")
             images[Space.FOURIER_REAL] = fourier_images.real
             images[Space.FOURIER_IMAG] = fourier_images.imag
+        
+        # Calculate image variance (per-pixel) if not provided
         if image_variance is None:
             image_variance = {space: torch.var(images[space], dim=0) for space in Space}
+        
+        # CTF
         if ctf is None:
             ctf = 1.0
+            
+        # Precompute ctf * images and ctf**2 for efficiency
+        precomp_ctf_images = {
+            Space.REAL: images[Space.REAL], # CTF is implicitly 1.0 in real space
+            Space.FOURIER_REAL: ctf * images[Space.FOURIER_REAL],
+            Space.FOURIER_IMAG: ctf * images[Space.FOURIER_IMAG]
+        }
+        if isinstance(ctf, torch.Tensor):
+            precomp_ctf_squared = {
+                Space.REAL: 1.0,
+                Space.FOURIER_REAL: torch.square(ctf),
+                Space.FOURIER_IMAG: torch.square(ctf)
+            }
+        else:
+            precomp_ctf_squared = {
+                Space.REAL: 1.0,
+                Space.FOURIER_REAL: ctf**2,
+                Space.FOURIER_IMAG: ctf**2
+            }
+
+        # Initial references
         if initial_ref_real is None:
-            initial_ref_real = torch.mean(images[Space.REAL], dim=0)
-            # initial_ref_real = torch.zeros_like(images[0])
+            # initial_ref_real = torch.mean(images[Space.REAL], dim=0)
+            initial_ref_real = torch.zeros_like(images[Space.REAL][0])
         if initial_ref_fourier is None:
+            # initial_ref_fourier = torch.complex(
+            #     torch.mean(images[Space.FOURIER_REAL], dim=0),
+            #     torch.mean(images[Space.FOURIER_IMAG], dim=0),
+            # )
             initial_ref_fourier = torch.complex(
-                torch.mean(images[Space.FOURIER_REAL], dim=0),
-                torch.mean(images[Space.FOURIER_IMAG], dim=0),
+                torch.zeros_like(images[Space.FOURIER_REAL][0]),
+                torch.zeros_like(images[Space.FOURIER_IMAG][0])
             )
-            # initial_ref_fourier = torch.zeros_like(fourier_images[0])
 
         # Algorithm initialisation
         ref_real = initial_ref_real
@@ -139,6 +177,8 @@ class ADMMSolver(Estimator):
                 images=images,
                 image_variance=image_variance,
                 ctf=ctf,
+                precomp_ctf_images = precomp_ctf_images,
+                precomp_ctf_squared = precomp_ctf_squared,
                 ref_real=ref_real,
                 ref_fourier=ref_fourier,
                 dual_vars=dual_vars,
