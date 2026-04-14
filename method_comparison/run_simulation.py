@@ -63,6 +63,12 @@ def main():
         action="store_true",
         help="If True, images will be normalized to [0,1] before adding noise/rotating",
     )
+    parser.add_argument(
+        "--reapply_mask",
+        default=False,
+        action="store_true",
+        help="If True, the mask will be reapplied to the estimations from every method",
+    )
     args = parser.parse_args()
 
     # Load configurations
@@ -82,6 +88,7 @@ def main():
     # Create mask for images
     image_shape = images.shape[1:]
     mask = create_circular_mask(image_shape, cfg["mask"]["params"]["radius"])
+    tensor_mask = torch.tensor(mask)
 
     # Apply mask to images
     images = mask * images
@@ -111,22 +118,33 @@ def main():
         estimator.fit(images_dict)
 
         # 3. Store results (final weights and estimated average)
+        est_avg = tensor_mask * estimator.avg if args.reapply_mask else estimator.avg
         results[method_name] = {
-            "avg": estimator.avg,
+            "avg": est_avg,
             "weights": estimator.final_weights,
         }
+
+    results["Average"] = {
+        "avg": tensor_images.mean(dim=0),
+        "weights": torch.ones(
+            size=(images.shape[0], 1, 1), dtype=torch.float32, device=args.device
+        ),
+    }
 
     # Evaluate and compare
     compare_and_report(
         estimators=estimators,
-        images_dict=images_dict,        # Pass images to allow baseline fits / global avg
+        images_dict=images_dict,  # Pass images to allow baseline fits / global avg
         ground_truth_img=ground_truth,
         labels=labels,
         plot_weights=args.plot_weights,
         max_subplots=4,
         real_agg_strategies=["mean"],
         fourier_agg_strategies=["energy"],
-        energy_reference="ground_truth" # Or "global_avg"
+        energy_reference="ground_truth",  # Or "global_avg"
+        fsc_threshold=0.143,
+        mask = mask,
+        reapply_mask = args.reapply_mask
     )
 
     # Evaluate gmm fits
