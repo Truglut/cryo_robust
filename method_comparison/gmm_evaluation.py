@@ -2,14 +2,7 @@ import numpy as np
 import scipy.stats as stats
 from sklearn.mixture import GaussianMixture
 import matplotlib.pyplot as plt
-
-
-# Helper for consistent coloring
-LABEL_MAP = {
-    0: {"name": "Inliers", "color": "blue"},
-    1: {"name": "Rotated Outliers", "color": "orange"},
-    2: {"name": "Misclassified", "color": "red"},
-}
+from utils.evaluation import LABEL_MAP
 
 
 def plot_gmm_fit(ax, distances, model, title):

@@ -351,13 +351,13 @@ def compare_and_report(
 
     # 4. Standard Distribution Visualizations
     if plot_weights:
-        # Plot FSC Curves
-        plot_fsc_curves(fsc_data_for_plotting, threshold=fsc_threshold)
+        # # Plot FSC Curves
+        # plot_fsc_curves(fsc_data_for_plotting, threshold=fsc_threshold)
 
         plot_distributions(
             all_scores_for_plotting,
             labels,
-            metric_name="Score Distribution",
+            metric_name="Weight Distribution",
             max_subplots=max_subplots,
         )
 
