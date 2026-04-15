@@ -28,7 +28,8 @@ class GMMEstimator(Estimator):
         # hard binary classification with a threshold
         # classify on more than one property
         # iterative recursive estimation
-
+    
+    @torch.inference_mode()
     def fit(self, images: Dict[Space, torch.Tensor] | torch.Tensor):
         # ensure images are a pytorch tensor on the correct device
         if isinstance(images, dict):
@@ -85,6 +86,7 @@ class RecursiveGMMEstimator(Estimator):
         # classify on more than one property
         # iterative recursive estimation
 
+    @torch.inference_mode()
     def fit(self, images: Dict[Space, torch.Tensor] | torch.Tensor):
         # Ensure images are a pytorch tensor on the correct device
         if isinstance(images, dict):
@@ -152,6 +154,6 @@ class RecursiveGMMEstimator(Estimator):
         self.n_its = i + 1
         self.final_weights = {
             Space.REAL: weights,
-            Space.FOURIER_REAL: weights,
-            Space.FOURIER_IMAG: weights,
+            Space.FOURIER_REAL: None,
+            Space.FOURIER_IMAG: None,
         }

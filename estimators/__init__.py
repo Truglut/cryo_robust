@@ -8,6 +8,9 @@ from utils.space import Space
 from typing import Dict
 
 
+TAGARE_CONSTANT = 1.0e-5
+
+
 def build_estimator(
     method_cfg: dict, images: Dict[Space, torch.Tensor], device: str = "cpu"
 ):
@@ -18,26 +21,15 @@ def build_estimator(
     est_type = method_cfg["type"]
     params = method_cfg.get("params", {})
 
+    params["solver_params"] = params.get("solver_params", {})
+    space = params["solver_params"].get("space", Space.REAL)
+    params["solver_params"]["space"] = space
+
     if est_type == "m_estimator":
-        params["solver_params"] = params.get("solver_params", {})
-        params["solver_params"]["space"] = params["solver_params"].get("space", Space.REAL)
-        if params["weight_function"] == "global" and (
-            params.get("weight_params", None) is None
-            or params["weight_params"].get("beta", "auto") == "auto"
-        ):
-            mult = params.get("weight_params", {}).get("auto_multiplier", 1)
-            imgs = images[params["solver_params"]["space"]]
-            beta = mult * 1.0e-5 / imgs.var(dim=(1, 2)).mean().item()
-            est_name = method_cfg.get("name", None)
-            if est_name is not None:
-                print(f"Auto-calculated beta parameter for {est_name}: {beta = }")
-            else:
-                print(f"Auto-calculated beta parameter: {beta = }")
-            weight_func = get_weight_function("global", {"beta": beta})
-        else:
-            weight_func = get_weight_function(
-                params["weight_function"], params.get("weight_params", {})
-            )
+        # Get weight function with given parameters
+        weight_func = get_weight_function(
+            params["weight_function"], params.get("weight_params", {}), images[space]
+        )
         return IRLSSolver(
             weight_function=weight_func,
             device=device,
@@ -45,17 +37,24 @@ def build_estimator(
         )
 
     elif est_type == "fourier_m_estimator":
+        # Build real part estimator
         config_real = params["real_estimator"]
-        config_imag = params["imag_estimator"]
         config_real["params"]["solver_params"]["space"] = Space.FOURIER_REAL
-        config_imag["params"]["solver_params"]["space"] = Space.FOURIER_IMAG
         irls_real = build_estimator(config_real, images, device)
+
+        # Build imaginary part estimator
+        config_imag = params["imag_estimator"]
+        config_imag["params"]["solver_params"]["space"] = Space.FOURIER_IMAG
         irls_imag = build_estimator(config_imag, images, device)
+
+        # Build global Fourier estimator
         return IRLSFourier(irls_real, irls_imag, device)
 
     elif est_type == "gmm":
         distance_func = get_distance_function(
-            params["distance_function"], params.get("distance_params", {})
+            params["distance_function"],
+            params.get("distance_params", {}),
+            images[space],
         )
         return GMMEstimator(
             distance_function=distance_func,
@@ -65,7 +64,9 @@ def build_estimator(
 
     elif est_type == "recursive_gmm":
         distance_func = get_distance_function(
-            params["distance_function"], params.get("distance_params", {})
+            params["distance_function"],
+            params.get("distance_params", {}),
+            images[space],
         )
         return RecursiveGMMEstimator(
             distance_function=distance_func,

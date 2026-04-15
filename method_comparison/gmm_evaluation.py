@@ -44,13 +44,13 @@ def evaluate_gmm_fits(results: dict, estimators: dict, images, labels: np.ndarra
         print(f"Processing GMM visualizations for: {method_name}")
 
         # Recalculate Initial Distances
-        initial_dist = estimator.distance_function(initial_avg, images)
+        initial_dist = estimator.distance_function(images, initial_avg)
         initial_dist = (initial_dist - initial_dist.mean()) / initial_dist.std()
         initial_dist_np = initial_dist.detach().cpu().numpy().reshape(-1, 1)
 
         # Recalculate Final Distances
         final_avg = results[method_name]["avg"]
-        final_dist = estimator.distance_function(final_avg, images)
+        final_dist = estimator.distance_function(images, final_avg)
         final_dist = (final_dist - final_dist.mean()) / final_dist.std()
         final_dist_np = final_dist.detach().cpu().numpy().reshape(-1, 1)
 

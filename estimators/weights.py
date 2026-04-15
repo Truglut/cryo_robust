@@ -78,10 +78,30 @@ FUNCTION_REGISTRY = {
 }
 
 
-def get_weight_function(name: str, params: dict):
+def get_weight_function(name: str, params: dict, imgs: torch.Tensor | None = None):
     try:
         base_function = FUNCTION_REGISTRY[name]
     except KeyError:
         raise ValueError(f"Unknown function name: {name}")
 
+    # Calculate automatic beta parameter for tagare weights
+    if name == "global" and (params.get("beta", "auto") == "auto"):
+        if imgs is None:
+            raise ValueError("Cannot calculate auto beta without images")
+        mult = params.get("auto_multiplier", 1)
+        beta = calculate_beta_auto(imgs, mult)
+
+        # Update params
+        params["beta"] = beta
+
+        # Print calculated parameter
+        print(f"Auto-calculated beta parameter: {beta = }")
+
     return partial(base_function, **params)
+
+
+TAGARE_CONSTANT = 1.0e-5
+
+
+def calculate_beta_auto(imgs: torch.Tensor, mult: float = 1.0):
+    return mult * TAGARE_CONSTANT / imgs.var(dim=(1, 2)).mean().item()
