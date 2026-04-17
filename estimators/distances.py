@@ -60,13 +60,7 @@ def tagare_distance(
 
     weights = cos_abs * torch.exp(-beta * orth_norm_sq)
 
-    if inv_type == "neg" or inv_type == "negative":
-        return -weights
-    if inv_type == "reciprocal":
-        return torch.reciprocal(torch.clamp(weights, min=eps))
-    if inv_type == "negative_exponential" or inv_type == "neg_exp":
-        return torch.exp(-weights)
-    raise ValueError(f"Unrecognized inversion type in tagare_distance: {inv_type}")
+    return invert_similarity(weights, inv_type=inv_type, eps=eps)
 
 
 def cosine_similarity(
