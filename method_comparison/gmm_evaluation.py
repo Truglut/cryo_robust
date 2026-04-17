@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 import scipy.stats as stats
 from sklearn.mixture import GaussianMixture
 import matplotlib.pyplot as plt
@@ -34,12 +35,17 @@ def evaluate_gmm_fits(results: dict, estimators: dict, images, labels: np.ndarra
     'images' should be a PyTorch tensor on the correct device.
     """
     # Calculate the initial average
-    initial_avg = images.mean(dim=0)
+    image_average = images.mean(dim=0)
 
     for method_name, estimator in estimators.items():
         # Skip M-estimators (they don't use distance_function)
         if not hasattr(estimator, "distance_function"):
             continue
+
+        if results["method_name"].get("reference") is not None:
+            initial_avg = torch.tensor(results["method_name"]["reference"])
+        else:
+            initial_avg = image_average
 
         print(f"Processing GMM visualizations for: {method_name}")
 
@@ -49,7 +55,7 @@ def evaluate_gmm_fits(results: dict, estimators: dict, images, labels: np.ndarra
         initial_dist_np = initial_dist.detach().cpu().numpy().reshape(-1, 1)
 
         # Recalculate Final Distances
-        final_avg = results[method_name]["avg"]
+        final_avg = torch.tensor(results[method_name]["avg"])
         final_dist = estimator.distance_function(images, final_avg)
         final_dist = (final_dist - final_dist.mean()) / final_dist.std()
         final_dist_np = final_dist.detach().cpu().numpy().reshape(-1, 1)

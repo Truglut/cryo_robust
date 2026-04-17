@@ -6,10 +6,12 @@ import napari
 import mrcfile
 from estimators import build_estimator
 from estimators.admm import ADMMSolver
+from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
 from method_comparison.evaluator import report_unlabeled, aggregate_weights
 from method_comparison.gmm_evaluation import evaluate_gmm_fits_unlabeled
 from utils.masks import create_circular_mask
 from utils.space import Space
+import matplotlib.pyplot as plt
 
 
 def load_config(config_path: str, snr: float | None = None):
@@ -79,31 +81,66 @@ def main():
     # Run Estimators
     estimators = {}
     results = {}
+    estimator_names = []
 
     for method_cfg in cfg["experiment"]["methods"]:
         method_name = method_cfg["name"]
+        estimator_names.append(method_name)
         print(f"Running {method_name}...")
 
-        estimator = build_estimator(
-            method_cfg, images_dict, device=args.device
-        )  # Use your builder function
-        estimator.fit(tensor_images)
+        # Build estimator from params
+        estimator = build_estimator(method_cfg, images_dict, device=args.device)
 
+        # Get initial reference for estimator
+        if method_cfg.get("use_reference", False):
+            reference = torch.tensor(
+                mrcfile.read(method_cfg["use_reference"]),
+                dtype=torch.float32,
+                device=args.device,
+            )
+        else:
+            reference = None
+
+        # Run estimator on images
+        if isinstance(estimator, GMMEstimator) or isinstance(
+            estimator, RecursiveGMMEstimator
+        ):
+            estimator.fit(
+                tensor_images,
+                reference=reference,
+                plot_fits=args.gmm_evaluation,
+                plot_title=method_name,
+            )
+        else:
+            estimator.fit(tensor_images)
+
+        # Save results
         estimators[method_name] = estimator
         results[method_name] = {
-            "avg": estimator.avg,
+            "reference": reference,  # .cpu().numpy() if reference is not None else None,
+            "avg": estimator.avg,  # .detach().cpu().numpy(),
             "weights": estimator.final_weights,
         }
 
-    # Show report of results
+    # Show report of results (currently just plots weight distributions)
     report_unlabeled(results)
 
-    # Evaluate gmm fits
-    if args.gmm_evaluation:
-        evaluate_gmm_fits_unlabeled(results, estimators, tensor_images)
+    # # Evaluate gmm fits
+    # if args.gmm_evaluation:
+    #     evaluate_gmm_fits_unlabeled(results, estimators, tensor_images)
+
+    # Weight scatter plot for first two estimators
+    weights_1 = results[estimator_names[0]]["weights"][Space.REAL]
+    weights_2 = results[estimator_names[1]]["weights"][Space.REAL]
+
+    plt.figure()
+    plt.scatter(weights_1, weights_2)
+    plt.xlabel(estimator_names[0])
+    plt.ylabel(estimator_names[1])
+    plt.show()
 
     # Identify x% of images with lowest and highest weights for every estimator
-    quantiles = np.array([0.05, 0.1, 0.20, 0.50])
+    quantiles = np.array([0.20])
     for method_name, estimator in estimators.items():
         if isinstance(estimator, ADMMSolver):
             weights = estimator.final_weights[Space.REAL]
@@ -120,6 +157,11 @@ def main():
         for i, q in enumerate(quantiles):
             idx_bad[q] = weights < p_low[i]
             idx_good[q] = weights > p_high[i]
+
+            # mrcfile.write(
+            #     f"data/particles/cryosparc_classes/avg_{100*q:.0f}pct_worst.mrc",
+            #     data=images[idx_bad[q]].mean(axis=0),
+            # )
 
         results[method_name]["idx_good"] = idx_good
         results[method_name]["idx_bad"] = idx_bad
@@ -144,7 +186,15 @@ def main():
                 visible=False,
             )
 
-        # Show average of "good" (10% highest weights) and "bad" (10% highest weights)
+            # If a reference was provided, show it too
+            if results[method_name]["reference"] is not None:
+                viewer.add_image(
+                    results[method_name]["reference"],
+                    name=f"{method_name}: reference",
+                    visible=False,
+                )
+
+        # Show average of "good" (x% highest weights) and "bad" (x% highest weights)
         # images from every method
         for method_name in results:
             idx_good = results[method_name]["idx_good"]
