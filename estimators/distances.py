@@ -136,6 +136,12 @@ FUNCTION_REGISTRY = {
     "negexp_orthogonal_residual_norm": negexp_orthogonal_residual_norm,
 }
 
+NEED_BETA_PARAMETER = [
+    "global", # just in case
+    "tagare_weights",
+    "negexp_orthogonal_residual_norm",
+]
+
 
 def get_distance_function(
     name: str, params: dict | Tuple, imgs: torch.Tensor | None = None
@@ -146,7 +152,7 @@ def get_distance_function(
         raise ValueError(f"Unknown function name: {name}")
 
     # Calculate automatic beta parameter for tagare distance
-    if name == "global" and (params.get("beta", "auto") == "auto"):
+    if name in NEED_BETA_PARAMETER and (params.get("beta", "auto") == "auto"):
         if imgs is None:
             raise ValueError("Cannot calculate auto beta without images")
         mult = params.get("auto_multiplier", 1)

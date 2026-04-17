@@ -35,12 +35,17 @@ def plot_distributions(
             axes = [axes]
 
         for ax, (name, values) in zip(axes, chunk):
+            ax.set_title(f"{metric_name}: {name}")
             min_val, max_val = values.min(), values.max()
             bins = (
                 np.linspace(min_val - 0.01, max_val + 0.01, 40)
                 if np.isclose(min_val, max_val)
                 else np.linspace(min_val, max_val, 40)
             )
+
+            if labels is None:
+                ax.hist(values, bins=bins, alpha=0.7, color="teal", density=False)
+                continue
 
             for label_idx, config in LABEL_MAP.items():
                 mask = labels == label_idx
@@ -54,7 +59,6 @@ def plot_distributions(
                         density=True,
                     )
             ax.legend()
-            ax.set_title(f"{metric_name}: {name}")
 
         plt.tight_layout()
         plt.show()

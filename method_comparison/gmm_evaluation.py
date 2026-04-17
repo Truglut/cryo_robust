@@ -114,13 +114,13 @@ def evaluate_gmm_fits_unlabeled(results: dict, estimators: dict, images):
             continue
 
         initial_dist = (
-            estimator.distance_function(initial_avg, images).detach().cpu().numpy()
+            estimator.distance_function(images, initial_avg).detach().cpu().numpy()
         )
         initial_dist = (initial_dist - initial_dist.mean()) / initial_dist.std()
         initial_dist = initial_dist.reshape(-1, 1)
         final_avg = results[method_name]["avg"]
         final_dist = (
-            estimator.distance_function(final_avg, images).detach().cpu().numpy()
+            estimator.distance_function(images, final_avg).detach().cpu().numpy()
         )
         final_dist = (final_dist - final_dist.mean()) / final_dist.std()
         final_dist = final_dist.reshape(-1, 1)
