@@ -166,8 +166,31 @@ class RecursiveGMMEstimator(Estimator):
                 fig, axes = plt.subplots(1, 2, sharex=True, sharey=True)
                 fig.suptitle(plot_title)
                 ax = axes[0]
-                plot_gmm_fit(ax, distances_to_ref_np, self.model)
+                plot_gmm_fit(
+                    ax,
+                    distances_to_ref_np,
+                    self.model,
+                    plot_overall_model_pdf=True,
+                    plot_each_component=True,
+                )
                 ax.set_title("1st iteration")
+
+                # Fit a one component GMM and compare AIC with two component GMM
+                one_comp_model = GaussianMixture(n_init=10, init_params="k-means++")
+                one_comp_model.fit(distances_to_ref_np)
+
+                plot_gmm_fit(
+                    ax, distances_to_ref_np, one_comp_model, plot_distances=False
+                )
+
+                # Fit comparison
+                print(f"GMM Fit Comparison")
+                print(f"AIC:")
+                print(f"- One comp: {one_comp_model.aic(distances_to_ref_np)}")
+                print(f"- Two comp: {self.model.aic(distances_to_ref_np)}")
+                print(f"BIC:")
+                print(f"- One comp: {one_comp_model.bic(distances_to_ref_np)}")
+                print(f"- Two comp: {self.model.bic(distances_to_ref_np)}")
 
             # Convergence check
             if torch.norm(next_avg - reference) < self.tol:
@@ -191,32 +214,46 @@ class RecursiveGMMEstimator(Estimator):
         # Plot final model fit
         if plot_fits:
             ax = axes[1]
-            plot_gmm_fit(ax, distances_to_ref_np, self.model)
+            plot_gmm_fit(ax, distances_to_ref_np, self.model, plot_overall_model_pdf=True)
             ax.set_title("Last iteration")
             fig.tight_layout()
 
         return self.avg, self.final_weights
 
 
-def plot_gmm_fit(ax, distances: np.ndarray, model: GaussianMixture) -> None:
+def plot_gmm_fit(
+    ax,
+    distances: np.ndarray,
+    model: GaussianMixture,
+    plot_distances: bool = True,
+    plot_each_component: bool = True,
+    plot_overall_model_pdf: bool = False,
+) -> None:
     """Helper to overlay GMM probability density function on a histogram."""
     x = np.linspace(distances.min() * 0.9, distances.max() * 1.1, 1000)
 
-    ax.hist(distances, density=True)
+    if plot_distances:
+        ax.hist(distances, density=True)
 
     # Plot the individual Gaussian components
-    for i in range(model.n_components):
-        mean = model.means_[i, 0]
-        var = model.covariances_[i, 0, 0]
-        weight = model.weights_[i]
-        pdf = weight * stats.norm.pdf(x, mean, np.sqrt(var))
-        ax.plot(
-            x,
-            pdf,
-            linestyle="--",
-            linewidth=2,
-            label=f"Gaussian {i+1} (w={weight:.2f})",
-        )
+    if plot_each_component:
+        for i in range(model.n_components):
+            mean = model.means_[i, 0]
+            var = model.covariances_[i, 0, 0]
+            weight = model.weights_[i]
+            pdf = weight * stats.norm.pdf(x, mean, np.sqrt(var))
+            ax.plot(
+                x,
+                pdf,
+                linestyle="--",
+                linewidth=2,
+                label=f"Gaussian {i+1} (w={weight:.2f})",
+            )
+
+    # Plot the overall model pdf
+    if plot_overall_model_pdf:
+        pdf = np.exp(model.score_samples(x.reshape(-1, 1)))
+        ax.plot(x, pdf, linestyle="--", linewidth=2, label="Aggregated GMM density")
 
     ax.set_ylabel("Density")
     ax.legend()
