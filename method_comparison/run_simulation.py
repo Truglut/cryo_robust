@@ -2,8 +2,10 @@ import argparse
 import yaml
 import numpy as np
 import torch
+import mrcfile
 import napari
 from estimators import build_estimator
+from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
 from method_comparison.dataset_builder import create_evaluation_dataset
 from method_comparison.evaluator import compare_and_report
 from method_comparison.gmm_evaluation import evaluate_gmm_fits
@@ -114,14 +116,35 @@ def main():
         estimator = build_estimator(method_cfg, images_dict, device=args.device)
         estimators[method_name] = estimator
 
-        # 2. Fit the data
-        estimator.fit(images_dict)
+        # Get initial reference for estimator
+        if method_cfg.get("use_reference", False):
+            reference = torch.tensor(
+                mrcfile.read(method_cfg["use_reference"]),
+                dtype=torch.float32,
+                device=args.device,
+            )
+        else:
+            reference = None
+
+        # Run estimator on images
+        if isinstance(estimator, GMMEstimator) or isinstance(
+            estimator, RecursiveGMMEstimator
+        ):
+            estimator.fit(
+                tensor_images,
+                reference=reference,
+                plot_fits=args.gmm_evaluation,
+                plot_title=method_name,
+            )
+        else:
+            estimator.fit(tensor_images)
 
         # 3. Store results (final weights and estimated average)
         est_avg = tensor_mask * estimator.avg if args.reapply_mask else estimator.avg
         results[method_name] = {
             "avg": est_avg,
             "weights": estimator.final_weights,
+            "reference": reference
         }
 
     results["Average"] = {
@@ -129,6 +152,7 @@ def main():
         "weights": torch.ones(
             size=(images.shape[0], 1, 1), dtype=torch.float32, device=args.device
         ),
+        "reference": None
     }
 
     # Evaluate and compare
@@ -147,9 +171,9 @@ def main():
         reapply_mask = args.reapply_mask
     )
 
-    # Evaluate gmm fits
-    if args.gmm_evaluation:
-        evaluate_gmm_fits(results, estimators, tensor_images, labels)
+    # # Evaluate gmm fits
+    # if args.gmm_evaluation:
+    #     evaluate_gmm_fits(results, estimators, tensor_images, labels)
 
     # Show images (averages and original images) with napari
     if args.view_images:
