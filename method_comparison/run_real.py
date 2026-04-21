@@ -211,13 +211,13 @@ def main():
 
                 viewer.add_image(
                     good_images.mean(axis=0),
-                    name=f"Average of {100 * q}% best images (method: {method_name}). Weight > {weight_high}",
+                    name=f"Average of {100 * q}% best images (method: {method_name})",
                     visible=False,
                 )
 
                 viewer.add_image(
                     bad_images.mean(axis=0),
-                    name=f"Average of {100 * q}% worst images (method: {method_name}). Weight < {weight_low}",
+                    name=f"Average of {100 * q}% worst images (method: {method_name})",
                     visible=False,
                 )
 
@@ -234,13 +234,13 @@ def main():
 
                 viewer.add_image(
                     good_images.mean(axis=0),
-                    name=f"Average of good images (method: {method_name}). Weight >= {thr}",
+                    name=f"Average of good (weight >= {thr}) images (method: {method_name}).",
                     visible=False,
                 )
 
                 viewer.add_image(
                     bad_images.mean(axis=0),
-                    name=f"Average of bad images (method: {method_name}). Weight < {thr}",
+                    name=f"Average of bad (weight < {thr}) images (method: {method_name}).",
                     visible=False,
                 )
 

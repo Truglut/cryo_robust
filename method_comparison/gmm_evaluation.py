@@ -42,8 +42,8 @@ def evaluate_gmm_fits(results: dict, estimators: dict, images, labels: np.ndarra
         if not hasattr(estimator, "distance_function"):
             continue
 
-        if results["method_name"].get("reference") is not None:
-            initial_avg = torch.tensor(results["method_name"]["reference"])
+        if results[method_name].get("reference") is not None:
+            initial_avg = torch.tensor(results[method_name]["reference"])
         else:
             initial_avg = image_average
 
