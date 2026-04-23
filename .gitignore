@@ -1,6 +1,6 @@
 data/
 results/
-view.py
+my_utils/
 admm/configs/
 method_comparison/configs/
 
