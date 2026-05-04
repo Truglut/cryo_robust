@@ -11,7 +11,7 @@ from method_comparison.evaluator import report_unlabeled, aggregate_weights
 from method_comparison.gmm_evaluation import evaluate_gmm_fits_unlabeled
 from utils.masks import create_circular_mask
 from utils.space import Space
-import matplotlib.pyplot as plt
+import os
 
 
 def load_config(config_path: str, snr: float | None = None):
@@ -62,21 +62,59 @@ def main():
         action="store_true",
         help="If True, images will be normalized to [0,1] before adding noise/rotating",
     )
+    parser.add_argument(
+        "--quantiles",
+        type=float,
+        nargs="*",
+        help="Quantiles for which to show (and optionally save with --save_quantiles) best and worst images",
+    )
+    parser.add_argument(
+        "--save_quantiles",
+        default=False,
+        action="store_true",
+        help="If True, save images with highest and lowest weights for each quantile in --quantiles",
+    )
+    parser.add_argument(
+        "--save_original",
+        default=False,
+        action="store_true",
+        help="If True, any images saved will be the original, unaligned images",
+    )
+    parser.add_argument(
+        "--save_weights",
+        default=False,
+        action="store_true",
+        help="If True, final weights for every estimation method will be saved as a .npy file",
+    )
     args = parser.parse_args()
 
     # Load configurations
     cfg = load_config(args.config, args.snr)
 
-    unaligned = mrcfile.read(
-        "data/particles/experimental_with_outliers/original_particles.mrcs"
-    )
     # Read images from file path
-    original_images = mrcfile.read(cfg["data"]["image_path"])
+    aligned_images = mrcfile.read(cfg["data"]["image_path"])
+    images_dir = os.path.dirname(cfg["data"]["image_path"])
+
+    if args.save_original:
+        try:
+            images_save = mrcfile.read(cfg["data"]["original_particles_path"])
+            succesful_read = True
+        except KeyError:
+            print("Warning: config file did not contain path to original images")
+            succesful_read = False
+        except FileNotFoundError:
+            print("Warning: original images were not found in the config file path")
+            succesful_read = False
+        if not succesful_read:
+            print("Using aligned images for saving")
+            images_save = mrcfile.read(cfg["data"]["images_path"])
+    else:
+        images_save = aligned_images
 
     # Create mask and apply to images
-    image_shape = original_images.shape[1:]
+    image_shape = aligned_images.shape[1:]
     mask = create_circular_mask(image_shape, cfg["mask"]["params"]["radius"])
-    masked_images = mask * original_images
+    masked_images = mask * aligned_images
 
     # Convert to tensor for the models
     tensor_images = torch.from_numpy(masked_images).to(
@@ -134,11 +172,11 @@ def main():
         }
 
     # Show report of results (currently just plots weight distributions)
-    report_unlabeled(results)
+    report_unlabeled(results, args.plot_weights)
 
     # Identify x% of images with lowest and highest weights for every estimator
-    quantiles = np.array([])
     fixed_thresholds = np.array([0.50])
+    quantiles = np.array(args.quantiles)
     for method_name, estimator in estimators.items():
         if isinstance(estimator, ADMMSolver):
             weights = estimator.final_weights[Space.REAL]
@@ -147,21 +185,66 @@ def main():
 
         weights = aggregate_weights(weights, "mean")
 
-        p_low = np.quantile(weights, quantiles)
-        p_high = np.quantile(weights, 1 - quantiles)
+        if quantiles.size > 0:
+            if args.save_quantiles:
+                subsets_dir = images_dir + "/subsets/"
+                os.makedirs(subsets_dir, exist_ok=True)
 
-        idx_good = {"quantile": {}, "fixed_threshold": {}}
-        idx_bad = {"quantile": {}, "fixed_threshold": {}}
-        for i, q in enumerate(quantiles):
-            idx_bad["quantile"][q] = weights < p_low[i]
-            idx_good["quantile"][q] = weights >= p_high[i]
+            # Calculate weight percentiles
+            p_low = np.quantile(weights, quantiles)
+            p_high = np.quantile(weights, 1 - quantiles)
 
+            # Initialize indices dictionaries
+            idx_good = {"quantile": {}, "fixed_threshold": {}}
+            idx_bad = {"quantile": {}, "fixed_threshold": {}}
+
+            # Iterate over quantiles to find good and bad images
+            for i, q in enumerate(quantiles):
+                weight_low = p_low[i]
+                weight_high = p_high[i]
+                idx_bad["quantile"][q] = weights < weight_low
+                idx_good["quantile"][q] = weights >= weight_high
+
+                # Print diagnostics to terminal
+                print(f"\nCalculated good and bad images for quantile {q}.")
+                print(f"High weight threshold: {weight_high:.4f}")
+                print(f"Low weight threshold:  {weight_low:.4f}")
+                print("Good images: weight >= high thr. Bad images: weight < low thr")
+                print(f"Number of good images: {idx_good["quantile"][q].sum()}")
+                print(f"Number of bad images:  {idx_bad["quantile"][q].sum()}\n")
+
+                # Save good and bad images for this quantile
+                if args.save_quantiles:
+                    mrcfile.write(
+                        subsets_dir + f"{method_name}_{100*q:.0f}pct_best.mrcs",
+                        data=images_save[idx_good["quantile"][q]],
+                        overwrite=False,
+                    )
+                    mrcfile.write(
+                        subsets_dir + f"{method_name}_{100*q:.0f}pct_worst.mrcs",
+                        data=images_save[idx_bad["quantile"][q]],
+                        overwrite=False,
+                    )
+
+        # Iterate over fixed weight thresholds to find good and bad images
         for thr in fixed_thresholds:
             idx_bad["fixed_threshold"][thr] = weights < thr
             idx_good["fixed_threshold"][thr] = weights >= thr
 
+            # Print diagnostic info to terminal
+            print(f"\nCalculated good and bad images for weight threshold {thr}")
+            print(f"Good images: weight >= threshold. Bad images: weight < threshold")
+            print(f"Number of good images: {idx_good["fixed_threshold"][thr].sum()}")
+            print(f"Number of bad images:  {idx_bad["fixed_threshold"][thr].sum()}\n")
+
+        # Save the good and bad indices for this estimation method
         results[method_name]["idx_good"] = idx_good
         results[method_name]["idx_bad"] = idx_bad
+
+        # Save weights file for this estimation method if needed
+        if args.save_weights:
+            weights_dir = images_dir + "weights/"
+            np.save(weights_dir + f"{method_name}_weights.npy", weights)
 
     # Show images (averages and original images) with napari
     if args.view_images or args.show_good_images:
@@ -198,16 +281,8 @@ def main():
             idx_bad = results[method_name]["idx_bad"]
 
             for i, q in enumerate(quantiles):
-                weight_low = p_low[i]
-                weight_high = p_high[i]
                 good_images = masked_images[idx_good["quantile"][q]]
                 bad_images = masked_images[idx_bad["quantile"][q]]
-
-                print(f"\nShowing good and bad images for quantile {q}")
-                print(f"High weight threshold: {weight_high:.4f}")
-                print(f"Low weight threshold:  {weight_low:.4f}")
-                print(f"Number of good images: {good_images.shape[0]}")
-                print(f"Number of bad images:  {bad_images.shape[0]}\n")
 
                 viewer.add_image(
                     good_images.mean(axis=0),
@@ -224,13 +299,6 @@ def main():
             for thr in fixed_thresholds:
                 good_images = masked_images[idx_good["fixed_threshold"][thr]]
                 bad_images = masked_images[idx_bad["fixed_threshold"][thr]]
-
-                print(f"\nShowing good and bad images for weight threshold {thr}")
-                print(
-                    f"Good images: weight >= threshold. Bad images: weight < threshold"
-                )
-                print(f"Number of good images: {good_images.shape[0]}")
-                print(f"Number of bad images:  {bad_images.shape[0]}\n")
 
                 viewer.add_image(
                     good_images.mean(axis=0),
