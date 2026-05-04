@@ -172,6 +172,9 @@ class RecursiveGMMEstimator(Estimator):
                     self.model,
                     plot_overall_model_pdf=True,
                     plot_each_component=True,
+                    avg_distance=avg_distance.item(),
+                    std_distance=std_distance.item(),
+                    negate_distance=True,
                 )
                 ax.set_title("1st iteration")
 
@@ -179,9 +182,9 @@ class RecursiveGMMEstimator(Estimator):
                 one_comp_model = GaussianMixture(n_init=10, init_params="k-means++")
                 one_comp_model.fit(distances_to_ref_np)
 
-                plot_gmm_fit(
-                    ax, distances_to_ref_np, one_comp_model, plot_distances=False
-                )
+                # plot_gmm_fit(
+                #     ax, distances_to_ref_np, one_comp_model, plot_distances=False
+                # )
 
                 # Fit comparison
                 print(f"GMM Fit Comparison")
@@ -214,7 +217,15 @@ class RecursiveGMMEstimator(Estimator):
         # Plot final model fit
         if plot_fits:
             ax = axes[1]
-            plot_gmm_fit(ax, distances_to_ref_np, self.model, plot_overall_model_pdf=True)
+            plot_gmm_fit(
+                ax,
+                distances_to_ref_np,
+                self.model,
+                plot_overall_model_pdf=True,
+                avg_distance=avg_distance.item(),
+                std_distance=std_distance.item(),
+                negate_distance=True
+            )
             ax.set_title("Last iteration")
             fig.tight_layout()
 
@@ -228,18 +239,39 @@ def plot_gmm_fit(
     plot_distances: bool = True,
     plot_each_component: bool = True,
     plot_overall_model_pdf: bool = False,
+    avg_distance: np.float64 | float | None = None,
+    std_distance: np.float64 | float | None = None,
+    negate_distance: bool = False,
 ) -> None:
     """Helper to overlay GMM probability density function on a histogram."""
-    x = np.linspace(distances.min() * 0.9, distances.max() * 1.1, 1000)
+    z = np.linspace(distances.min() * 0.9, distances.max() * 1.1, 1000)
+
+    if std_distance is None:
+        std_distance = 1
+
+    if avg_distance is None:
+        avg_distance = 0
+
+    if negate_distance:
+        negate_mult = -1
+    else:
+        negate_mult = 1
+
+    z = np.linspace(distances.min() * 0.9, distances.max() * 1.1, 1000)
+    x = negate_mult * ((z * std_distance) + avg_distance)
+    original_distances = negate_mult * ((distances * std_distance) + avg_distance)
 
     if plot_distances:
-        ax.hist(distances, density=True)
+        ax.hist(original_distances, density=True)
 
     # Plot the individual Gaussian components
     if plot_each_component:
         for i in range(model.n_components):
-            mean = model.means_[i, 0]
-            var = model.covariances_[i, 0, 0]
+            # Get mean and variance in original distance scale
+            mean = negate_mult * ((model.means_[i, 0] * std_distance) + avg_distance)
+            var = model.covariances_[i, 0, 0] * (std_distance**2)
+
+            # Plot the component's pdf
             weight = model.weights_[i]
             pdf = weight * stats.norm.pdf(x, mean, np.sqrt(var))
             ax.plot(
@@ -252,7 +284,7 @@ def plot_gmm_fit(
 
     # Plot the overall model pdf
     if plot_overall_model_pdf:
-        pdf = np.exp(model.score_samples(x.reshape(-1, 1)))
+        pdf = np.exp(model.score_samples(z.reshape(-1, 1))) / np.abs(std_distance)
         ax.plot(x, pdf, linestyle="--", linewidth=2, label="Aggregated GMM density")
 
     ax.set_ylabel("Density")
