@@ -4,25 +4,88 @@ import torch.nn.functional as F
 import mrcfile
 import numpy as np
 import pandas as pd
+import os
 from io import StringIO
 
 
-def fourier_shift(img, shift_x, shift_y):
+def fourier_shift_batch(
+    imgs: torch.Tensor, shift_x: torch.Tensor, shift_y: torch.Tensor
+) -> torch.Tensor:
     """
-    Aplica un shift (en píxeles) a una imagen 2D usando traslación en Fourier.
+    Apply subpixel shifts to a batch of 2D images using the Fourier shift theorem.
+
+    Parameters
+    ----------
+    imgs : torch.Tensor
+        Input tensor of shape (N, H, W) containing a batch of 2D images.
+    shift_x : torch.Tensor
+        Tensor of shape (N,) with translations along the X axis (columns),
+        expressed in pixels.
+    shift_y : torch.Tensor
+        Tensor of shape (N,) with translations along the Y axis (rows),
+        expressed in pixels.
+
+    Returns
+    -------
+    torch.Tensor
+        Tensor of shape (N, H, W) containing the shifted images.
+
+    Notes
+    -----
+    The shifts are applied in the Fourier domain by multiplying the real FFT
+    of each image by a complex phase factor. This enables subpixel-accurate
+    translations without interpolation artifacts.
+
+    A real-to-complex FFT (`rfft2`) is used for efficiency, exploiting the
+    Hermitian symmetry of real-valued inputs. The shifted images are recovered
+    via the inverse real FFT (`irfft2`).
     """
-    h, w = img.shape
-    ky = torch.fft.fftfreq(h, d=1.0, device=img.device).reshape(-1, 1)
-    kx = torch.fft.fftfreq(w, d=1.0, device=img.device).reshape(1, -1)
+    n, h, w = imgs.shape
 
-    phase = torch.exp(-2j * torch.pi * (kx * shift_x + ky * shift_y))
-    F_img = torch.fft.fft2(img)
-    F_shifted = F_img * phase
-    return torch.fft.ifft2(F_shifted).real
+    # Frequency coordinates
+    ky = torch.fft.fftfreq(h, d=1.0, device=imgs.device).reshape(1, h, 1)
+    kx = torch.fft.rfftfreq(w, d=1.0, device=imgs.device).reshape(1, 1, w // 2 + 1)
+
+    # Expand shifts
+    sx = shift_x.view(n, 1, 1)
+    sy = shift_y.view(n, 1, 1)
+
+    # Calculate phase and shift images
+    phase = torch.exp(-2j * torch.pi * (kx * sx + ky * sy))
+    fourier_images = torch.fft.rfft2(imgs)
+    fourier_images.mul_(phase)
+    del phase
+
+    # Return real space images
+    return torch.fft.irfft2(fourier_images, s=(h, w))
 
 
+def read_data(
+    star_path: str, device: str = "cpu"
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Read a .star file and return the particle stack along with alignment
+    parameters (in-plane rotation and translations).
 
-def read_data(star_path, device="cpu"):
+    Parameters
+    ----------
+    star_path : str
+        Path to the .star file.
+    device : str, optional
+        PyTorch device where tensors will be loaded (e.g., "cpu" or "cuda"),
+        by default "cpu".
+
+    Returns
+    -------
+    particles : torch.Tensor
+        Tensor of shape (N, H, W) containing the particle images.
+    psi : torch.Tensor
+        Tensor of shape (N,) with in-plane rotation angles in radians.
+    shiftX : torch.Tensor
+        Tensor of shape (N,) with translations along the X axis in pixels.
+    shiftY : torch.Tensor
+        Tensor of shape (N,) with translations along the Y axis in pixels.
+    """
     with open(star_path) as f:
         lines = f.readlines()
 
@@ -68,7 +131,8 @@ def read_data(star_path, device="cpu"):
     shiftY = particles_df["_rlnOriginYAngst"].values / pix_size
 
     # --- Cargar stack de partículas ---
-    stack_path = img_paths[0].split("@")[1]  # formato: "XXX@file.mrcs"
+    star_dir = os.path.dirname(star_path) + "/"
+    stack_path = star_dir + img_paths[0].split("@")[1]  # formato: "XXX@file.mrcs"
     with mrcfile.open(stack_path, permissive=True) as mrc:
         particles = mrc.data.copy()
 
@@ -81,50 +145,126 @@ def read_data(star_path, device="cpu"):
     return particles, psi, shiftX, shiftY
 
 
-def align_particles(star_path, device="cpu"):
-    particles, psi, shiftX, shiftY = read_data(star_path, device=device)
+def align_particles_batch(
+    particles: torch.Tensor,
+    psi: torch.Tensor,
+    shiftX: torch.Tensor,
+    shiftY: torch.Tensor,
+    device: str = "cpu",
+    batch_size: int = 256,
+    inplace: bool = True,
+):
+    """
+    Aligns a set of particles using batched Fourier shifts and spatial rotations.
 
+    The alignment consists of:
+    1. Subpixel translations applied in Fourier space.
+    2. In-plane rotations applied via grid sampling.
+
+    Parameters
+    ----------
+    particles : torch.Tensor
+        Tensor of shape (N, H, W) containing the unaligned particle images.
+    psi : torch.Tensor
+        Tensor of shape (N,) containing in-plane rotation angles (in radians).
+    shiftX : torch.Tensor
+        Tensor of shape (N,) containing X shifts.
+    shiftY : torch.Tensor
+        Tensor of shape (N,) containing Y shifts.
+    batch_size : int, optional
+        Number of particles processed per batch, by default 256.
+    inplace : bool, optional
+        If True, overwrites the input `particles` tensor to save memory.
+        If False, allocates a new tensor for the aligned output. Default is True.
+
+    Returns
+    -------
+    torch.Tensor
+        Tensor of shape (N, H, W) containing the aligned particle images.
+
+    Notes
+    -----
+    - Translations are applied using the Fourier shift theorem for
+      subpixel accuracy.
+    - Rotations are applied using `torch.nn.functional.grid_sample`.
+    - The coordinate grid is defined in the range [-1, 1] with
+      `align_corners=True`.
+    """
     n, h, w = particles.shape
 
+    # Create normalized coordinate grid (h, w, 2)
     yy, xx = torch.meshgrid(
         torch.linspace(-1, 1, h, device=device),
         torch.linspace(-1, 1, w, device=device),
         indexing="ij",
     )
-    base_grid = torch.stack([xx, yy], dim=-1)  # (h,w,2)
+    base_grid = torch.stack([xx, yy], dim=-1)
 
-    aligned = []
-    for i in range(n):
-        shifted = fourier_shift(particles[i], shiftX[i], shiftY[i])
+    # Flatten grid to (1, h*w, 2) for batched matrix multiplication
+    base_grid_rot = base_grid.view(-1, 2).unsqueeze(0)
 
-        # 2. Rotación
-        cos, sin = torch.cos(psi[i]), torch.sin(psi[i])
-        rot_mat = torch.tensor([[cos, -sin], [sin, cos]], device=device)
-        grid = base_grid @ rot_mat.T
-        grid = grid.unsqueeze(0)
+    # Initialize aligned images tensor
+    if inplace:
+        aligned = particles
+    else:
+        aligned = torch.empty_like(particles)
 
-        img = shifted.unsqueeze(0).unsqueeze(0)  # agregar dims batch+channel
-        rotated = F.grid_sample(img, grid, align_corners=True, padding_mode="zeros")[
-            0, 0
-        ]
+    # Process particles in batches
+    for i in range(0, n, batch_size):
+        j = min(i + batch_size, n)
 
-        aligned.append(rotated)
+        # Read batch data
+        batch = particles[i:j]
+        batch_shx = shiftX[i:j]
+        batch_shy = shiftY[i:j]
+        batch_ang = psi[i:j]
 
-    aligned = torch.stack(aligned, dim=0)
+        # 1. Fourier shift
+        shifted = fourier_shift_batch(batch, batch_shx, batch_shy)
+
+        # 2. Rotation
+        # Build rotation matrices: shape (B, 2, 2)
+        cos = torch.cos(batch_ang)
+        sin = torch.sin(batch_ang)
+        zeros = torch.zeros_like(cos)
+
+        rot_mats = torch.stack(
+            [
+                torch.stack([cos, -sin, zeros], dim=1),
+                torch.stack([sin, cos, zeros], dim=1),
+            ],
+            dim=1,
+        )
+
+        # Build affine rotation grid for grid_sample
+        grids = F.affine_grid(
+            rot_mats, size=(shifted.size(0), 1, h, w), align_corners=True
+        )
+
+        # Prepare images for grid_sample -> (B, 1, h, w)
+        imgs = shifted.unsqueeze(1)
+
+        # Apply rotation through sampling
+        rotated = F.grid_sample(
+            imgs, grids, align_corners=True, padding_mode="zeros"
+        ).squeeze(1)
+
+        # Save rotated images to aligned tensor
+        aligned[i:j] = rotated
 
     return aligned
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Promediar partículas alineadas de un archivo .star de RELION 3.0+"
+        description="Aplicar alineamiento a partículas de un archivo .star de RELION 3.0+"
     )
     parser.add_argument("star", type=str, help="Ruta al archivo .star de entrada")
     parser.add_argument(
         "--out",
         type=str,
         default="aligned_particles.mrcs",
-        help="Ruta de salida para el .mrc promedio",
+        help="Ruta de salida para el .mrcs con las partículas alineadas",
     )
     parser.add_argument(
         "--device",
@@ -135,10 +275,14 @@ def main():
     )
     args = parser.parse_args()
 
-    aligned = align_particles(args.star, device=args.device)
+    particles, psi, shiftX, shiftY = read_data(args.star, device=args.device)
+    aligned = align_particles_batch(
+        particles, psi, shiftX, shiftY, device=args.device, batch_size=256, inplace=True
+    )
 
-    mrcfile.write(args.out, data=aligned.detach().cpu().numpy())
+    mrcfile.write(args.out, data=aligned.detach().cpu().numpy(), overwrite=True)
     print(f"Partículas alineadas guardadas en {args.out}")
+
 
 if __name__ == "__main__":
     main()
