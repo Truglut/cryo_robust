@@ -34,6 +34,7 @@ class IRLSSolver(Estimator):
         self,
         images: torch.Tensor,
         image_variance: torch.Tensor,
+        image_std: torch.Tensor,
         precomp_ctf_images: torch.Tensor,
         precomp_ctf_squared: torch.Tensor | float,
         reference: torch.Tensor,
@@ -42,7 +43,7 @@ class IRLSSolver(Estimator):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Performs a single iteration of the Reweighted Least Squares update."""
 
-        weights = self.weight_function(images, reference, torch.sqrt(image_variance))
+        weights = self.weight_function(images, reference, image_std)
 
         # Weight capping
         if self.min_weight is not None or self.max_weight is not None:
@@ -70,6 +71,7 @@ class IRLSSolver(Estimator):
         self,
         images: Dict[Space, torch.Tensor] | torch.Tensor,
         image_variance: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
+        image_std: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
         ctf: torch.Tensor | float | None = None,
         initial_reference: torch.Tensor | None = None,
         prior_mean: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
@@ -109,6 +111,8 @@ class IRLSSolver(Estimator):
             image_variance = torch.var(images, dim=0)
         elif isinstance(image_variance, dict):
             image_variance = image_variance[self.space]
+        if image_std is None or isinstance(image_std, dict):
+            image_std = torch.sqrt(image_variance)
 
         # ctf
         if ctf is None:
@@ -141,6 +145,7 @@ class IRLSSolver(Estimator):
             next_reference, weights = self.step(
                 images,
                 image_variance=image_variance,
+                image_std=image_std,
                 precomp_ctf_images=precomp_ctf_images,
                 precomp_ctf_squared=precomp_ctf_squared,
                 reference=reference,
