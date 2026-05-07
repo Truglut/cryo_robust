@@ -27,7 +27,7 @@ def visualize_results(
         viewer.add_image(ground_truth, name="True image", visible=False)
 
     # Show regular average
-    viewer.add(
+    viewer.add_image(
         masked_images_np.mean(axis=0), name="Average of all images", visible=True
     )
 
@@ -40,7 +40,7 @@ def visualize_results(
         )
     
     # Iterate over methods to show: estimated average, reference and quantile subsets
-    for method_name, data in results:
+    for method_name, data in results.items():
         # Skip the average
         if method_name == AVERAGE_NAME:
             continue
@@ -59,7 +59,7 @@ def visualize_results(
             viewer.add_image(ref_np, name=f"{method_name}: reference", visible=False)
 
         # Show quantile-defined subsets if requested
-        for q in args.quantiles:
+        for q in (args.quantiles or []):
             good_imgs = masked_images_np[data["idx_good"]["quantile"][q]]
             bad_imgs = masked_images_np[data["idx_bad"]["quantile"][q]]
             viewer.add_image(
@@ -74,7 +74,7 @@ def visualize_results(
             )
         
         # Show threshold-defined subsets if requested
-        for thr in args.thresholds:
+        for thr in (args.thresholds or []):
             good_images = masked_images_np[data["idx_good"]["fixed_threshold"][thr]]
             bad_images = masked_images_np[data["idx_bad"]["fixed_threshold"][thr]]
 

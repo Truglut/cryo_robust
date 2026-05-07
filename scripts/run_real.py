@@ -113,7 +113,7 @@ def main():
     args = parse_arguments()
 
     # Load configurations
-    cfg = load_config(args.config, args.snr)
+    cfg = load_config(args.config, None)
 
     # Read images from file path
     tensor_images, images_save, image_path = load_and_preprocess(cfg, args)

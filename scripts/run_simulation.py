@@ -83,6 +83,12 @@ def parse_arguments():
         action="store_true",
         help="If True, save images with weights higher and lower than each given threshold",
     )
+    parser.add_argument(
+        "--save_weights",
+        default=False,
+        action="store_true",
+        help="If True, .npy weight files will be saved for every method",
+    )
     return parser.parse_args()
 
 
@@ -107,6 +113,7 @@ def main():
     mask_radius = cfg["mask"]["params"]["radius"]
     tensor_images, mask_tensor = apply_mask(tensor_images, mask_radius, inplace=True)
     mask = mask_tensor.detach().cpu().numpy()
+    ground_truth *= mask
 
     # Prepare image dict for estimation models
     fourier_images = torch.fft.rfft2(tensor_images, norm="ortho")

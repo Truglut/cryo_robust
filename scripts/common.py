@@ -22,7 +22,7 @@ AVERAGE_NAME = "Average"
 def load_config(config_path: str, snr: float | None = None):
     with open(config_path, "r") as file:
         cfg = yaml.safe_load(file)
-        if snr:
+        if snr is not None:
             cfg["noise"]["snr"] = snr
         return cfg
 
@@ -98,7 +98,7 @@ def get_weights(estimator: Estimator, final_weights: dict[Space, torch.Tensor]):
             final_weights[Space.FOURIER_REAL] + final_weights[Space.FOURIER_IMAG]
         )
     else:
-        weights = estimator.final_weights[estimator.space]
+        weights = final_weights[estimator.space]
 
     return aggregate_weights(weights, "mean")
 
@@ -117,6 +117,9 @@ def process_and_save_subsets(
 
     # Iterate over methods to identify subsets and save if requested
     for method_name, data in results.items():
+        # Skip the average if it is included in `results`
+        if data["estimator"] is None:
+            continue
         # Get aggregated weights according to estimator type
         weights = get_weights(data["estimator"], data["weights"])
 
@@ -144,12 +147,12 @@ def process_and_save_subsets(
                     mrcfile.write(
                         str(subsets_dir / f"{method_name}_{100*q:.0f}pct_best.mrcs"),
                         data=images_save[idx_good["quantile"][q]],
-                        overwrite=True,
+                        overwrite=False,
                     )
                     mrcfile.write(
                         str(subsets_dir / f"{method_name}_{100*q:.0f}pct_worst.mrcs"),
                         data=images_save[idx_bad["quantile"][q]],
-                        overwrite=True,
+                        overwrite=False,
                     )
 
         # Threshold subsets
