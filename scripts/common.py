@@ -1,4 +1,5 @@
 import yaml
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +26,70 @@ def load_config(config_path: str, snr: float | None = None):
         if snr is not None:
             cfg["noise"]["snr"] = snr
         return cfg
+    
+
+def build_base_parser():
+    """Parses the config from the command line"""
+    parser = argparse.ArgumentParser(description="Run robust estimators on real data")
+    parser.add_argument("--config", type=str, required=True, help="Path to YAML config")
+    parser.add_argument(
+        "--device", type=str, default="cpu", help="Compute device for PyTorch"
+    )
+    parser.add_argument(
+        "--view_images",
+        default=False,
+        action="store_true",
+        help="If True, show generated images",
+    )
+    parser.add_argument(
+        "--gmm_evaluation",
+        default=False,
+        action="store_true",
+        help="If True, show a general overview of gmm models",
+    )
+    parser.add_argument(
+        "--plot_weights",
+        default=False,
+        action="store_true",
+        help="If True, show plots of image weights",
+    )
+    parser.add_argument(
+        "--quantiles",
+        type=float,
+        nargs="*",
+        help="Quantiles for which to show (and optionally save with --save_quantiles) best and worst images",
+    )
+    parser.add_argument(
+        "--thresholds",
+        type=float,
+        nargs="*",
+        help="Weight thresholds for which to show good and bad images",
+    )
+    parser.add_argument(
+        "--save_quantiles",
+        default=False,
+        action="store_true",
+        help="If True, save images with highest and lowest weights for each quantile in --quantiles",
+    )
+    parser.add_argument(
+        "--save_thresholds",
+        default=False,
+        action="store_true",
+        help="If True, save images with weights higher and lower than each given threshold",
+    )
+    parser.add_argument(
+        "--save_original",
+        default=False,
+        action="store_true",
+        help="If True, any images saved will be the original, unaligned images",
+    )
+    parser.add_argument(
+        "--save_weights",
+        default=False,
+        action="store_true",
+        help="If True, final weights for every estimation method will be saved as a .npy file",
+    )
+    return parser
 
 
 def apply_mask(images_tensor: torch.Tensor, mask_radius: float, inplace: bool = False):
@@ -42,7 +107,9 @@ def apply_mask(images_tensor: torch.Tensor, mask_radius: float, inplace: bool = 
     return masked_images, mask_tensor
 
 
-def run_estimators(cfg: dict, images_dict: dict[Space, torch.Tensor], args, add_avg: bool = False) -> dict:
+def run_estimators(
+    cfg: dict, images_dict: dict[Space, torch.Tensor], args, add_avg: bool = False
+) -> dict:
     device = args.device
 
     results = {}
@@ -80,7 +147,9 @@ def run_estimators(cfg: dict, images_dict: dict[Space, torch.Tensor], args, add_
             "avg": images_dict[Space.REAL].mean(dim=0),
             "weights": {
                 space: torch.ones(
-                    size=(images_dict[space].shape[0], 1, 1), dtype=torch.float32, device=args.device
+                    size=(images_dict[space].shape[0], 1, 1),
+                    dtype=torch.float32,
+                    device=args.device,
                 )
                 for space in Space
             },
@@ -134,48 +203,57 @@ def process_and_save_subsets(
 
             for i, q in enumerate(quantiles):
                 # Identify good and bad subset indices for this quantile
-                idx_bad["quantile"][q] = weights < p_low[i]
-                idx_good["quantile"][q] = weights >= p_high[i]
+                subset_good = weights >= p_high[i]
+                subset_bad = weights < p_low[i]
 
                 # Print diagnostic info to terminal
                 print(f"\nCalculated images for quantile {q}.")
-                print(f"Number of good images: {idx_good['quantile'][q].sum()}")
-                print(f"Number of bad images:  {idx_bad['quantile'][q].sum()}\n")
+                print(f"Number of good images: {subset_good.sum()}")
+                print(f"Number of bad images:  {subset_bad.sum()}\n")
+
+                # Save subset info to results dict for later processing
+                idx_good["quantile"][q] = subset_good
+                idx_bad["quantile"][q] = subset_bad
 
                 # Save image subsets to file if requested
                 if args.save_quantiles:
                     mrcfile.write(
                         str(subsets_dir / f"{method_name}_{100*q:.0f}pct_best.mrcs"),
-                        data=images_save[idx_good["quantile"][q]],
+                        data=images_save[subset_good],
                         overwrite=False,
                     )
                     mrcfile.write(
                         str(subsets_dir / f"{method_name}_{100*q:.0f}pct_worst.mrcs"),
-                        data=images_save[idx_bad["quantile"][q]],
+                        data=images_save[subset_bad],
                         overwrite=False,
                     )
 
         # Threshold subsets
         for thr in fixed_thresholds:
-            idx_bad["fixed_threshold"][thr] = weights < thr
-            idx_good["fixed_threshold"][thr] = weights >= thr
+            # Identify good and bad subset indices for this threshold
+            subset_good = weights >= thr
+            subset_bad = weights < thr
 
             # Print diagnostic info to terminal
             print(f"\nCalculated good and bad images for weight threshold {thr}")
             print(f"Good images: weight >= threshold. Bad images: weight < threshold")
-            print(f"Number of good images: {idx_good["fixed_threshold"][thr].sum()}")
-            print(f"Number of bad images:  {idx_bad["fixed_threshold"][thr].sum()}\n")
+            print(f"Number of good images: {subset_good.sum()}")
+            print(f"Number of bad images:  {subset_bad.sum()}\n")
+
+            # Save subset info to dict for later processing
+            idx_good["fixed_threshold"][thr] = subset_good
+            idx_bad["fixed_threshold"][thr] = subset_bad
 
             # Save good and bad images for this threshold
             if args.save_thresholds:
                 mrcfile.write(
                     str(subsets_dir / f"{method_name}_weight_geq_{thr}.mrcs"),
-                    data=images_save[idx_good["fixed_threshold"][thr]],
+                    data=images_save[subset_good],
                     overwrite=False,
                 )
                 mrcfile.write(
                     str(subsets_dir / f"{method_name}_weight_lt_{thr}.mrcs"),
-                    data=images_save[idx_bad["fixed_threshold"][thr]],
+                    data=images_save[subset_bad],
                     overwrite=False,
                 )
 

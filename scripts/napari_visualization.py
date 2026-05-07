@@ -19,26 +19,26 @@ def visualize_results(
     # Initialize viewer
     viewer = napari.Viewer()
 
-    # Move images to cpu for napari
-    masked_images_np = tensor_images.detach().cpu().numpy()
-
     # Show original image if there is one
     if ground_truth is not None:
         viewer.add_image(ground_truth, name="True image", visible=False)
 
     # Show regular average
     viewer.add_image(
-        masked_images_np.mean(axis=0), name="Average of all images", visible=True
+        tensor_images.mean(dim=0).detach().cpu().numpy(),
+        name="Average of all images",
+        visible=True,
     )
 
     # Show average of good images if labels have been provided
     if labels is not None:
+        good_images_mask = torch.from_numpy(labels == 0).to(tensor_images.device)
         viewer.add_image(
-            masked_images_np[labels == 0].mean(axis=0),
+            tensor_images[good_images_mask].mean(dim=0).detach().cpu().numpy(),
             name="Average of only good images",
             visible=False,
         )
-    
+
     # Iterate over methods to show: estimated average, reference and quantile subsets
     for method_name, data in results.items():
         # Skip the average
@@ -59,49 +59,59 @@ def visualize_results(
             viewer.add_image(ref_np, name=f"{method_name}: reference", visible=False)
 
         # Show quantile-defined subsets if requested
-        for q in (args.quantiles or []):
-            good_imgs = masked_images_np[data["idx_good"]["quantile"][q]]
-            bad_imgs = masked_images_np[data["idx_bad"]["quantile"][q]]
-            viewer.add_image(
-                good_imgs.mean(axis=0),
-                name=f"{100*q}% best ({method_name})",
-                visible=False,
+        for q in args.quantiles or []:
+            mask_good = torch.from_numpy(data["idx_good"]["quantile"][q]).to(
+                tensor_images.device
             )
-            viewer.add_image(
-                bad_imgs.mean(axis=0),
-                name=f"{100*q}% worst ({method_name})",
-                visible=False,
+            mask_bad = torch.from_numpy(data["idx_bad"]["quantile"][q]).to(
+                tensor_images.device
             )
-        
+
+            if mask_good.sum() > 0:
+                good_mean = tensor_images[mask_good].mean(dim=0).detach().cpu().numpy()
+                viewer.add_image(
+                    good_mean,
+                    name=f"{100*q}% best ({method_name})",
+                    visible=False,
+                )
+            if mask_bad.sum() > 0:
+                bad_mean = tensor_images[mask_bad].mean(dim=0).detach().cpu().numpy()
+                viewer.add_image(
+                    bad_mean,
+                    name=f"{100*q}% worst ({method_name})",
+                    visible=False,
+                )
+
         # Show threshold-defined subsets if requested
-        for thr in (args.thresholds or []):
-            good_images = masked_images_np[data["idx_good"]["fixed_threshold"][thr]]
-            bad_images = masked_images_np[data["idx_bad"]["fixed_threshold"][thr]]
-
-            viewer.add_image(
-                good_images.mean(axis=0),
-                name=f"Average of good (weight >= {thr}) images (method: {method_name}).",
-                visible=False,
+        for thr in args.thresholds or []:
+            mask_good = torch.from_numpy(data["idx_good"]["fixed_threshold"][thr]).to(
+                tensor_images.device
+            )
+            mask_bad = torch.from_numpy(data["idx_bad"]["fixed_threshold"][thr]).to(
+                tensor_images.device
             )
 
-            viewer.add_image(
-                bad_images.mean(axis=0),
-                name=f"Average of bad (weight < {thr}) images (method: {method_name}).",
-                visible=False,
-            )
-    
+            if mask_good.sum() > 0:
+                good_mean = tensor_images[mask_good].mean(dim=0).detach().cpu().numpy()
+                viewer.add_image(
+                    good_mean,
+                    name=f"Average of good (weight >= {thr}) images (method: {method_name}).",
+                    visible=False,
+                )
+
+            if mask_bad.sum() > 0:
+                bad_mean = tensor_images[mask_bad].mean(dim=0).detach().cpu().numpy()
+                viewer.add_image(
+                    bad_mean,
+                    name=f"Average of bad (weight < {thr}) images (method: {method_name}).",
+                    visible=False,
+                )
+
     # Adjust contrast limits
     global_min = float(min(layer.data.min() for layer in viewer.layers))
     global_max = float(max(layer.data.max() for layer in viewer.layers))
     viewer.layers.link_layers(viewer.layers, attributes=["contrast_limits"])
     viewer.layers[0].contrast_limits = (global_min, global_max)
-
-    # Add random sample of the images
-    n_show = min(50, masked_images_np.shape[0])
-    idx_show = np.random.choice(masked_images_np.shape[0], size=n_show, replace=False)
-    viewer.add_image(
-        masked_images_np[idx_show], name=f"{n_show} random images", visible=False
-    )
 
     # Show examples of all image types (good, very rotated, misclassified)
     if labels is not None:
@@ -109,11 +119,24 @@ def visualize_results(
             max_show = 25
             n_show = min(max_show, (labels == label).sum())
             if n_show:
+                labels_mask = torch.from_numpy(labels == label).to(tensor_images.device)
                 viewer.add_image(
-                    masked_images_np[labels == label][:n_show],
+                    tensor_images[labels_mask][:n_show].detach().cpu().numpy(),
                     name=f"{n_show} first {LABEL_TYPES[label]}",
                     visible=False,
                 )
+    else:
+        # Add random sample of the images
+        max_show = 50
+        n_show = min(max_show, tensor_images.shape[0])
+        idx_show = torch.from_numpy(
+            np.random.choice(tensor_images.shape[0], size=n_show, replace=False)
+        ).to(tensor_images.device)
+        viewer.add_image(
+            tensor_images[idx_show].detach().cpu().numpy(),
+            name=f"{n_show} random images",
+            visible=False,
+        )
 
     # Run the viewer
     napari.run()

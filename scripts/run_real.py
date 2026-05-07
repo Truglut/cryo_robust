@@ -13,76 +13,19 @@ from scripts.common import (
     apply_mask,
     run_estimators,
     process_and_save_subsets,
+    build_base_parser,
 )
 from scripts.napari_visualization import visualize_results
 
 
 def parse_arguments():
     """Parses the config from the command line"""
-    parser = argparse.ArgumentParser(description="Run robust estimators on real data")
-    parser.add_argument("--config", type=str, required=True, help="Path to YAML config")
-    parser.add_argument(
-        "--device", type=str, default="cpu", help="Compute device for PyTorch"
-    )
-    parser.add_argument(
-        "--view_images",
-        default=False,
-        action="store_true",
-        help="If True, show generated images",
-    )
-    parser.add_argument(
-        "--gmm_evaluation",
-        default=False,
-        action="store_true",
-        help="If True, show a general overview of gmm models",
-    )
-    parser.add_argument(
-        "--plot_weights",
-        default=False,
-        action="store_true",
-        help="If True, show plots of image weights",
-    )
-    parser.add_argument(
-        "--quantiles",
-        type=float,
-        nargs="*",
-        help="Quantiles for which to show (and optionally save with --save_quantiles) best and worst images",
-    )
-    parser.add_argument(
-        "--thresholds",
-        type=float,
-        nargs="*",
-        help="Weight thresholds for which to show good and bad images",
-    )
-    parser.add_argument(
-        "--save_quantiles",
-        default=False,
-        action="store_true",
-        help="If True, save images with highest and lowest weights for each quantile in --quantiles",
-    )
-    parser.add_argument(
-        "--save_thresholds",
-        default=False,
-        action="store_true",
-        help="If True, save images with weights higher and lower than each given threshold",
-    )
-    parser.add_argument(
-        "--save_original",
-        default=False,
-        action="store_true",
-        help="If True, any images saved will be the original, unaligned images",
-    )
-    parser.add_argument(
-        "--save_weights",
-        default=False,
-        action="store_true",
-        help="If True, final weights for every estimation method will be saved as a .npy file",
-    )
+    parser = build_base_parser()
     return parser.parse_args()
 
 
 def load_and_preprocess(cfg: dict, args) -> tuple:
-    """Loads images, applies masks on the target device"""
+    """Loads images on the target device"""
     data_cfg = cfg["data"]
     image_path = Path(data_cfg["image_path"])
 

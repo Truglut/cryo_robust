@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from method_comparison.dataset_builder import create_evaluation_dataset, LABEL_TYPES
+from method_comparison.dataset_builder import create_evaluation_dataset
 from method_comparison.evaluator import compare_and_report
 from utils.space import Space
 from scripts.common import (
@@ -12,35 +12,14 @@ from scripts.common import (
     apply_mask,
     run_estimators,
     process_and_save_subsets,
+    build_base_parser
 )
 from scripts.napari_visualization import visualize_results
 
 
 def parse_arguments():
     # Parse the config file path from the command line
-    parser = argparse.ArgumentParser(description="Robust Estimation Comparator")
-    parser.add_argument("--config", type=str, required=True, help="Path to YAML config")
-    parser.add_argument(
-        "--device", type=str, default="cpu", help="Compute device for PyTorch"
-    )
-    parser.add_argument(
-        "--view_images",
-        default=False,
-        action="store_true",
-        help="If True, show generated images",
-    )
-    parser.add_argument(
-        "--gmm_evaluation",
-        default=False,
-        action="store_true",
-        help="If True, show a general overview of gmm models",
-    )
-    parser.add_argument(
-        "--plot_weights",
-        default=False,
-        action="store_true",
-        help="If True, show plots of image weights",
-    )
+    parser = build_base_parser()
     parser.add_argument(
         "--snr",
         default=None,
@@ -58,36 +37,6 @@ def parse_arguments():
         default=False,
         action="store_true",
         help="If True, the mask will be reapplied to the estimations from every method",
-    )
-    parser.add_argument(
-        "--quantiles",
-        type=float,
-        nargs="*",
-        help="Quantiles for which to show (and optionally save with --save_quantiles) best and worst images",
-    )
-    parser.add_argument(
-        "--thresholds",
-        type=float,
-        nargs="*",
-        help="Weight thresholds for which to show good and bad images",
-    )
-    parser.add_argument(
-        "--save_quantiles",
-        default=False,
-        action="store_true",
-        help="If True, save images with highest and lowest weights for each quantile in --quantiles",
-    )
-    parser.add_argument(
-        "--save_thresholds",
-        default=False,
-        action="store_true",
-        help="If True, save images with weights higher and lower than each given threshold",
-    )
-    parser.add_argument(
-        "--save_weights",
-        default=False,
-        action="store_true",
-        help="If True, .npy weight files will be saved for every method",
     )
     return parser.parse_args()
 
