@@ -230,8 +230,8 @@ def plot_admm_vs_irls_scatter(
 
 
 def compare_and_report(
-    estimators: Dict[str, Any],
-    images_dict: Dict[Space, torch.Tensor],
+    results: dict[str, Any],
+    images_dict: dict[Space, torch.Tensor],
     ground_truth_img: np.ndarray,
     labels: np.ndarray,
     plot_weights: bool = False,
@@ -243,58 +243,63 @@ def compare_and_report(
     fsc_threshold: float = 0.143,
     mask: np.ndarray = np.array([1]),
     reapply_mask: bool = False,
-) -> Dict[str, Any]:
-
+):
     print("\n" + "-" * 25 + "EVALUATION RESULTS" + "-" * 25 + "\n")
 
+    # Identify good images
     idx_good = labels == 0
-    all_scores_for_plotting = {}
-    fsc_data_for_plotting = {}  # Store FSC curves
-    metrics_summary = {}
+
+    # Initialize scores and metrics dicts
+    all_scores_for_plotting = {}  # stores weights
+    fsc_data_for_plotting = {}  # stores fsc curves for plots
+    metrics_summary = {}  # stores error metrics
 
     # Setup the references for energy calculations
     gt_tensor = torch.from_numpy(ground_truth_img).to(
         dtype=torch.float32, device=images_dict[Space.REAL].device
     )
-
     if energy_reference == "ground_truth":
         ref_real = gt_tensor
     elif energy_reference == "global_avg":
         ref_real = images_dict[Space.REAL].mean(dim=0)
     else:
         raise ValueError("energy_reference must be 'ground_truth' or 'global_avg'")
-
     ref_fourier = torch.fft.rfft2(ref_real, norm="ortho")
 
-    for method_name, estimator in estimators.items():
+    # Iterate over methods to calculate metrics and get weights for plots
+    for method_name, data in results.items():
         metrics_summary[method_name] = {}
 
-        # 1. Image Quality Metrics & Resolution
-        estimated_img = estimator.avg.detach().cpu().numpy()
+        # Get the estimate from this method
+        estimated_img = data["avg"].detach().cpu().numpy()
         if reapply_mask:
-            estimated_img = mask * estimated_img
+            estimated_img *= mask
 
+        # Calculate error metrics
         rmse = np.sqrt(mean_squared_error(ground_truth_img, estimated_img))
         corr, _ = pearsonr(ground_truth_img.flatten(), estimated_img.flatten())
 
-        # --- FSC Calculation ---
+        # FSC Calculation
         freqs, fsc_curve = compute_fsc(estimated_img, ground_truth_img)
         resolution = get_resolution_from_fsc(freqs, fsc_curve, threshold=fsc_threshold)
-
         fsc_data_for_plotting[method_name] = (freqs, fsc_curve)
 
+        # Save metrics in dict
         metrics_summary[method_name]["RMSE"] = rmse
         metrics_summary[method_name]["Pearson_Corr"] = corr
         metrics_summary[method_name][f"FSC_Resolution_{fsc_threshold}"] = resolution
 
+        # Print summary to terminal
         print(f"--- {method_name.upper()} ---")
         print(
-            f"  Reconstruction RMSE: {rmse:.4f} | Corr: {corr:.4f} | Res ({fsc_threshold}): {resolution:.4f}"
+            f"  Reconstruction RMSE: {rmse:.4f} | "
+            f"Corr: {corr:.4f} | Res ({fsc_threshold}): {resolution:.4f}"
         )
 
-        # 2. Outlier Rejection Metrics (Evaluating EVERY space)
-        for space, w in estimator.final_weights.items():
-            if w is None:
+        # Outlier rejection metrics (precision and recall)
+        weights_dict = data["weights"]
+        for space, weights in weights_dict.items():
+            if weights is None:
                 continue
 
             # Select reference and strategies based on space
@@ -311,7 +316,7 @@ def compare_and_report(
                 continue
 
             for strategy in strategies:
-                scores = aggregate_weights(w, strategy=strategy, reference=ref)
+                scores = aggregate_weights(weights, strategy=strategy, reference=ref)
 
                 # Tag clearly for plots
                 plot_key = f"{method_name} ({space.name} | {strategy})"
@@ -328,12 +333,13 @@ def compare_and_report(
                 print(f"  Space: {space.name} (Agg: {strategy})")
                 print(f"    Avg Precision:   {space_metrics['ap']:.4f}")
                 print(f"    Soft Precision:  {space_metrics['soft_precision']:.4f}")
-                for recall_method in ALL_RECALL_METHODS:
+                for recall_method in recall_methods:
                     metric = space_metrics.get(f"soft_recall_{recall_method}", None)
                     if metric is not None:
                         print(f"    Soft Recall:  {metric:.4f}\t({recall_method})")
 
-        # 3. Handle ADMM Baseline Extraction
+        # Handle ADMM Baseline Extraction
+        estimator = data["estimator"]
         is_admm = isinstance(estimator, ADMMSolver)
         if is_admm and plot_weights:
             print(f"  -> Extracting baseline IRLS weights for {method_name}...")
@@ -355,7 +361,7 @@ def compare_and_report(
                 )
         print("")
 
-    # 4. Standard Distribution Visualizations
+    # Weight Distribution Visualizations
     if plot_weights:
         # # Plot FSC Curves
         # plot_fsc_curves(fsc_data_for_plotting, threshold=fsc_threshold)

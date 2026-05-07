@@ -4,14 +4,14 @@ import numpy as np
 import torch
 import mrcfile
 import napari
+
 from estimators import build_estimator
 from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
 from method_comparison.dataset_builder import create_evaluation_dataset
 from method_comparison.evaluator import compare_and_report
-from method_comparison.gmm_evaluation import evaluate_gmm_fits
+
 from utils.masks import create_circular_mask
 from utils.space import Space
-
 
 LABEL_TYPES = {
     0: "generated copies of reference",
@@ -90,7 +90,6 @@ def main():
     # Create mask for images
     image_shape = images.shape[1:]
     mask = create_circular_mask(image_shape, cfg["mask"]["params"]["radius"])
-    tensor_mask = torch.tensor(mask)
 
     # Apply mask to images
     images = mask * images
@@ -140,24 +139,27 @@ def main():
             estimator.fit(tensor_images)
 
         # 3. Store results (final weights and estimated average)
-        est_avg = tensor_mask * estimator.avg if args.reapply_mask else estimator.avg
         results[method_name] = {
-            "avg": est_avg,
+            "avg": estimator.avg,
             "weights": estimator.final_weights,
-            "reference": reference
+            "reference": reference,
+            "estimator": estimator,
         }
 
     results["Average"] = {
         "avg": tensor_images.mean(dim=0),
-        "weights": torch.ones(
-            size=(images.shape[0], 1, 1), dtype=torch.float32, device=args.device
-        ),
-        "reference": None
+        "weights": {
+            space: torch.ones(
+                size=(images.shape[0], 1, 1), dtype=torch.float32, device=args.device
+            )
+            for space in Space
+        },
+        "reference": None,
+        "estimator": None,
     }
 
-    # Evaluate and compare
     compare_and_report(
-        estimators=estimators,
+        results=results,
         images_dict=images_dict,  # Pass images to allow baseline fits / global avg
         ground_truth_img=ground_truth,
         labels=labels,
@@ -167,13 +169,9 @@ def main():
         fourier_agg_strategies=["energy"],
         energy_reference="ground_truth",  # Or "global_avg"
         fsc_threshold=0.143,
-        mask = mask,
-        reapply_mask = args.reapply_mask
+        mask=mask,
+        reapply_mask=args.reapply_mask,
     )
-
-    # # Evaluate gmm fits
-    # if args.gmm_evaluation:
-    #     evaluate_gmm_fits(results, estimators, tensor_images, labels)
 
     # Show images (averages and original images) with napari
     if args.view_images:
