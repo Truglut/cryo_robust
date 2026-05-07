@@ -186,7 +186,7 @@ class IRLSFourier(Estimator):
     @torch.inference_mode()
     def fit(
         self,
-        images: Dict[Space, torch.Tensor],
+        images: Dict[Space, torch.Tensor] | torch.Tensor,
         image_variance: Dict[Space, torch.Tensor] | None = None,
         ctf: torch.Tensor | float | None = None,
         initial_reference: torch.Tensor | None = None,
@@ -195,6 +195,13 @@ class IRLSFourier(Estimator):
         precomp_ctf_images: Dict[Space, torch.Tensor] | None = None,
         precomp_ctf_squared: torch.Tensor | float | None = None,
     ):
+        if isinstance(images, torch.Tensor):
+            images = {Space.REAL: images}
+        if images.get(Space.FOURIER_IMAG) is None or images.get(Space.FOURIER_REAL) is None:
+            fourier_images = torch.fft.rfft2(images[Space.REAL], norm="ortho")
+            images[Space.FOURIER_REAL] = fourier_images.real
+            images[Space.FOURIER_IMAG] = fourier_images.imag
+            del fourier_images
         if isinstance(prior_variance, float):
             prior_variance = {
                 Space.FOURIER_IMAG: prior_variance,
