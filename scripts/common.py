@@ -1,0 +1,187 @@
+import yaml
+from pathlib import Path
+
+import numpy as np
+import mrcfile
+import torch
+
+from estimators import build_estimator
+from estimators.base import Estimator
+from estimators.admm import ADMMSolver
+from estimators.irls import IRLSFourier
+from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
+
+from method_comparison.evaluator import aggregate_weights
+
+from utils.masks import create_circular_mask
+from utils.space import Space
+
+AVERAGE_NAME = "Average"
+
+
+def load_config(config_path: str, snr: float | None = None):
+    with open(config_path, "r") as file:
+        cfg = yaml.safe_load(file)
+        if snr:
+            cfg["noise"]["snr"] = snr
+        return cfg
+
+
+def apply_mask(images_tensor: torch.Tensor, mask_radius: float, inplace: bool = False):
+    """Applies a circular mask to a batch of images, optionally modifying the input tensor in-place"""
+    # Create mask on device
+    image_shape = tuple(images_tensor.shape[1:])
+    mask_np = create_circular_mask(image_shape, mask_radius)
+    mask_tensor = torch.from_numpy(mask_np).to(device=images_tensor.device)
+
+    masked_images = images_tensor if inplace else images_tensor.clone()
+
+    # Apply mask to images
+    masked_images *= mask_tensor
+
+    return masked_images, mask_tensor
+
+
+def run_estimators(cfg: dict, images_dict: dict[Space, torch.Tensor], args, add_avg: bool = False) -> dict:
+    device = args.device
+
+    results = {}
+    for method_cfg in cfg["experiment"]["methods"]:
+        method_name = method_cfg["name"]
+        print(f"Running {method_name}...")
+
+        estimator = build_estimator(method_cfg, images_dict, device=device)
+
+        # Handle optional reference
+        reference = None
+        if method_cfg.get("initial_reference"):
+            ref_np = mrcfile.read(method_cfg["initial_reference"])
+            reference = torch.tensor(ref_np, dtype=torch.float32, device=device)
+
+        if isinstance(estimator, (GMMEstimator, RecursiveGMMEstimator)):
+            estimator.fit(
+                images_dict,
+                reference=reference,
+                plot_fits=args.gmm_evaluation,
+                plot_title=method_name,
+            )
+        else:
+            estimator.fit(images_dict, reference=reference)
+
+        results[method_name] = {
+            "estimator": estimator,
+            "reference": reference,
+            "avg": estimator.avg,
+            "weights": estimator.final_weights,
+        }
+
+    if add_avg:
+        results[AVERAGE_NAME] = {
+            "avg": images_dict[Space.REAL].mean(dim=0),
+            "weights": {
+                space: torch.ones(
+                    size=(images_dict[space].shape[0], 1, 1), dtype=torch.float32, device=args.device
+                )
+                for space in Space
+            },
+            "reference": None,
+            "estimator": None,
+        }
+    return results
+
+
+def get_weights(estimator: Estimator, final_weights: dict[Space, torch.Tensor]):
+    if isinstance(estimator, ADMMSolver):
+        weights = final_weights[Space.REAL]
+    elif isinstance(estimator, IRLSFourier):
+        weights = 0.5 * (
+            final_weights[Space.FOURIER_REAL] + final_weights[Space.FOURIER_IMAG]
+        )
+    else:
+        weights = estimator.final_weights[estimator.space]
+
+    return aggregate_weights(weights, "mean")
+
+
+def process_and_save_subsets(
+    results: dict, image_path: Path, images_save: np.ndarray, args
+) -> None:
+    # Initialize quantiles and thresholds arrays from args
+    quantiles = np.array(args.quantiles) if args.quantiles else np.array([])
+    fixed_thresholds = np.array(args.thresholds) if args.thresholds else np.array([])
+
+    # Create subsets directory if saves requested
+    if args.save_quantiles or args.save_thresholds:
+        subsets_dir = image_path.parent / "subsets"
+        subsets_dir.mkdir(exist_ok=True)
+
+    # Iterate over methods to identify subsets and save if requested
+    for method_name, data in results.items():
+        # Get aggregated weights according to estimator type
+        weights = get_weights(data["estimator"], data["weights"])
+
+        # Initialize indices dicts
+        idx_good = {"quantile": {}, "fixed_threshold": {}}
+        idx_bad = {"quantile": {}, "fixed_threshold": {}}
+
+        # Quantile subsets
+        if quantiles.size > 0:
+            p_low = np.quantile(weights, quantiles)
+            p_high = np.quantile(weights, 1 - quantiles)
+
+            for i, q in enumerate(quantiles):
+                # Identify good and bad subset indices for this quantile
+                idx_bad["quantile"][q] = weights < p_low[i]
+                idx_good["quantile"][q] = weights >= p_high[i]
+
+                # Print diagnostic info to terminal
+                print(f"\nCalculated images for quantile {q}.")
+                print(f"Number of good images: {idx_good['quantile'][q].sum()}")
+                print(f"Number of bad images:  {idx_bad['quantile'][q].sum()}\n")
+
+                # Save image subsets to file if requested
+                if args.save_quantiles:
+                    mrcfile.write(
+                        str(subsets_dir / f"{method_name}_{100*q:.0f}pct_best.mrcs"),
+                        data=images_save[idx_good["quantile"][q]],
+                        overwrite=True,
+                    )
+                    mrcfile.write(
+                        str(subsets_dir / f"{method_name}_{100*q:.0f}pct_worst.mrcs"),
+                        data=images_save[idx_bad["quantile"][q]],
+                        overwrite=True,
+                    )
+
+        # Threshold subsets
+        for thr in fixed_thresholds:
+            idx_bad["fixed_threshold"][thr] = weights < thr
+            idx_good["fixed_threshold"][thr] = weights >= thr
+
+            # Print diagnostic info to terminal
+            print(f"\nCalculated good and bad images for weight threshold {thr}")
+            print(f"Good images: weight >= threshold. Bad images: weight < threshold")
+            print(f"Number of good images: {idx_good["fixed_threshold"][thr].sum()}")
+            print(f"Number of bad images:  {idx_bad["fixed_threshold"][thr].sum()}\n")
+
+            # Save good and bad images for this threshold
+            if args.save_thresholds:
+                mrcfile.write(
+                    str(subsets_dir / f"{method_name}_weight_geq_{thr}.mrcs"),
+                    data=images_save[idx_good["fixed_threshold"][thr]],
+                    overwrite=False,
+                )
+                mrcfile.write(
+                    str(subsets_dir / f"{method_name}_weight_lt_{thr}.mrcs"),
+                    data=images_save[idx_bad["fixed_threshold"][thr]],
+                    overwrite=False,
+                )
+
+        # Save subset data in results dict
+        data["idx_good"] = idx_good
+        data["idx_bad"] = idx_bad
+
+        # Save weights to file if requested
+        if args.save_weights:
+            weights_dir = image_path.parent / "weights"
+            weights_dir.mkdir(exist_ok=True)
+            np.save(str(weights_dir / f"{method_name}_weights.npy"), weights)

@@ -3,6 +3,12 @@ import mrcfile
 import scipy
 from typing import Tuple
 
+LABEL_TYPES = {
+    0: "generated copies of reference",
+    1: "very rotated copies of reference",
+    2: "misclassified outliers",
+}
+
 
 def add_noise(
     images: np.ndarray,
@@ -68,7 +74,8 @@ def load_misclassified_images(
 
     if normalize:
         images = (images - images.min(axis=(1, 2), keepdims=True)) / (
-            images.max(axis=(1, 2), keepdims=True) - images.min(axis=(1, 2), keepdims=True)
+            images.max(axis=(1, 2), keepdims=True)
+            - images.min(axis=(1, 2), keepdims=True)
         )
 
     # Handle the one image case

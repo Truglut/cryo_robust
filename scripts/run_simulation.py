@@ -1,34 +1,22 @@
 import argparse
-import yaml
+from pathlib import Path
+
 import numpy as np
 import torch
-import mrcfile
-import napari
 
-from estimators import build_estimator
-from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
-from method_comparison.dataset_builder import create_evaluation_dataset
+from method_comparison.dataset_builder import create_evaluation_dataset, LABEL_TYPES
 from method_comparison.evaluator import compare_and_report
-
-from utils.masks import create_circular_mask
 from utils.space import Space
-
-LABEL_TYPES = {
-    0: "generated copies of reference",
-    1: "very rotated copies of reference",
-    2: "misclassified outliers",
-}
-
-
-def load_config(config_path: str, snr: float | None = None):
-    with open(config_path, "r") as file:
-        cfg = yaml.safe_load(file)
-        if snr:
-            cfg["noise"]["snr"] = snr
-        return cfg
+from scripts.common import (
+    load_config,
+    apply_mask,
+    run_estimators,
+    process_and_save_subsets,
+)
+from scripts.napari_visualization import visualize_results
 
 
-def main():
+def parse_arguments():
     # Parse the config file path from the command line
     parser = argparse.ArgumentParser(description="Robust Estimation Comparator")
     parser.add_argument("--config", type=str, required=True, help="Path to YAML config")
@@ -71,7 +59,35 @@ def main():
         action="store_true",
         help="If True, the mask will be reapplied to the estimations from every method",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--quantiles",
+        type=float,
+        nargs="*",
+        help="Quantiles for which to show (and optionally save with --save_quantiles) best and worst images",
+    )
+    parser.add_argument(
+        "--thresholds",
+        type=float,
+        nargs="*",
+        help="Weight thresholds for which to show good and bad images",
+    )
+    parser.add_argument(
+        "--save_quantiles",
+        default=False,
+        action="store_true",
+        help="If True, save images with highest and lowest weights for each quantile in --quantiles",
+    )
+    parser.add_argument(
+        "--save_thresholds",
+        default=False,
+        action="store_true",
+        help="If True, save images with weights higher and lower than each given threshold",
+    )
+    return parser.parse_args()
+
+
+def main():
+    args = parse_arguments()
 
     # Load configurations
     cfg = load_config(args.config, args.snr)
@@ -85,78 +101,28 @@ def main():
     images, ground_truth, labels = create_evaluation_dataset(
         cfg, rng, normalize=args.normalize
     )
-    # labels according to LABEL_TYPES
-
-    # Create mask for images
-    image_shape = images.shape[1:]
-    mask = create_circular_mask(image_shape, cfg["mask"]["params"]["radius"])
+    tensor_images = torch.from_numpy(images).to(dtype=torch.float32, device=args.device)
 
     # Apply mask to images
-    images = mask * images
-    ground_truth = ground_truth * mask
+    mask_radius = cfg["mask"]["params"]["radius"]
+    tensor_images, mask_tensor = apply_mask(tensor_images, mask_radius, inplace=True)
+    mask = mask_tensor.detach().cpu().numpy()
 
-    # Prepare images (real space and fourier) on pytorch
-    tensor_images = torch.from_numpy(images).to(dtype=torch.float32, device=args.device)
+    # Prepare image dict for estimation models
     fourier_images = torch.fft.rfft2(tensor_images, norm="ortho")
     images_dict = {
         Space.REAL: tensor_images,
         Space.FOURIER_REAL: fourier_images.real,
         Space.FOURIER_IMAG: fourier_images.imag,
     }
+    del fourier_images
 
     # Run the Estimation Methods
-    results = {}
-    estimators = {}
-    for method_cfg in cfg["experiment"]["methods"]:
-        method_name = method_cfg["name"]
-        print(f"Running {method_name} on {args.device.upper()}...")
+    results = run_estimators(cfg, images_dict, args, add_avg=True)
 
-        # 1. Build the estimator, passing the command-line device
-        estimator = build_estimator(method_cfg, images_dict, device=args.device)
-        estimators[method_name] = estimator
-
-        # Get initial reference for estimator
-        if method_cfg.get("use_reference", False):
-            reference = torch.tensor(
-                mrcfile.read(method_cfg["use_reference"]),
-                dtype=torch.float32,
-                device=args.device,
-            )
-        else:
-            reference = None
-
-        # Run estimator on images
-        if isinstance(estimator, GMMEstimator) or isinstance(
-            estimator, RecursiveGMMEstimator
-        ):
-            estimator.fit(
-                tensor_images,
-                reference=reference,
-                plot_fits=args.gmm_evaluation,
-                plot_title=method_name,
-            )
-        else:
-            estimator.fit(tensor_images)
-
-        # 3. Store results (final weights and estimated average)
-        results[method_name] = {
-            "avg": estimator.avg,
-            "weights": estimator.final_weights,
-            "reference": reference,
-            "estimator": estimator,
-        }
-
-    results["Average"] = {
-        "avg": tensor_images.mean(dim=0),
-        "weights": {
-            space: torch.ones(
-                size=(images.shape[0], 1, 1), dtype=torch.float32, device=args.device
-            )
-            for space in Space
-        },
-        "reference": None,
-        "estimator": None,
-    }
+    # Identify and save requested subsets
+    image_path = Path(cfg["data"]["reference_image_path"])
+    process_and_save_subsets(results, image_path, images_save=images, args=args)
 
     compare_and_report(
         results=results,
@@ -175,56 +141,7 @@ def main():
 
     # Show images (averages and original images) with napari
     if args.view_images:
-        viewer = napari.Viewer()
-
-        # Show original image
-        viewer.add_image(ground_truth, name=f"True image", visible=True)
-
-        # Show regular average
-        viewer.add_image(
-            images.mean(axis=0),
-            name=f"Average of all images (equal weights)",
-            visible=False,
-        )
-
-        # Show average of good images
-        viewer.add_image(
-            images[labels == 0].mean(axis=0),
-            name="Average of only good images",
-            visible=False,
-        )
-
-        # Show estimated average with every method
-        for method_cfg in cfg["experiment"]["methods"]:
-            method_name = method_cfg["name"]
-            viewer.add_image(
-                results[method_name]["avg"],
-                name=f"Estimation with {method_name}",
-                visible=False,
-            )
-
-        ## Adjust contrast limits to better compare images
-        # Sweep through the data of all added layers to find the absolute extremes
-        global_min = float(min(layer.data.min() for layer in viewer.layers))
-        global_max = float(max(layer.data.max() for layer in viewer.layers))
-
-        # Link and apply
-        viewer.layers.link_layers(viewer.layers, attributes=["contrast_limits"])
-        viewer.layers[0].contrast_limits = (global_min, global_max)
-
-        # Show examples of all image types (good, very rotated, misclassified)
-        for label in LABEL_TYPES:
-            max_show = 25
-            n_show = min(max_show, (labels == label).sum())
-            if n_show:
-                viewer.add_image(
-                    images[labels == label][:n_show],
-                    name=f"{n_show} first {LABEL_TYPES[label]}",
-                    visible=False,
-                )
-
-        # Run the viewer with napari
-        napari.run()
+        visualize_results(results, tensor_images, args, ground_truth, labels)
 
 
 if __name__ == "__main__":
