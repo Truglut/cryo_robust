@@ -52,6 +52,8 @@ class ADMMSolver(Estimator):
         ref_fourier: torch.Tensor,
         dual_vars: torch.Tensor,
         mu: float,
+        real_irls_max_iter: int | None = None,
+        fourier_irls_max_iter: int | None = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, Dict[Space, torch.Tensor]]:
         """
         Performs a single iteration of the ADMM method, updating real and fourier space
@@ -69,6 +71,7 @@ class ADMMSolver(Estimator):
             initial_reference=ref_real,
             prior_mean=prior_mean,
             prior_variance=prior_variance,
+            max_iter_override=real_irls_max_iter,
         )
 
         # Update fourier space estimate
@@ -86,6 +89,7 @@ class ADMMSolver(Estimator):
             initial_reference=ref_fourier.real,
             prior_mean=prior_mean_fourier.real,
             prior_variance=prior_variance * self.fourier_multiplier,
+            max_iter_override=fourier_irls_max_iter,
         )
         # Imaginary part
         next_fourier_imag, final_weights_fourier_imag = self.irls_fourier.fit(
@@ -98,6 +102,7 @@ class ADMMSolver(Estimator):
             initial_reference=ref_fourier.imag,
             prior_mean=prior_mean_fourier.imag,
             prior_variance=prior_variance * self.fourier_multiplier,
+            max_iter_override=fourier_irls_max_iter,
         )
         next_fourier = torch.complex(next_fourier_real, next_fourier_imag)
 
@@ -210,6 +215,8 @@ class ADMMSolver(Estimator):
         weights = None
 
         for i in range(self.max_iter):
+            real_irls_max_iter = min(3 + i, self.irls_real.max_iter)
+            fourier_irls_max_iter = min(3 + i, self.irls_fourier.max_iter)
             next_real, next_real_transformed, next_fourier, weights = self.step(
                 images=images,
                 image_variance=image_variance,
@@ -221,6 +228,8 @@ class ADMMSolver(Estimator):
                 ref_fourier=ref_fourier,
                 dual_vars=dual_vars,
                 mu=mu,
+                real_irls_max_iter=real_irls_max_iter,
+                fourier_irls_max_iter=fourier_irls_max_iter,
             )
 
             # Update dual variable
@@ -253,13 +262,13 @@ class ADMMSolver(Estimator):
                 elif dual_norm > 10 * primal_norm:
                     mu /= 2
 
-            if i % 5 == 4 and verbose:
-                print(f"ADMM iteration {i + 1}.")
-                print(f"Penalty parameter: {mu = }")
-                print(
-                    f"Residuals - Primal: {primal_norm:.4f} (Tol: {eps_pri:.4f}) | "
-                    f"Dual: {dual_norm:.4f} (Tol: {eps_dual:.4f})"
-                )
+                if verbose:
+                    print(f"ADMM iteration {i + 1}.")
+                    print(f"Penalty parameter: {mu = }")
+                    print(
+                        f"Residuals - Primal: {primal_norm:.4f} (Tol: {eps_pri:.4f}) | "
+                        f"Dual: {dual_norm:.4f} (Tol: {eps_dual:.4f})"
+                    )
 
             # Update references
             ref_real = next_real
