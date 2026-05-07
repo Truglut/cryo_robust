@@ -80,6 +80,7 @@ class IRLSSolver(Estimator):
         precomp_ctf_squared: (
             Dict[Space, torch.Tensor] | torch.Tensor | float | None
         ) = None,
+        max_iter_override: int | None = None
     ):
         """
         Executes the Iteratively Reweighted Least Squares (IRLS) optimization.
@@ -136,12 +137,15 @@ class IRLSSolver(Estimator):
         if isinstance(prior_variance, dict):
             prior_variance = prior_variance[self.space]
 
+        # Configure maximum iterations
+        max_iter = max_iter_override or self.max_iter
+
         # Algorithm initialization
         reference = initial_reference
         weights = None
         self.converged = False
 
-        for _ in range(self.max_iter):
+        for _ in range(max_iter):
             next_reference, weights = self.step(
                 images,
                 image_variance=image_variance,
