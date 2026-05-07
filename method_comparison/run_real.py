@@ -1,17 +1,20 @@
 import argparse
 import yaml
+import os
+
 import numpy as np
 import torch
 import napari
 import mrcfile
+
 from estimators import build_estimator
 from estimators.admm import ADMMSolver
 from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
+from estimators.irls import IRLSFourier
 from method_comparison.evaluator import report_unlabeled, aggregate_weights
 from method_comparison.gmm_evaluation import evaluate_gmm_fits_unlabeled
 from utils.masks import create_circular_mask
 from utils.space import Space
-import os
 
 
 def load_config(config_path: str, snr: float | None = None):
@@ -180,6 +183,11 @@ def main():
     for method_name, estimator in estimators.items():
         if isinstance(estimator, ADMMSolver):
             weights = estimator.final_weights[Space.REAL]
+        elif isinstance(estimator, IRLSFourier):
+            weights = 0.5 * (
+                estimator.final_weights[Space.FOURIER_REAL]
+                + estimator.final_weights[Space.FOURIER_IMAG]
+            )
         else:
             weights = estimator.final_weights[estimator.space]
 

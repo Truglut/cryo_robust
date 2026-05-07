@@ -21,7 +21,7 @@ def plot_distributions(
     labels: np.ndarray,
     metric_name: str = "Final Weight Distribution",
     max_subplots: int = 4,
-    density: bool = False
+    density: bool = False,
 ):
     """Plots histograms of image scores separated by class."""
     if not scores_dict:
@@ -228,6 +228,7 @@ def plot_admm_vs_irls_scatter(
 
 ### Main evaluation pipeline ###
 
+
 def compare_and_report(
     estimators: Dict[str, Any],
     images_dict: Dict[Space, torch.Tensor],
@@ -364,7 +365,7 @@ def compare_and_report(
             labels,
             metric_name="Weight Distribution",
             max_subplots=max_subplots,
-            density=False
+            density=False,
         )
 
     return metrics_summary
@@ -379,7 +380,15 @@ def report_unlabeled(results: dict, plot_weights: bool = True):
 
         for method_name, data in results.items():
             print(f"Processed: {method_name}")
-            weights = data["weights"][Space.REAL]
+
+            # Get relevant weights
+            if data["weights"][Space.REAL] is not None:
+                weights = data["weights"][Space.REAL]
+            else:
+                weights = 0.5 * (
+                    data["weights"][Space.FOURIER_REAL]
+                    + data["weights"][Space.FOURIER_IMAG]
+                )
 
             # Store weights for the next plot
             all_scores[method_name] = aggregate_weights(weights)
