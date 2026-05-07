@@ -5,6 +5,8 @@ from .base import Estimator
 from .irls import IRLSSolver
 from utils.space import Space
 
+import time
+
 
 class ADMMSolver(Estimator):
     def __init__(
@@ -42,6 +44,7 @@ class ADMMSolver(Estimator):
         self,
         images: Dict[Space, torch.Tensor],
         image_variance: Dict[Space, torch.Tensor],
+        image_std: Dict[Space, torch.Tensor],
         ctf: torch.Tensor,
         precomp_ctf_images: Dict[Space, torch.Tensor],
         precomp_ctf_squared: Dict[Space, torch.Tensor | float],
@@ -51,7 +54,8 @@ class ADMMSolver(Estimator):
         mu: float,
     ) -> Tuple[torch.Tensor, torch.Tensor, Dict[Space, torch.Tensor]]:
         """
-        Performs a single iteration of the Reweighted Least Squares update.
+        Performs a single iteration of the ADMM method, updating real and fourier space
+        through IRLS with their respective prior means and variances.
         """
         # Update real space estimate with IRLS
         prior_mean = torch.fft.irfft2(ref_fourier + dual_vars / mu, norm="ortho")
@@ -59,6 +63,7 @@ class ADMMSolver(Estimator):
         next_real, final_weights_real = self.irls_real.fit(
             images[Space.REAL],
             image_variance=image_variance[Space.REAL],
+            image_std=image_std[Space.REAL],
             precomp_ctf_images=precomp_ctf_images[Space.REAL],
             precomp_ctf_squared=precomp_ctf_squared[Space.REAL],
             initial_reference=ref_real,
@@ -74,6 +79,7 @@ class ADMMSolver(Estimator):
         next_fourier_real, final_weights_fourier_real = self.irls_fourier.fit(
             images=images[Space.FOURIER_REAL],
             image_variance=image_variance[Space.FOURIER_REAL],
+            image_std=image_std[Space.FOURIER_REAL],
             ctf=ctf,
             precomp_ctf_images=precomp_ctf_images[Space.FOURIER_REAL],
             precomp_ctf_squared=precomp_ctf_squared[Space.FOURIER_REAL],
@@ -85,6 +91,7 @@ class ADMMSolver(Estimator):
         next_fourier_imag, final_weights_fourier_imag = self.irls_fourier.fit(
             images=images[Space.FOURIER_IMAG],
             image_variance=image_variance[Space.FOURIER_IMAG],
+            image_std=image_std[Space.FOURIER_IMAG],
             ctf=ctf,
             precomp_ctf_images=precomp_ctf_images[Space.FOURIER_IMAG],
             precomp_ctf_squared=precomp_ctf_squared[Space.FOURIER_IMAG],
@@ -113,9 +120,10 @@ class ADMMSolver(Estimator):
         ctf: torch.Tensor | float | None = None,
         initial_ref_real: torch.Tensor | None = None,
         initial_ref_fourier: torch.Tensor | None = None,
+        verbose: bool = True,
     ):
         """
-        Executes the Iteratively Reweighted Least Squares (IRLS) optimization.
+        Executes the Alternating Direction Method of Multipliers (ADMM) optimization.
         """
         images = self._prepare_data(images)
 
@@ -137,6 +145,7 @@ class ADMMSolver(Estimator):
         # Calculate image variance (per-pixel) if not provided
         if image_variance is None:
             image_variance = {space: torch.var(images[space], dim=0) for space in Space}
+        image_std = {space: torch.sqrt(image_variance[space]) for space in Space}
 
         # CTF
         if ctf is None:
@@ -144,7 +153,9 @@ class ADMMSolver(Estimator):
 
         # Precompute ctf * images and ctf**2 for efficiency
         precomp_ctf_images = {
-            Space.REAL: images[Space.REAL],  # CTF is implicitly 1.0 in real space
+            Space.REAL: images[
+                Space.REAL
+            ],  # we are assuming real-space images are ctf-corrected
             Space.FOURIER_REAL: ctf * images[Space.FOURIER_REAL],
             Space.FOURIER_IMAG: ctf * images[Space.FOURIER_IMAG],
         }
@@ -202,6 +213,7 @@ class ADMMSolver(Estimator):
             next_real, next_real_transformed, next_fourier, weights = self.step(
                 images=images,
                 image_variance=image_variance,
+                image_std=image_std,
                 ctf=ctf,
                 precomp_ctf_images=precomp_ctf_images,
                 precomp_ctf_squared=precomp_ctf_squared,
@@ -211,45 +223,43 @@ class ADMMSolver(Estimator):
                 mu=mu,
             )
 
-            # Compute residuals for updates and convergence check
-            primal_residual = next_fourier - next_real_transformed
-            dual_residual = mu * torch.fft.irfft2(
-                next_fourier - ref_fourier, norm="ortho"
-            )
-
             # Update dual variable
+            primal_residual = next_fourier - next_real_transformed
             dual_vars += mu * primal_residual
 
-            # Convergence check
-            eps_pri = np.sqrt(p) * self.atol + self.rtol * max(
-                torch.linalg.norm(next_real_transformed).item(),
-                torch.linalg.norm(next_fourier).item(),
-            )
-            eps_dual = (
-                np.sqrt(n) * self.atol + self.rtol * torch.linalg.norm(dual_vars).item()
-            )
-            primal_norm = torch.linalg.norm(primal_residual).item()
-            dual_norm = torch.linalg.norm(dual_residual).item()
+            # Convergence check every five iterations
+            if i % 5 == 4:
+                primal_norm = torch.linalg.norm(primal_residual).item()
+                dual_norm = mu * torch.linalg.norm(next_fourier - ref_fourier).item()
 
-            if i == 0 or i % 5 == 4:
+                eps_pri = np.sqrt(p) * self.atol + self.rtol * max(
+                    torch.linalg.norm(next_real_transformed).item(),
+                    torch.linalg.norm(next_fourier).item(),
+                )
+                eps_dual = (
+                    np.sqrt(n) * self.atol
+                    + self.rtol * torch.linalg.norm(dual_vars).item()
+                )
+
+                if primal_norm < eps_pri and dual_norm < eps_dual:
+                    self.converged = True
+                    ref_real = next_real
+                    ref_fourier = next_fourier
+                    break
+
+                # Penalty parameter update
+                if primal_norm > 10 * dual_norm:
+                    mu *= 2
+                elif dual_norm > 10 * primal_norm:
+                    mu /= 2
+
+            if i % 5 == 4 and verbose:
                 print(f"ADMM iteration {i + 1}.")
                 print(f"Penalty parameter: {mu = }")
                 print(
                     f"Residuals - Primal: {primal_norm:.4f} (Tol: {eps_pri:.4f}) | "
                     f"Dual: {dual_norm:.4f} (Tol: {eps_dual:.4f})"
                 )
-
-            if primal_norm < eps_pri and dual_norm < eps_dual:
-                self.converged = True
-                ref_real = next_real
-                ref_fourier = next_fourier
-                break
-
-            # Penalty parameter update
-            if primal_norm > 10 * dual_norm:
-                mu *= 2
-            elif dual_norm > 10 * primal_norm:
-                mu /= 2
 
             # Update references
             ref_real = next_real
