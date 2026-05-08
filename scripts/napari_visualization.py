@@ -5,6 +5,7 @@ import numpy as np
 import napari
 
 from method_comparison.dataset_builder import LABEL_TYPES
+
 from scripts.common import AVERAGE_NAME
 
 

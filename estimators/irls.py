@@ -1,7 +1,10 @@
-import torch
 from typing import Callable, Tuple, Dict
+
+import torch
+
 from .base import Estimator
-from utils.space import Space
+
+from method_comparison.domain.enums import Space
 
 
 class IRLSSolver(Estimator):

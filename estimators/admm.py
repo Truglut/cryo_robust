@@ -1,11 +1,12 @@
+from typing import Tuple, Dict
+
 import numpy as np
 import torch
-from typing import Tuple, Dict
+
 from .base import Estimator
 from .irls import IRLSSolver
-from utils.space import Space
 
-import time
+from method_comparison.domain.enums import Space
 
 
 class ADMMSolver(Estimator):

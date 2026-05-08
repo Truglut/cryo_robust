@@ -6,11 +6,9 @@ from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 import torch
 
-from method_comparison.results_classes import (
-    MethodMetrics,
-    MethodResults,
-    EvaluationReport,
-)
+from method_comparison.domain.metrics import MethodMetrics
+from method_comparison.domain.reports import MethodResults, EvaluationReport
+
 from utils.evaluation import (
     ALL_RECALL_METHODS,
     LABEL_MAP,

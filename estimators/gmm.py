@@ -1,11 +1,14 @@
-import torch
-import numpy as np
-from sklearn.mixture import GaussianMixture
 from typing import Callable, Dict, Tuple
-from estimators.base import Estimator
-from utils.space import Space
-import matplotlib.pyplot as plt
+
+import numpy as np
+import torch
+from sklearn.mixture import GaussianMixture
 import scipy.stats as stats
+import matplotlib.pyplot as plt
+
+from estimators.base import Estimator
+
+from method_comparison.domain.enums import Space
 
 
 @torch.no_grad()
@@ -224,7 +227,7 @@ class RecursiveGMMEstimator(Estimator):
                 plot_overall_model_pdf=True,
                 avg_distance=avg_distance.item(),
                 std_distance=std_distance.item(),
-                negate_distance=True
+                negate_distance=True,
             )
             ax.set_title("Last iteration")
             fig.tight_layout()

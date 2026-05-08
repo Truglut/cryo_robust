@@ -4,13 +4,14 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from method_comparison.domain.enums import Space
 from method_comparison.dataset_builder import create_evaluation_dataset
 from method_comparison.evaluation import (
     compute_report_labeled,
     print_report,
     plot_report,
 )
-from utils.space import Space
+
 from scripts.common import (
     load_config,
     apply_mask,
@@ -115,7 +116,7 @@ def main():
         density=False,
         plot_fsc=args.plot_fsc,
     )
-    
+
     # Show images (averages and original images) with napari
     if args.view_images:
         visualize_results(results, tensor_images, args, ground_truth, labels)

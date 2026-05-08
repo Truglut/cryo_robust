@@ -1,7 +1,9 @@
+from typing import Dict, Tuple
+
 import torch
 import numpy as np
-from typing import Dict, Tuple
-from utils.space import Space
+
+from method_comparison.domain.enums import Space
 
 
 class Estimator:

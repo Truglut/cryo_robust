@@ -1,6 +1,6 @@
-import torch
 from functools import partial
-from typing import Tuple
+
+import torch
 
 
 @torch.no_grad()

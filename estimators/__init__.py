@@ -1,12 +1,14 @@
+from typing import Dict
+
 import torch
+
 from .irls import IRLSSolver, IRLSFourier
 from .gmm import GMMEstimator, RecursiveGMMEstimator
 from .admm import ADMMSolver
 from .weights import get_weight_function
 from .distances import get_distance_function
-from utils.space import Space
-from typing import Dict
 
+from method_comparison.domain.enums import Space
 
 TAGARE_CONSTANT = 1.0e-5
 

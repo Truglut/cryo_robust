@@ -1,8 +1,9 @@
 ### Distance functions for GMM
-
-import torch
 from functools import partial
 from typing import Tuple, Callable
+
+import torch
+
 from .weights import calculate_beta_auto
 
 
@@ -131,7 +132,7 @@ FUNCTION_REGISTRY = {
 }
 
 NEED_BETA_PARAMETER = [
-    "global", # just in case
+    "global",  # just in case
     "tagare_weights",
     "negexp_orthogonal_residual_norm",
 ]
