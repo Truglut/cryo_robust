@@ -11,6 +11,8 @@ from utils.evaluation import (
     ALL_RECALL_METHODS,
     LABEL_MAP,
     compute_soft_metrics,
+    compute_fsc,
+    get_resolution_from_fsc
 )
 
 ### Plotting utilities ###
@@ -66,77 +68,6 @@ def plot_distributions(
 
 
 ### Fourier Ring Correlation ###
-
-
-def compute_fsc(
-    image1: np.ndarray, image2: np.ndarray
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Computes the 2D Fourier Ring/Shell Correlation between two images.
-    Returns the normalized frequencies and the FSC curve.
-    """
-    if image1.shape != image2.shape:
-        raise ValueError("Images must have the same shape to compute FSC.")
-
-    # Compute 2D FFTs and shift zero frequency to center
-    F1 = np.fft.fftshift(np.fft.fft2(image1))
-    F2 = np.fft.fftshift(np.fft.fft2(image2))
-
-    # Create radial distance map
-    shape = image1.shape
-    center = (shape[0] // 2, shape[1] // 2)
-    y, x = np.indices(shape)
-    r = np.sqrt((x - center[1]) ** 2 + (y - center[0]) ** 2)
-    r = np.round(r).astype(int)
-
-    # Calculate Nyquist frequency (max radius)
-    max_r = int(np.min([center[0], center[1]]))
-
-    fsc = np.zeros(max_r)
-    freqs = np.arange(max_r) / max_r  # Normalized frequency [0, 1] (1 = Nyquist)
-
-    for i in range(max_r):
-        mask = r == i
-        if np.sum(mask) == 0:
-            continue
-
-        f1_shell = F1[mask]
-        f2_shell = F2[mask]
-
-        # Cross-correlation numerator
-        num = np.real(np.sum(f1_shell * np.conj(f2_shell)))
-
-        # Normalization denominator
-        den = np.sqrt(np.sum(np.abs(f1_shell) ** 2) * np.sum(np.abs(f2_shell) ** 2))
-
-        fsc[i] = num / den if den > 0 else 0.0
-
-    return freqs, fsc
-
-
-def get_resolution_from_fsc(
-    freqs: np.ndarray, fsc: np.ndarray, threshold: float = 0.5
-) -> float:
-    """
-    Finds the spatial frequency where the FSC curve first drops below the threshold.
-    Uses linear interpolation for sub-bin precision.
-    """
-    drop_idx = np.where(fsc < threshold)[0]
-
-    if len(drop_idx) == 0:
-        return freqs[-1]  # Never drops below threshold (perfect resolution)
-
-    idx = drop_idx[0]
-    if idx == 0:
-        return freqs[0]
-
-    # Linear interpolation
-    f1, f2 = fsc[idx - 1], fsc[idx]
-    q1, q2 = freqs[idx - 1], freqs[idx]
-
-    # Solve for frequency crossing the threshold
-    freq_thresh = q1 + (threshold - f1) * (q2 - q1) / (f2 - f1)
-    return freq_thresh
 
 
 def plot_fsc_curves(fsc_data: dict, threshold: float = 0.5):
