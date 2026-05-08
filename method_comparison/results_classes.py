@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import numpy as np
+import pandas as pd
 
 from utils.space import Space
 
@@ -20,14 +21,24 @@ class MethodMetrics:
         Normalised spatial frequency at which the FSC curve drops below the
         experiment-level threshold.
     space_metrics : dict of {Space: dict of {str: dict}}
-        Nested mapping ``space -> aggregation_strategy -> metric_dict``, where
-        each ``metric_dict`` contains keys such as ``"ap"``,
-        ``"soft_precision"``, and ``"soft_recall_<method>"``.
+        Nested mapping `space -> aggregation_strategy -> metric_dict`, where
+        each `metric_dict` contains keys such as `"ap"`,
+        `"soft_precision"`, and `"soft_recall_<method>"`.
     """
+
     rmse: float
     pearson_corr: float
     fsc_resolution: float
-    space_metrics: dict[Space, dict]
+    # space -> agg_strategy -> metric
+    space_metrics: dict[Space, dict[str, dict[str, float]]]
+
+
+    def to_record(self) -> dict:
+        return {
+            "rmse": self.rmse,
+            "pearson_corr": self.pearson_corr,
+            "fsc_resolution": self.fsc_resolution
+        }
 
 
 @dataclass
@@ -52,11 +63,24 @@ class MethodResults:
     estimated_img : np.ndarray
         The reconstructed average image produced by this method.
     """
+
     name: str
     metrics: MethodMetrics | None
     scores: dict[Space, np.ndarray]
     fsc_data: tuple[np.ndarray, np.ndarray] | None
     estimated_img: np.ndarray
+
+
+    def metrics_record(self) -> dict:
+        base = {"method": self.name}
+
+        if self.metrics is None:
+            return base
+        
+        return {
+            **base,
+            **self.metrics.to_record()
+        }
 
 
 @dataclass
@@ -69,11 +93,19 @@ class EvaluationReport:
     method_results : list of MethodResults
         One entry per estimation method, in the order they were evaluated.
     labels : np.ndarray or None
-        Per-image ground-truth class labels.  ``None`` for unlabeled data.
+        Per-image ground-truth class labels.  `None` for unlabeled data.
     fsc_threshold : float
-        The FSC threshold used to define resolution (e.g. 0.143 or 0.5).  
+        The FSC threshold used to define resolution (e.g. 0.143 or 0.5).
         `None` for unlabeled data.
     """
+
     method_results: list[MethodResults]
     labels: np.ndarray | None
     fsc_threshold: float | None
+
+
+    def metrics_dataframe(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            mr.metrics_record()
+            for mr in self.method_results
+        )
