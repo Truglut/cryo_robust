@@ -6,15 +6,23 @@ import torch
 
 from method_comparison.dataset_builder import create_evaluation_dataset
 from method_comparison.evaluator import compare_and_report
+from method_comparison.evaluation import (
+    compute_report_labeled,
+    print_report,
+    plot_report,
+)
 from utils.space import Space
 from scripts.common import (
     load_config,
     apply_mask,
     run_estimators,
     process_and_save_subsets,
-    build_base_parser
+    build_base_parser,
 )
 from scripts.napari_visualization import visualize_results
+
+FSC_THRESHOLD = 0.143
+RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
 
 
 def parse_arguments():
@@ -37,6 +45,12 @@ def parse_arguments():
         default=False,
         action="store_true",
         help="If True, the mask will be reapplied to the estimations from every method",
+    )
+    parser.add_argument(
+        "--plot_fsc",
+        default=False,
+        action="store_true",
+        help="If True, plot FSC resolution for all methods (overlayed on one figure)",
     )
     return parser.parse_args()
 
@@ -80,20 +94,21 @@ def main():
     image_path = Path(cfg["data"]["reference_image_path"])
     process_and_save_subsets(results, image_path, images_save=images, args=args)
 
-    compare_and_report(
+    report = compute_report_labeled(
         results=results,
-        images_dict=images_dict,  # Pass images to allow baseline fits / global avg
+        images_dict=images_dict,
         ground_truth_img=ground_truth,
         labels=labels,
-        plot_weights=args.plot_weights,
-        max_subplots=4,
-        real_agg_strategies=["mean"],
-        fourier_agg_strategies=["energy"],
-        energy_reference="ground_truth",  # Or "global_avg"
-        fsc_threshold=0.143,
-        mask=mask,
         reapply_mask=args.reapply_mask,
+        mask=mask,
+        fsc_threshold=FSC_THRESHOLD,
+        recall_methods=RECALL_METHODS,
+        real_agg_strategies=("mean",),
+        fourier_agg_strategies=("energy",),
+        energy_reference="ground_truth",
     )
+    print_report(report)
+    plot_report(report, max_subplots=True, plot_fsc=args.plot_fsc, density=False)
 
     # Show images (averages and original images) with napari
     if args.view_images:

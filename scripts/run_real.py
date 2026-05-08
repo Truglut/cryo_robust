@@ -5,6 +5,11 @@ import torch
 import mrcfile
 
 from method_comparison.evaluator import report_unlabeled
+from method_comparison.evaluation import (
+    compute_report_unlabeled,
+    print_report,
+    plot_report,
+)
 
 from utils.space import Space
 
@@ -75,12 +80,19 @@ def main():
 
     # Run Estimators
     results = run_estimators(cfg, images_dict, args)
-
-    # Show report of results (currently just plots weight distributions)
-    report_unlabeled(results, args.plot_weights)
     process_and_save_subsets(
         results, image_path=image_path, images_save=images_save, args=args
     )
+
+    # Show report of results (currently just plots weight distributions)
+    report = compute_report_unlabeled(
+        results,
+        images_dict,
+        real_agg_strategies=("mean",),
+        fourier_agg_strategies=("mean",),
+    )
+    if args.plot_weights:
+        plot_report(report, plot_weights=True, density=False, plot_fsc=False)
 
     # Show images (averages and original images) with napari
     if args.view_images:
