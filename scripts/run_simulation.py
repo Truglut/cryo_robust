@@ -19,6 +19,7 @@ from scripts.common import (
     build_base_parser,
 )
 from scripts.napari_visualization import visualize_results
+from scripts.report_generation import generate_latex_report
 
 FSC_THRESHOLD = 0.143
 RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
@@ -107,8 +108,14 @@ def main():
         energy_reference="ground_truth",
     )
     print_report(report)
-    plot_report(report, max_subplots=True, plot_fsc=args.plot_fsc, density=False)
-
+    plot_report(
+        report,
+        max_subplots=True,
+        plot_weights=args.plot_weights,
+        density=False,
+        plot_fsc=args.plot_fsc,
+    )
+    
     # Show images (averages and original images) with napari
     if args.view_images:
         visualize_results(results, tensor_images, args, ground_truth, labels)
