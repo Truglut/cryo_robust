@@ -31,7 +31,7 @@ def load_config(config_path: str, snr: float | None = None):
 def build_base_parser():
     """Parses the config from the command line"""
     parser = argparse.ArgumentParser(description="Run robust estimators on real data")
-    parser.add_argument("--config", type=str, required=True, help="Path to YAML config")
+    parser.add_argument("--config", type=Path, required=True, help="Path to YAML config")
     parser.add_argument(
         "--device", type=str, default="cpu", help="Compute device for PyTorch"
     )
