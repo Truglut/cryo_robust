@@ -5,10 +5,8 @@ import mrcfile
 
 from method_comparison.domain.enums import Space
 from method_comparison.evaluation.report_building import compute_report_unlabeled
-from method_comparison.evaluation import (
-    print_report,
-    plot_report,
-)
+from method_comparison.visualization.printing import print_report
+from method_comparison.visualization.plotting import plot_report
 
 from scripts.common import (
     load_config,

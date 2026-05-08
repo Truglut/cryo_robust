@@ -5,11 +5,9 @@ import torch
 
 from method_comparison.domain.enums import Space
 from method_comparison.dataset_builder import create_evaluation_dataset
-from method_comparison.evaluation import (
-    print_report,
-    plot_report,
-)
 from method_comparison.evaluation.report_building import compute_report_labeled
+from method_comparison.visualization.printing import print_report
+from method_comparison.visualization.plotting import plot_report
 
 from scripts.common import (
     load_config,
