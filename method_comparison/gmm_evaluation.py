@@ -4,7 +4,7 @@ import scipy.stats as stats
 from sklearn.mixture import GaussianMixture
 import matplotlib.pyplot as plt
 
-from utils.evaluation import LABEL_MAP
+from method_comparison.visualization.plotting import LABEL_MAP
 
 
 def plot_gmm_fit(ax, distances, model, title):

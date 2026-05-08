@@ -1,5 +1,20 @@
 from dataclasses import dataclass
+
 from method_comparison.domain.enums import Space
+
+
+@dataclass
+class ReconstructionMetrics:
+    rmse: float
+    pearson_corr: float
+    fsc_resolution: float
+
+    def to_record(self) -> dict:
+        return {
+            "rmse": self.rmse,
+            "pearson_corr": self.pearson_corr,
+            "fsc_resolution": self.fsc_resolution,
+        }
 
 
 @dataclass
@@ -22,16 +37,9 @@ class MethodMetrics:
         `"soft_precision"`, and `"soft_recall_<method>"`.
     """
 
-    rmse: float
-    pearson_corr: float
-    fsc_resolution: float
+    reconstruction_metrics: ReconstructionMetrics | None
     # space -> agg_strategy -> metric
     space_metrics: dict[Space, dict[str, dict[str, float]]]
 
-
     def to_record(self) -> dict:
-        return {
-            "rmse": self.rmse,
-            "pearson_corr": self.pearson_corr,
-            "fsc_resolution": self.fsc_resolution
-        }
+        return self.reconstruction_metrics.to_record()

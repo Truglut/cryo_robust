@@ -1,16 +1,14 @@
-import argparse
 from pathlib import Path
 
 import torch
 import mrcfile
 
+from method_comparison.domain.enums import Space
+from method_comparison.evaluation.report_building import compute_report_unlabeled
 from method_comparison.evaluation import (
-    compute_report_unlabeled,
     print_report,
     plot_report,
 )
-
-from utils.space import Space
 
 from scripts.common import (
     load_config,

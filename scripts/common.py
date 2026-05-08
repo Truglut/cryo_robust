@@ -12,9 +12,9 @@ from estimators.admm import ADMMSolver
 from estimators.irls import IRLSFourier
 from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
 
-from method_comparison.domain.enums import Space
+from method_comparison.domain.enums import Space, AggregationStrategy
+from method_comparison.evaluation.aggregation import aggregate_weights
 
-from utils.evaluation import aggregate_weights
 from utils.masks import create_circular_mask
 
 AVERAGE_NAME = "Average"
@@ -169,7 +169,7 @@ def get_weights(estimator: Estimator, final_weights: dict[Space, torch.Tensor]):
     else:
         weights = final_weights[estimator.space]
 
-    return aggregate_weights(weights, "mean")
+    return aggregate_weights(weights, AggregationStrategy.MEAN)
 
 
 def process_and_save_subsets(

@@ -16,3 +16,8 @@ class Space(Enum):
 
     def __str__(self):
         return self.label
+    
+
+class AggregationStrategy(str, Enum):
+    MEAN = "mean"
+    ENERGY = "energy"

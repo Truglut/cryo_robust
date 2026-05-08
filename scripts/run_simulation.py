@@ -1,4 +1,3 @@
-import argparse
 from pathlib import Path
 
 import numpy as np
@@ -7,10 +6,10 @@ import torch
 from method_comparison.domain.enums import Space
 from method_comparison.dataset_builder import create_evaluation_dataset
 from method_comparison.evaluation import (
-    compute_report_labeled,
     print_report,
     plot_report,
 )
+from method_comparison.evaluation.report_building import compute_report_labeled
 
 from scripts.common import (
     load_config,
@@ -20,7 +19,6 @@ from scripts.common import (
     build_base_parser,
 )
 from scripts.napari_visualization import visualize_results
-from scripts.report_generation import generate_latex_report
 
 FSC_THRESHOLD = 0.143
 RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
