@@ -12,8 +12,7 @@ from estimators.admm import ADMMSolver
 from estimators.irls import IRLSFourier
 from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
 
-from method_comparison.evaluator import aggregate_weights
-
+from utils.evaluation import aggregate_weights
 from utils.masks import create_circular_mask
 from utils.space import Space
 

@@ -4,7 +4,6 @@ from pathlib import Path
 import torch
 import mrcfile
 
-from method_comparison.evaluator import report_unlabeled
 from method_comparison.evaluation import (
     compute_report_unlabeled,
     print_report,

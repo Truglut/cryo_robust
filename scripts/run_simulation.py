@@ -5,7 +5,6 @@ import numpy as np
 import torch
 
 from method_comparison.dataset_builder import create_evaluation_dataset
-from method_comparison.evaluator import compare_and_report
 from method_comparison.evaluation import (
     compute_report_labeled,
     print_report,
