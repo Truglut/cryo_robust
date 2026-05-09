@@ -9,15 +9,17 @@ LABEL_TYPES = {
     2: "misclassified outliers",
 }
 
+STANDARDIZE_TYPES = ["global", "per_particle"]
+
 
 def add_noise(
     images: np.ndarray,
     rng: np.random.Generator,
+    signal_var: float,
     snr: float | None = None,
     noise_std: float | None = None,
 ) -> np.ndarray:
     """Adds Gaussian noise to a batch of images based on target SNR or explicit noise_std."""
-    signal_var = images.var(axis=(1, 2)).mean()
     if noise_std is not None:
         # Calculate signal-to-noise ratio
         snr = signal_var / noise_std**2
@@ -67,16 +69,10 @@ def generate_rotated_copies(
 
 
 def load_misclassified_images(
-    image_path: str, n_copies: int, rng: np.random.Generator, normalize: bool = False
+    image_path: str, n_copies: int, rng: np.random.Generator
 ) -> np.ndarray:
     """Loads a file of outlier images and samples the requested number."""
     images = mrcfile.read(image_path)
-
-    if normalize:
-        images = (images - images.min(axis=(1, 2), keepdims=True)) / (
-            images.max(axis=(1, 2), keepdims=True)
-            - images.min(axis=(1, 2), keepdims=True)
-        )
 
     # Handle the one image case
     if images.ndim == 2:
@@ -94,7 +90,7 @@ def load_misclassified_images(
 
 
 def create_evaluation_dataset(
-    cfg: dict, rng: np.random.Generator, normalize: bool = False
+    cfg: dict, rng: np.random.Generator, standardize: str | None = None
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Generates an evaluation dataset with rotated inliers, rotated outliers,
@@ -107,9 +103,7 @@ def create_evaluation_dataset(
     # Load Reference
     ref_image = mrcfile.read(data_cfg["reference_image_path"])
     h, w = ref_image.shape
-
-    if normalize:
-        ref_image = (ref_image - ref_image.min()) / (ref_image.max() - ref_image.min())
+    true_signal_var = ref_image.var()
 
     n_good = gen_cfg["n_copies"]
     n_rot_bad = gen_cfg["n_copies_rotated"]
@@ -145,19 +139,32 @@ def create_evaluation_dataset(
             max_angle=gen_cfg["max_rotation_very_rotated"],
             rng=rng,
         )
-        labels[current_idx : current_idx + n_good] = 1
+        labels[current_idx : current_idx + n_rot_bad] = 1
         current_idx += n_rot_bad
 
     # Fill misclassified images
     if n_misc > 0:
         dataset[current_idx : current_idx + n_misc] = load_misclassified_images(
-            data_cfg["misclassified_path"], n_misc, rng=rng, normalize=normalize
+            data_cfg["misclassified_path"], n_misc, rng=rng
         )
-        labels[current_idx : current_idx + n_good] = 2
+        labels[current_idx : current_idx + n_misc] = 2
 
     # Add noise to the array
     final_dataset = add_noise(
-        dataset, rng=rng, snr=noise_cfg.get("snr"), noise_std=noise_cfg.get("noise_std")
+        dataset,
+        rng=rng,
+        signal_var=true_signal_var,
+        snr=noise_cfg.get("snr"),
+        noise_std=noise_cfg.get("noise_std"),
     )
+
+    if standardize == "global":
+        global_mean = final_dataset.mean()
+        global_std = final_dataset.std()
+        final_dataset = (final_dataset - global_mean) / (global_std + 1e-8)
+    elif standardize == "per_particle":
+        means = final_dataset.mean(axis=(1, 2), keepdims=True)
+        stds = final_dataset.std(axis=(1, 2), keepdims=True)
+        final_dataset = (final_dataset - means) / (stds + 1e-8)
 
     return final_dataset, ref_image, labels
