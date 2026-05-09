@@ -36,17 +36,25 @@ class MethodResults:
     fsc_data: tuple[np.ndarray, np.ndarray] | None
     estimated_img: np.ndarray
 
-
-    def metrics_record(self) -> dict:
-        base = {"method": self.name}
-
+    def reconstruction_metrics_record(self) -> dict:
         if self.metrics is None:
-            return base
-        
-        return {
-            **base,
-            **self.metrics.to_record()
-        }
+            return {}
+
+        return {"method": self.name, **self.metrics.reconstruction_record()}
+
+    def classification_metrics_records(self) -> list[dict]:
+        """
+        Retrieves flattened space metrics and injects the method name
+        into each record.
+        """
+        if self.metrics is None:
+            return []
+
+        # Get the flat records from the metrics dataclass
+        records = self.metrics.classification_metrics_records()
+
+        # Inject the method name into every row
+        return [{"method": self.name, **record} for record in records]
 
 
 @dataclass
@@ -69,9 +77,18 @@ class EvaluationReport:
     labels: np.ndarray | None
     fsc_threshold: float | None
 
-
-    def metrics_dataframe(self) -> pd.DataFrame:
+    def reconstruction_metrics_dataframe(self) -> pd.DataFrame:
         return pd.DataFrame(
-            mr.metrics_record()
-            for mr in self.method_results
+            mr.reconstruction_metrics_record() for mr in self.method_results
         )
+
+    def classification_metrics_dataframe(self) -> pd.DataFrame:
+        """
+        Builds a global pandas DataFrame containing all space metrics
+        for all evaluated methods in a long format.
+        """
+        all_records = []
+        for mr in self.method_results:
+            all_records.extend(mr.classification_metrics_records())
+
+        return pd.DataFrame(all_records)
