@@ -3,11 +3,12 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from method_comparison.domain.enums import Space
+from method_comparison.domain.enums import Space, AggregationStrategy
 from method_comparison.dataset_builder import create_evaluation_dataset
 from method_comparison.evaluation.report_building import compute_report_labeled
 from method_comparison.visualization.printing import print_report
 from method_comparison.visualization.plotting import plot_report
+from method_comparison.visualization.latex import generate_latex_report
 
 from scripts.cli import build_simulation_parser, parse_arguments
 from scripts.common import (
@@ -87,6 +88,10 @@ def main():
         density=False,
         plot_fsc="fsc" in args.plot,
     )
+
+    # Optionally save the report
+    if args.report is not None:
+        generate_latex_report(report, output_path=args.report)
 
     # Show images (averages and original images) with napari
     if args.show_images:

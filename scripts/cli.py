@@ -74,7 +74,7 @@ def build_base_parser() -> tuple[
 
 
 def build_simulation_parser() -> argparse.ArgumentParser:
-    parser, visualization_group, _, _ = build_base_parser()
+    parser, visualization_group, _, saving_group = build_base_parser()
 
     # Add relevant plots to visualization
     visualization_group.add_argument(
@@ -83,6 +83,13 @@ def build_simulation_parser() -> argparse.ArgumentParser:
         type=str,
         choices=BASE_PLOTS + SIMULATION_PLOTS,
         help="Plots to generate",
+    )
+
+    # Add reports to saving group
+    saving_group.add_argument(
+        "--report",
+        type=Path,
+        help="Generate a LaTeX report at the provided path"
     )
 
     simulation_group = parser.add_argument_group("Simulation")
