@@ -11,6 +11,7 @@ LABEL_MAP = {
     0: {"name": "Inliers", "color": "blue"},
     1: {"name": "Rotated Outliers", "color": "orange"},
     2: {"name": "Misclassified", "color": "red"},
+    3: {"name": "Noise", "color": "darkorange"}
 }
 
 AVERAGE_NAME = "Average"

@@ -7,6 +7,7 @@ LABEL_TYPES = {
     0: "generated copies of reference",
     1: "very rotated copies of reference",
     2: "misclassified outliers",
+    3: "noise",
 }
 
 STANDARDIZE_TYPES = ["global", "per_particle"]
@@ -106,12 +107,13 @@ def create_evaluation_dataset(
     true_signal_var = ref_image.var()
 
     n_good = gen_cfg["n_copies"]
-    n_rot_bad = gen_cfg["n_copies_rotated"]
-    n_misc = gen_cfg["n_misclassified"]
-    total_copies = n_good + n_rot_bad + n_misc
+    n_rot_bad = gen_cfg.get("n_copies_rotated", 0)
+    n_misc = gen_cfg.get("n_misclassified", 0)
+    n_noise = gen_cfg.get("n_noise", 0)
+    total_copies = n_good + n_rot_bad + n_misc + n_noise
 
     # Pre-allocate the dataset array
-    dataset = np.zeros((total_copies, h, w), dtype=ref_image.dtype)
+    dataset = np.empty((total_copies, h, w), dtype=ref_image.dtype)
 
     # labels array: 0 for inliers, 1 for rotated outliers, 2 for misclassified outliers
     labels = np.zeros(total_copies, dtype=int)
@@ -148,7 +150,14 @@ def create_evaluation_dataset(
             data_cfg["misclassified_path"], n_misc, rng=rng
         )
         labels[current_idx : current_idx + n_misc] = 2
-
+        current_idx += n_misc
+    
+    # Add images with no signal (all zeros, noise will be added later)
+    if n_noise > 0:
+        dataset[current_idx : current_idx + n_noise] = 0.0
+        labels[current_idx: current_idx + n_noise] = 3
+        current_idx += n_noise
+    
     # Add noise to the array
     final_dataset = add_noise(
         dataset,
