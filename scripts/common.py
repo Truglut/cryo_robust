@@ -14,10 +14,9 @@ from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
 
 from method_comparison.domain.enums import Space, AggregationStrategy
 from method_comparison.evaluation.aggregation import aggregate_weights
+from method_comparison.visualization.plotting import AVERAGE_NAME
 
 from utils.masks import create_circular_mask
-
-AVERAGE_NAME = "Average"
 
 
 def load_config(config_path: str, snr: float | None = None):
@@ -65,7 +64,7 @@ def run_estimators(
             estimator.fit(
                 images_dict,
                 reference=reference,
-                plot_fits=args.gmm_evaluation,
+                plot_fits="gmm" in args.plot,
                 plot_title=method_name,
             )
         else:

@@ -80,8 +80,7 @@ def main():
         real_agg_strategies=("mean",),
         fourier_agg_strategies=("mean",),
     )
-    if args.plot_weights:
-        plot_report(report, plot_weights=True, density=False, plot_fsc=False)
+    plot_report(report, plot_weights="weights" in args.plot, density=False, plot_fsc=False)
 
     # Show images (averages and original images) with napari
     if args.show_images:

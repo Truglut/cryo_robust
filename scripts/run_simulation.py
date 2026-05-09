@@ -83,9 +83,9 @@ def main():
     plot_report(
         report,
         max_subplots=True,
-        plot_weights=args.plot_weights,
+        plot_weights="weights" in args.plot,
         density=False,
-        plot_fsc=args.plot_fsc,
+        plot_fsc="fsc" in args.plot,
     )
 
     # Show images (averages and original images) with napari

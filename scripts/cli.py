@@ -1,13 +1,19 @@
 import argparse
 from pathlib import Path
 
+from method_comparison.dataset_builder import STANDARDIZE_TYPES
 
 BASE_PLOTS = ["weights", "gmm"]
 SIMULATION_PLOTS = ["fsc"]
-REAL_PLOTS = []
+EXPERIMENTAL_PLOTS = []
 
 
-def build_base_parser() -> argparse.ArgumentParser:
+def build_base_parser() -> tuple[
+    argparse.ArgumentParser,
+    argparse._ArgumentGroup,
+    argparse._ArgumentGroup,
+    argparse._ArgumentGroup,
+]:
     """Parses the config from the command line"""
     parser = argparse.ArgumentParser(description="Run robust estimators on real data")
     visualization_group = parser.add_argument_group("Visualization")
@@ -27,16 +33,6 @@ def build_base_parser() -> argparse.ArgumentParser:
         "--show-images",
         action="store_true",
         help="Show generated images",
-    )
-    visualization_group.add_argument(
-        "--gmm-evaluation",
-        action="store_true",
-        help="Show the initial and final fits of GMM models",
-    )
-    visualization_group.add_argument(
-        "--plot-weights",
-        action="store_true",
-        help="Show plots of weight distributions for each estimation method",
     )
 
     # Subset selection
@@ -80,11 +76,13 @@ def build_base_parser() -> argparse.ArgumentParser:
 def build_simulation_parser() -> argparse.ArgumentParser:
     parser, visualization_group, _, _ = build_base_parser()
 
-    # Visualization: add specific plots
+    # Add relevant plots to visualization
     visualization_group.add_argument(
-        "--plot-fsc",
-        action="store_true",
-        help="Plot FSC resolution for all methods (overlayed on one figure)",
+        "--plot",
+        nargs="+",
+        type=str,
+        choices=BASE_PLOTS + SIMULATION_PLOTS,
+        help="Plots to generate",
     )
 
     simulation_group = parser.add_argument_group("Simulation")
@@ -98,8 +96,8 @@ def build_simulation_parser() -> argparse.ArgumentParser:
     )
     simulation_group.add_argument(
         "--normalize",
-        action="store_true",
-        help="Normalize images to [0,1] before adding noise/rotating",
+        action="store_True",
+        help="Normalize images to [0, 1] before adding noise",
     )
 
     # Evaluation
@@ -112,7 +110,16 @@ def build_simulation_parser() -> argparse.ArgumentParser:
 
 
 def build_experimental_parser() -> argparse.ArgumentParser:
-    parser, _, _, _ = build_base_parser()
+    parser, visualization_group, _, _ = build_base_parser()
+
+    # Add relevant plots to visualization group
+    visualization_group.add_argument(
+        "--plot",
+        nargs="+",
+        type=str,
+        choices=BASE_PLOTS + EXPERIMENTAL_PLOTS,
+        help="Plots to generate",
+    )
     return parser
 
 
@@ -125,6 +132,10 @@ def parse_arguments(parser: argparse.ArgumentParser) -> argparse.Namespace:
 
     if args.save_thresholds and not args.thresholds:
         parser.error("--save-thresholds requires --thresholds")
+
+    # Standardize args.plot to always be a list
+    if args.plot is None:
+        args.plot = []
 
     return args
 
