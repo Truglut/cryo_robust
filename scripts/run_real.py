@@ -8,20 +8,14 @@ from method_comparison.evaluation.report_building import compute_report_unlabele
 from method_comparison.visualization.printing import print_report
 from method_comparison.visualization.plotting import plot_report
 
+from scripts.cli import build_experimental_parser, parse_arguments
 from scripts.common import (
     load_config,
     apply_mask,
     run_estimators,
     process_and_save_subsets,
-    build_base_parser,
 )
 from scripts.napari_visualization import visualize_results
-
-
-def parse_arguments():
-    """Parses the config from the command line"""
-    parser = build_base_parser()
-    return parser.parse_args()
 
 
 def load_and_preprocess(cfg: dict, args) -> tuple:
@@ -34,14 +28,14 @@ def load_and_preprocess(cfg: dict, args) -> tuple:
 
     # Determine which images to save later
     images_save = aligned_images_np
-    if args.save_original:
-        orig_path = data_cfg.get("original_particles_path")
+    if args.save_unaligned:
+        orig_path = data_cfg.get("unaligned_particles_path")
         if orig_path is None:
             raise Exception(
-                "Requested to save original images, but config file does not contain path to original images"
+                "Requested to save unaligned images, but config file does not contain path to unaligned images"
             )
         if not Path(orig_path).exists():
-            raise Exception("Original images were not found in the config file path")
+            raise Exception("Unaligned images were not found in the config file path")
         images_save = mrcfile.read(orig_path)
 
     # Move images to device
@@ -53,7 +47,7 @@ def load_and_preprocess(cfg: dict, args) -> tuple:
 
 
 def main():
-    args = parse_arguments()
+    args = parse_arguments(build_experimental_parser())
 
     # Load configurations
     cfg = load_config(args.config, None)
@@ -90,7 +84,7 @@ def main():
         plot_report(report, plot_weights=True, density=False, plot_fsc=False)
 
     # Show images (averages and original images) with napari
-    if args.view_images:
+    if args.show_images:
         visualize_results(results, tensor_images, args)
 
 

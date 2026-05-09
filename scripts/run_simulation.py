@@ -9,12 +9,12 @@ from method_comparison.evaluation.report_building import compute_report_labeled
 from method_comparison.visualization.printing import print_report
 from method_comparison.visualization.plotting import plot_report
 
+from scripts.cli import build_simulation_parser, parse_arguments
 from scripts.common import (
     load_config,
     apply_mask,
     run_estimators,
     process_and_save_subsets,
-    build_base_parser,
 )
 from scripts.napari_visualization import visualize_results
 
@@ -22,38 +22,8 @@ FSC_THRESHOLD = 0.143
 RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
 
 
-def parse_arguments():
-    # Parse the config file path from the command line
-    parser = build_base_parser()
-    parser.add_argument(
-        "--snr",
-        default=None,
-        type=float,
-        help="Target signal to noise ratio in image generation. Overrides snr in config file",
-    )
-    parser.add_argument(
-        "--normalize",
-        default=False,
-        action="store_true",
-        help="If True, images will be normalized to [0,1] before adding noise/rotating",
-    )
-    parser.add_argument(
-        "--reapply_mask",
-        default=False,
-        action="store_true",
-        help="If True, the mask will be reapplied to the estimations from every method",
-    )
-    parser.add_argument(
-        "--plot_fsc",
-        default=False,
-        action="store_true",
-        help="If True, plot FSC resolution for all methods (overlayed on one figure)",
-    )
-    return parser.parse_args()
-
-
 def main():
-    args = parse_arguments()
+    args = parse_arguments(build_simulation_parser())
 
     # Load configurations
     cfg = load_config(args.config, args.snr)
@@ -91,6 +61,7 @@ def main():
     image_path = Path(cfg["data"]["reference_image_path"])
     process_and_save_subsets(results, image_path, images_save=images, args=args)
 
+    # Calculate complete report with classification and reconstruction metrics
     report = compute_report_labeled(
         results=results,
         images_dict=images_dict,
@@ -104,7 +75,11 @@ def main():
         fourier_agg_strategies=("energy",),
         energy_reference="ground_truth",
     )
+
+    # Print report to terminal
     print_report(report)
+
+    # Optionally plot the report
     plot_report(
         report,
         max_subplots=True,
@@ -114,7 +89,7 @@ def main():
     )
 
     # Show images (averages and original images) with napari
-    if args.view_images:
+    if args.show_images:
         visualize_results(results, tensor_images, args, ground_truth, labels)
 
 
