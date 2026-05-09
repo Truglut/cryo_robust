@@ -76,14 +76,14 @@ class IRLSSolver(Estimator):
         image_variance: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
         image_std: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
         ctf: torch.Tensor | float | None = None,
-        initial_reference: torch.Tensor | None = None,
+        reference: torch.Tensor | None = None,
         prior_mean: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
         prior_variance: Dict[Space, torch.Tensor] | torch.Tensor | float | None = None,
         precomp_ctf_images: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
         precomp_ctf_squared: (
             Dict[Space, torch.Tensor] | torch.Tensor | float | None
         ) = None,
-        max_iter_override: int | None = None
+        max_iter_override: int | None = None,
     ):
         """
         Executes the Iteratively Reweighted Least Squares (IRLS) optimization.
@@ -131,8 +131,8 @@ class IRLSSolver(Estimator):
                 precomp_ctf_squared = ctf**2
 
         # Initial reference
-        if initial_reference is None:
-            initial_reference = torch.mean(images, dim=0)
+        if reference is None:
+            reference = torch.mean(images, dim=0)
 
         # Prior mean and variance: choose relevant space
         if isinstance(prior_mean, dict):
@@ -144,7 +144,7 @@ class IRLSSolver(Estimator):
         max_iter = max_iter_override or self.max_iter
 
         # Algorithm initialization
-        reference = initial_reference
+        reference = reference
         weights = None
         self.converged = False
 
@@ -200,7 +200,10 @@ class IRLSFourier(Estimator):
     ):
         if isinstance(images, torch.Tensor):
             images = {Space.REAL: images}
-        if images.get(Space.FOURIER_IMAG) is None or images.get(Space.FOURIER_REAL) is None:
+        if (
+            images.get(Space.FOURIER_IMAG) is None
+            or images.get(Space.FOURIER_REAL) is None
+        ):
             fourier_images = torch.fft.rfft2(images[Space.REAL], norm="ortho")
             images[Space.FOURIER_REAL] = fourier_images.real
             images[Space.FOURIER_IMAG] = fourier_images.imag
@@ -241,7 +244,7 @@ class IRLSFourier(Estimator):
             images,
             image_variance=image_variance,
             ctf=ctf,
-            initial_reference=initial_reference[Space.FOURIER_REAL],
+            reference=initial_reference[Space.FOURIER_REAL],
             prior_mean=prior_mean,
             prior_variance=prior_variance,
             precomp_ctf_images=precomp_ctf_images,
@@ -252,7 +255,7 @@ class IRLSFourier(Estimator):
             images,
             image_variance=image_variance,
             ctf=ctf,
-            initial_reference=initial_reference[Space.FOURIER_IMAG],
+            reference=initial_reference[Space.FOURIER_IMAG],
             prior_mean=prior_mean,
             prior_variance=prior_variance,
             precomp_ctf_images=precomp_ctf_images,
