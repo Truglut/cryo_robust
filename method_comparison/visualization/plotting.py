@@ -13,6 +13,8 @@ LABEL_MAP = {
     2: {"name": "Misclassified", "color": "red"},
 }
 
+AVERAGE_NAME = "Average"
+
 def plot_report(
     report: EvaluationReport,
     max_subplots: int = 4,
@@ -54,11 +56,12 @@ def plot_report(
         # Flatten all (label, scores_array) pairs into an ordered dict for batching
         all_scores: dict[str, np.ndarray] = {}
         for method_result in report.method_results:
-            for space, strategy_scores in method_result.scores.items():
-                for strategy, scores in strategy_scores.items():
-                    # Generate an informative plot key
-                    key = f"{method_result.name} ({space.name} | {strategy})"
-                    all_scores[key] = scores
+            if method_result.name != AVERAGE_NAME:
+                for space, strategy_scores in method_result.scores.items():
+                    for strategy, scores in strategy_scores.items():
+                        # Generate an informative plot key
+                        key = f"{method_result.name} ({space.name} | {strategy})"
+                        all_scores[key] = scores
 
         # Iterate over the scores dict to plot weight distributions
         items = list(all_scores.items())
