@@ -3,7 +3,7 @@ from pathlib import Path
 import torch
 import mrcfile
 
-from method_comparison.domain.enums import Space
+from method_comparison.domain.enums import Space, AggregationStrategy
 from method_comparison.evaluation.report_building import compute_report_unlabeled
 from method_comparison.visualization.printing import print_report
 from method_comparison.visualization.plotting import plot_report
@@ -77,8 +77,8 @@ def main():
     report = compute_report_unlabeled(
         results,
         images_dict,
-        real_agg_strategies=("mean",),
-        fourier_agg_strategies=("mean",),
+        real_agg_strategies=(AggregationStrategy.MEAN,),
+        fourier_agg_strategies=(AggregationStrategy.MEAN,),
     )
     plot_report(report, plot_weights="weights" in args.plot, density=False, plot_fsc=False)
 

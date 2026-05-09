@@ -6,6 +6,7 @@ import torch
 from sklearn.metrics import average_precision_score
 
 from method_comparison.domain.enums import Space, AggregationStrategy
+from method_comparison.domain.metrics import SpaceMetrics
 from method_comparison.evaluation.aggregation import compute_aggregated_weights, _get_space_reference
 
 # List of all implemented recall methods
@@ -43,20 +44,24 @@ def get_recall(
 
 def compute_soft_metrics(
     scores: np.ndarray, idx_good: np.ndarray, recall_methods: Iterable[str]
-) -> Dict[str, float]:
+) -> SpaceMetrics:
 
     # Normalize scores between 0 and 1 for AP calculation
     max_score = scores.max()
     norm_scores = scores / max_score if max_score > 0 else scores
 
-    metrics = {
-        "ap": average_precision_score(idx_good, norm_scores),
-        "soft_precision": get_precision(scores, idx_good),
+    ap = average_precision_score(idx_good, norm_scores)
+    soft_precision = get_precision(scores, idx_good)
+    soft_recall = {
+        method: get_recall(scores, idx_good, method)
+        for method in recall_methods
     }
-    for method in recall_methods:
-        metrics[f"soft_recall_{method}"] = get_recall(scores, idx_good, method)
 
-    return metrics
+    return SpaceMetrics(
+        ap=ap,
+        soft_precision=soft_precision,
+        soft_recall=soft_recall
+    )
 
 
 def compute_space_metrics(
@@ -64,7 +69,7 @@ def compute_space_metrics(
     labels: np.ndarray | None,
     recall_methods = Iterable[str]
 ) -> dict[Space, dict[AggregationStrategy, dict]]:
-    space_metrics: dict[Space, dict[AggregationStrategy, dict]] = {}
+    space_metrics: dict[Space, dict[AggregationStrategy, SpaceMetrics]] = {}
 
     for space, data in agg_weights.items():
         if data is None:

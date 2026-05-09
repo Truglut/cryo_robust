@@ -72,8 +72,8 @@ def main():
         mask=mask,
         fsc_threshold=FSC_THRESHOLD,
         recall_methods=RECALL_METHODS,
-        real_agg_strategies=("mean",),
-        fourier_agg_strategies=("energy",),
+        real_agg_strategies=(AggregationStrategy.MEAN,),
+        fourier_agg_strategies=(AggregationStrategy.ENERGY,),
         energy_reference="ground_truth",
     )
 

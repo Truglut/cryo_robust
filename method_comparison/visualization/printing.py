@@ -39,11 +39,9 @@ def print_report(report: EvaluationReport) -> None:
         for space, strategy_metrics in m.space_metrics.items():
             for strategy, metrics in strategy_metrics.items():
                 print(f"  Space: {space.name}  |  Aggregation: {strategy}")
-                print(f"    Avg Precision:   {metrics['ap']:.4f}")
-                print(f"    Soft Precision:  {metrics['soft_precision']:.4f}")
-                for key, value in metrics.items():
-                    if key.startswith("soft_recall_"):
-                        recall_method = key[len("soft_recall_") :]
-                        print(f"    Soft Recall ({recall_method}): {value:.4f}")
+                print(f"    Avg Precision:   {metrics.ap:.4f}")
+                print(f"    Soft Precision:  {metrics.soft_precision:.4f}")
+                for recall_method, value in metrics.soft_recall.items():
+                    print(f"    Soft Recall ({recall_method}): {value:.4f}")
 
         print()
