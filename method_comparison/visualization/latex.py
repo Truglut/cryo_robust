@@ -1,10 +1,11 @@
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
 from method_comparison.domain.enums import Space, AggregationStrategy
 from method_comparison.domain.reports import EvaluationReport
-from method_comparison.visualization.plotting import AVERAGE_NAME
+from method_comparison.visualization.plotting import AVERAGE_NAME, save_report_figures
 
 # Required LaTeX packages for rendering tables and formatting the document.
 LATEX_PACKAGES = ["booktabs", "float", "caption"]
@@ -31,6 +32,7 @@ def generate_document_preamble() -> str:
     Generate the LaTeX preamble required for the report.
 
     The generated preamble includes:
+    - Document class declaration
     - Required LaTeX packages
     - Page geometry configuration
     - Table caption positioning
@@ -40,7 +42,7 @@ def generate_document_preamble() -> str:
     str
         LaTeX preamble string.
     """
-    s = ""
+    s = "\\documentclass{article}\n\n"
 
     # Add all necessary packages
     for package in LATEX_PACKAGES:
@@ -107,10 +109,7 @@ def move_caption_to_bottom(latex: str, caption: str) -> str:
     latex = latex.replace(caption_text, "")
 
     # Reinsert the caption after the tabular environment.
-    latex = latex.replace(
-        "\\end{tabular}",
-        "\\end{tabular}\n" + caption_text,
-    )
+    latex = latex.replace("\\end{tabular}", "\\end{tabular}\n" + caption_text)
 
     return latex
 
@@ -152,20 +151,14 @@ def format_dataframe(
     formatted_df = df.rename(columns=format_column_name).copy()
 
     # Replace underscores with spaces in string-valued columns.
-    string_columns = formatted_df.select_dtypes(
-        include=["object", "string"]
-    ).columns
+    string_columns = formatted_df.select_dtypes(include=["object", "string"]).columns
 
     formatted_df[string_columns] = formatted_df[string_columns].apply(
         lambda col: col.str.replace("_", " ", regex=False)
     )
 
     # Create a Styler object for LaTeX rendering.
-    styler = (
-        formatted_df.style
-        .hide(axis="index")
-        .format(precision=float_precision)
-    )
+    styler = formatted_df.style.hide(axis="index").format(precision=float_precision)
 
     latex = styler.to_latex(
         hrules=True,
@@ -179,16 +172,6 @@ def format_dataframe(
     # Move them below the table if requested.
     if caption:
         latex = move_caption_to_bottom(latex, caption)
-
-    return latex
-
-
-def move_caption_to_bottom(latex: str, caption: str) -> str:
-    caption_text = f"\\caption{{{caption}}}"
-
-    latex = latex.replace(caption_text, "")
-
-    latex = latex.replace("\\end{tabular}", "\\end{tabular}\n" + caption_text)
 
     return latex
 
@@ -209,7 +192,9 @@ def generate_reconstruction_section(report: EvaluationReport) -> str:
     """
     reconstruction_df = report.reconstruction_metrics_dataframe()
 
-    return format_dataframe(
+    text = "\n\\section{Reconstruction metrics}\n\n"
+
+    return text + format_dataframe(
         reconstruction_df,
         caption="Reconstruction metrics for each method",
     )
@@ -238,7 +223,7 @@ def generate_classification_section(report: EvaluationReport) -> str:
     """
     classification_df = report.classification_metrics_dataframe()
 
-    text = ""
+    text = "\n\\section{Classification metrics}\n\n"
 
     for space in Space:
         space_rows = classification_df["space"] == space.name
@@ -249,10 +234,7 @@ def generate_classification_section(report: EvaluationReport) -> str:
         space_df = classification_df[space_rows]
 
         # Skip sections containing only the baseline average method.
-        if (
-            len(space_df.index) == 1
-            and space_df["method"].iloc[0] == AVERAGE_NAME
-        ):
+        if len(space_df.index) == 1 and space_df["method"].iloc[0] == AVERAGE_NAME:
             continue
 
         text += f"\n\\subsection{{{space.label}}}\n"
@@ -263,10 +245,7 @@ def generate_classification_section(report: EvaluationReport) -> str:
             if not rows.any():
                 continue
 
-            text += (
-                f"\n\\textbf{{{strategy.label}}}\n\n"
-                "\\smallskip\n\n"
-            )
+            text += f"\n\\textbf{{{strategy.label}}}\n\n" "\\smallskip\n\n"
 
             # Remove grouping columns before rendering the table.
             df = space_df[rows].drop(
@@ -279,9 +258,68 @@ def generate_classification_section(report: EvaluationReport) -> str:
     return text
 
 
+def generate_figures_section(figure_paths: list[Path], caption_prefix: str) -> str:
+    """Generate a LaTeX block embedding a list of figures.
+
+    Parameters
+    ----------
+    figure_paths : list[Path]
+        Paths to the figure files to include.
+    caption_prefix : str
+        Prefix used in each figure caption, e.g. `"Weight distribution"`.
+
+    Returns
+    -------
+    str
+        LaTeX string containing one `figure` environment per path.
+    """
+    text = ""
+
+    for i, path in enumerate(figure_paths, start=1):
+        text += (
+            f"\n\\begin{{figure}}[H]\n"
+            f"  \\centering\n"
+            f"  \\includegraphics[width=\\textwidth]{{{path.as_posix()}}}\n"
+            f"  \\caption{{{caption_prefix} {i}}}\n"
+            f"\\end{{figure}}\n"
+        )
+
+    return text
+
+
+def generate_plots_section(saved_figures: dict[str, list[Path]]) -> str:
+    """Generate a complete LaTeX plots section from saved figure paths.
+
+    Parameters
+    ----------
+    saved_figures : dict[str, list[Path]]
+        Mapping returned by `save_report_figures`, with keys
+        `"weight_distributions"` and `"fsc_curves"`.
+
+    Returns
+    -------
+    str
+        LaTeX section string ready to be written into a document.
+    """
+    text = "\n\\section{Diagnostic Plots}\n"
+
+    weight_paths = saved_figures.get("weight_distributions", [])
+    if weight_paths:
+        text += "\n\\subsection{Weight Distributions}\n"
+        text += generate_figures_section(weight_paths, "Weight distribution")
+
+    fsc_paths = saved_figures.get("fsc_curves", [])
+    if fsc_paths:
+        text += "\n\\subsection{FSC Curves}\n"
+        text += generate_figures_section(fsc_paths, "FSC curves")
+
+    return text
+
+
 def generate_latex_report(
     report: EvaluationReport,
     output_path: Path,
+    plot_options: dict[str, Any],
 ) -> None:
     """
     Generate a complete LaTeX report document.
@@ -300,6 +338,11 @@ def generate_latex_report(
         Evaluation report containing all metrics.
     output_path : Path
         Directory where the LaTeX report should be written.
+    plot_options: dict[str, Any]
+        Dict containing the follwing keyword arguments for the figure generation:
+            - max_subplots: int
+            - density: bool
+            - dpi: int
     """
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -311,19 +354,20 @@ def generate_latex_report(
 
     reconstruction_section = generate_reconstruction_section(report)
 
-    with report_path.open("w") as f:
-        f.write("\\documentclass{article}\n\n")
+    # Save figures and generate the plots section
+    figures_path = output_path / "figures"
+    saved_figures = save_report_figures(report, figures_path, **plot_options)
+    plots_section = generate_plots_section(saved_figures)
 
+    with report_path.open("w") as f:
         f.write(report_preamble)
 
         f.write("\n\\begin{document}\n")
 
-        f.write("\n\\section{Classification metrics}\n\n")
-
         f.write(classification_section)
 
-        f.write("\n\\section{Reconstruction metrics}\n\n")
-
         f.write(reconstruction_section)
+
+        f.write(plots_section)
 
         f.write("\n\n\\end{document}")

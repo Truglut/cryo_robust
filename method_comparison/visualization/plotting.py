@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -12,6 +14,12 @@ LABEL_MAP = {
 }
 
 AVERAGE_NAME = "Average"
+
+BASE_PLOT_OPTIONS = {
+    "max_subplots": 3,
+    "density": False,
+    "dpi": 150,
+}
 
 
 def _plot_weight_histogram(
@@ -189,7 +197,7 @@ def _plot_fsc_curves(report: EvaluationReport) -> plt.Figure | None:
 
 def plot_report(
     report: EvaluationReport,
-    max_subplots: int = 4,
+    max_subplots: int,
     plot_weights: bool = True,
     density: bool = False,
     plot_fsc: bool = True,
@@ -219,3 +227,53 @@ def plot_report(
         if fig is not None:
             fig.show()
             plt.show()
+
+
+def save_report_figures(
+    report: EvaluationReport,
+    output_path: Path,
+    max_subplots: int,
+    density: bool = False,
+    dpi: int = 150,
+) -> dict[str, list[Path]]:
+    """Save all report figures to disk and return their paths.
+
+    Parameters
+    ----------
+    report : EvaluationReport
+        Populated evaluation report.
+    output_path : Path
+        Directory in which figures are saved. Created if absent.
+    max_subplots : int
+        Maximum subplots per weight-distribution figure.
+    density : bool, optional
+        Whether to normalise histograms to probability density.
+    dpi : int, optional
+        Output resolution in dots per inch. Default is 150.
+
+    Returns
+    -------
+    dict[str, list[Path]]
+        Keys are ``"weight_distributions"`` and ``"fsc_curves"``.
+        Values are lists of saved file paths (FSC list has 0 or 1 entries).
+    """
+    output_path.mkdir(parents=True, exist_ok=True)
+    saved: dict[str, list[Path]] = {"weight_distributions": [], "fsc_curves": []}
+
+    all_scores = _collect_weight_scores(report)
+    for i, fig in enumerate(
+        _plot_weight_distributions(all_scores, report.labels, max_subplots, density)
+    ):
+        path = output_path / f"weight_distribution_{i}.pdf"
+        fig.savefig(path, dpi=dpi, bbox_inches="tight")
+        plt.close(fig)
+        saved["weight_distributions"].append(path)
+
+    fsc_fig = _plot_fsc_curves(report)
+    if fsc_fig is not None:
+        path = output_path / "fsc_curves.pdf"
+        fsc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
+        plt.close(fsc_fig)
+        saved["fsc_curves"].append(path)
+
+    return saved

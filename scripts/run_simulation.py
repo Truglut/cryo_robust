@@ -91,7 +91,9 @@ def main():
 
     # Optionally save the report
     if args.report is not None:
-        generate_latex_report(report, output_path=args.report)
+        generate_latex_report(
+            report, output_path=args.report, plot_options=args.plot_options
+        )
 
     # Show images (averages and original images) with napari
     if args.show_images:
