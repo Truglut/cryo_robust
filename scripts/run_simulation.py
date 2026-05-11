@@ -35,9 +35,7 @@ def main():
 
     # Generate the data (good copies, rotated outliers, misclassified outliers + noise)
     print("Generating data...")
-    images, ground_truth, labels = create_evaluation_dataset(
-        cfg, rng, standardize=args.standardize
-    )
+    images, ground_truth, labels = create_evaluation_dataset(cfg, rng)
     tensor_images = torch.from_numpy(images).to(dtype=torch.float32, device=args.device)
 
     # Apply mask to images

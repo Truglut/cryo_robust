@@ -91,7 +91,7 @@ def load_misclassified_images(
 
 
 def create_evaluation_dataset(
-    cfg: dict, rng: np.random.Generator, standardize: str | None = None
+    cfg: dict, rng: np.random.Generator
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Generates an evaluation dataset with rotated inliers, rotated outliers,
@@ -151,13 +151,13 @@ def create_evaluation_dataset(
         )
         labels[current_idx : current_idx + n_misc] = 2
         current_idx += n_misc
-    
+
     # Add images with no signal (all zeros, noise will be added later)
     if n_noise > 0:
         dataset[current_idx : current_idx + n_noise] = 0.0
-        labels[current_idx: current_idx + n_noise] = 3
+        labels[current_idx : current_idx + n_noise] = 3
         current_idx += n_noise
-    
+
     # Add noise to the array
     final_dataset = add_noise(
         dataset,
@@ -166,14 +166,5 @@ def create_evaluation_dataset(
         snr=noise_cfg.get("snr"),
         noise_std=noise_cfg.get("noise_std"),
     )
-
-    if standardize == "global":
-        global_mean = final_dataset.mean()
-        global_std = final_dataset.std()
-        final_dataset = (final_dataset - global_mean) / (global_std + 1e-8)
-    elif standardize == "per_particle":
-        means = final_dataset.mean(axis=(1, 2), keepdims=True)
-        stds = final_dataset.std(axis=(1, 2), keepdims=True)
-        final_dataset = (final_dataset - means) / (stds + 1e-8)
 
     return final_dataset, ref_image, labels
