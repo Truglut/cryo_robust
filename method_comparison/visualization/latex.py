@@ -8,7 +8,7 @@ from method_comparison.domain.reports import EvaluationReport
 from method_comparison.visualization.plotting import AVERAGE_NAME, save_report_figures
 
 # Required LaTeX packages for rendering tables and formatting the document.
-LATEX_PACKAGES = ["booktabs", "float", "caption"]
+LATEX_PACKAGES = ["booktabs", "float", "caption", "graphicx"]
 
 # Human-readable names for classification metrics.
 CLASSIFICATION_METRIC_NAMES = {
@@ -223,7 +223,7 @@ def generate_classification_section(report: EvaluationReport) -> str:
     """
     classification_df = report.classification_metrics_dataframe()
 
-    text = "\n\\section{Classification metrics}\n\n"
+    text = "\n\\section{Classification metrics}\n"
 
     for space in Space:
         space_rows = classification_df["space"] == space.name
