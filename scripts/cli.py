@@ -84,6 +84,12 @@ def build_simulation_parser() -> argparse.ArgumentParser:
         choices=BASE_PLOTS + SIMULATION_PLOTS,
         help="Plots to generate",
     )
+    visualization_group.add_argument(
+        "--max-subplots",
+        type=int,
+        default=4,
+        help="Maximum number of subplots to include in the same figure"
+    )
 
     # Add reports to saving group
     saving_group.add_argument(
