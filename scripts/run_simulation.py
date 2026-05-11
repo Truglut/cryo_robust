@@ -83,7 +83,7 @@ def main():
     # Optionally plot the report
     plot_report(
         report,
-        max_subplots=True,
+        max_subplots=4,
         plot_weights="weights" in args.plot,
         density=False,
         plot_fsc="fsc" in args.plot,
