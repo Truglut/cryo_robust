@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from method_comparison.dataset_builder import STANDARDIZE_TYPES
+from method_comparison.visualization.plotting import BASE_PLOT_OPTIONS
 
 BASE_PLOTS = ["weights", "gmm"]
 SIMULATION_PLOTS = ["fsc"]
@@ -29,6 +30,20 @@ def build_base_parser() -> tuple[
     )
 
     # Visualization
+    visualization_group.add_argument(
+        "--max-subplots",
+        type=int,
+        default=BASE_PLOT_OPTIONS["max_subplots"],
+        help="Maximum number of subplots to include in the same figure",
+    )
+    visualization_group.add_argument(
+        "--dpi", type=int, default=BASE_PLOT_OPTIONS["dpi"], help="DPI for saved figures"
+    )
+    visualization_group.add_argument(
+        "--density",
+        action="store_true",
+        help="Normalize weight distribution histograms to probability densities",
+    )
     visualization_group.add_argument(
         "--show-images",
         action="store_true",
@@ -84,18 +99,10 @@ def build_simulation_parser() -> argparse.ArgumentParser:
         choices=BASE_PLOTS + SIMULATION_PLOTS,
         help="Plots to generate",
     )
-    visualization_group.add_argument(
-        "--max-subplots",
-        type=int,
-        default=4,
-        help="Maximum number of subplots to include in the same figure"
-    )
 
     # Add reports to saving group
     saving_group.add_argument(
-        "--report",
-        type=Path,
-        help="Generate a LaTeX report at the provided path"
+        "--report", type=Path, help="Generate a LaTeX report at the provided path"
     )
 
     simulation_group = parser.add_argument_group("Simulation")
@@ -150,6 +157,13 @@ def parse_arguments(parser: argparse.ArgumentParser) -> argparse.Namespace:
     # Standardize args.plot to always be a list
     if args.plot is None:
         args.plot = []
+
+    # Build plot options
+    args.plot_options = {
+        "max_subplots": args.max_subplots,
+        "density": args.density,
+        "dpi": args.dpi,
+    }
 
     return args
 
