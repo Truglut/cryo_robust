@@ -68,7 +68,7 @@ def cosine_similarity(
     y: torch.Tensor,
     ref_image: torch.Tensor,
     std: torch.Tensor | float = 1.0,
-    eps: float = 1e-6,
+    eps: float = 1.0e-8,
     inv_type: str = "neg",
 ):
     return invert_similarity(
@@ -76,6 +76,44 @@ def cosine_similarity(
         inv_type=inv_type,
         eps=eps,
     )
+
+
+def cross_correlation(
+    images: torch.Tensor,
+    reference: torch.Tensor,
+    std: torch.Tensor | float = 1.0,
+    eps: float = 1.0e-8,
+    inv_type: str = "neg",
+):
+    image_dims = tuple(range(1, images.ndim))
+    return cosine_similarity(images, reference, std, eps, inv_type)
+
+
+@torch.no_grad()
+def cross_correlation_tagare(
+    y: torch.Tensor,
+    ref_image: torch.Tensor,
+    std: torch.Tensor | float = 1.0,
+    beta: float = 1.0e-6,
+    eps: float = 1.0e-6,
+    inv_type: str = "neg",
+) -> torch.Tensor:
+    y_flat = y.flatten(1)
+
+    # First term: replace cosine similarity with cross correlation
+    cos_abs = torch.abs(
+        cross_correlation(y, reference=ref_image, std=std, eps=eps, inv_type="none")
+    )
+
+    # Second term: norm of the orthogonal component
+    orth_norm_sq = y_flat.square().sum(dim=1) * (1.0 - cos_abs.square())
+
+    # Avoid negative values caused by floating point errors
+    orth_norm_sq = torch.clamp(orth_norm_sq, min=0.0)
+
+    weights = cos_abs * torch.exp(-beta * orth_norm_sq)
+
+    return invert_similarity(weights, inv_type=inv_type, eps=eps)
 
 
 def orthogonal_residual_norm(
@@ -109,13 +147,17 @@ def negexp_orthogonal_residual_norm(
 def invert_similarity(
     sim: torch.Tensor, inv_type: str | None = "neg", eps: float = 1e-6
 ):
-    if inv_type == "neg" or inv_type == "negative":
+    if inv_type is None:
+        return sim
+    
+    inv_type = inv_type.lower()
+    if inv_type in ["neg", "negative"]:
         return -sim
     if inv_type == "reciprocal":
         return torch.reciprocal(torch.clamp(sim, min=eps))
-    if inv_type == "negative_exponential" or inv_type == "neg_exp":
+    if inv_type in ["negative_exponential", "neg_exp", "negexp"]:
         return torch.exp(-sim)
-    if inv_type == "none" or inv_type == "None" or inv_type is None:
+    if inv_type == "none":
         return sim
     raise ValueError(f"Unrecognized inversion type in tagare_distance: {inv_type}")
 
@@ -127,6 +169,8 @@ FUNCTION_REGISTRY = {
     "l1_and_l2": l1_and_l2_norm,
     "tagare_weights": tagare_distance,
     "cosine_similarity": cosine_similarity,
+    "cross_correlation": cross_correlation,
+    "cross_correlation_tagare": cross_correlation_tagare,
     "orthogonal_residual_norm": orthogonal_residual_norm,
     "negexp_orthogonal_residual_norm": negexp_orthogonal_residual_norm,
 }
@@ -140,7 +184,7 @@ NEED_BETA_PARAMETER = [
 
 def get_distance_function(
     name: str, params: dict | Tuple, imgs: torch.Tensor | None = None
-) -> Callable:
+) -> Callable[[torch.Tensor, torch.Tensor], torch.Tensor]:
     try:
         base_function = FUNCTION_REGISTRY[name]
     except KeyError:
