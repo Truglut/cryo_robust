@@ -1,20 +1,191 @@
 import numpy as np
-import torch
 import matplotlib.pyplot as plt
 
-from estimators.admm import ADMMSolver
 from method_comparison.domain.reports import EvaluationReport
-from method_comparison.domain.enums import Space
 
 # Helper for consistent coloring
 LABEL_MAP = {
     0: {"name": "Inliers", "color": "blue"},
     1: {"name": "Rotated Outliers", "color": "orange"},
     2: {"name": "Misclassified", "color": "red"},
-    3: {"name": "Noise", "color": "darkorange"}
+    3: {"name": "Noise", "color": "darkorange"},
 }
 
 AVERAGE_NAME = "Average"
+
+
+def _plot_weight_histogram(
+    ax: plt.Axes,
+    scores: np.ndarray,
+    title: str,
+    labels: np.ndarray | None,
+    density: bool,
+) -> None:
+    """
+    Render a single weight distribution histogram onto `ax`.
+
+    Parameters
+    ----------
+    ax : plt.Axes
+        The axes to draw on.
+    scores : np.ndarray
+        Score values to histogram.
+    title : str
+        Axes title.
+    labels : np.ndarray | None
+        Per-sample class labels. If None, the overall distribution is plotted.
+    density : bool
+        Whether to normalise to probability density.
+    """
+    ax.set_title(f"Weight Distribution: {title}")
+
+    min_val, max_val = scores.min(), scores.max()
+    bins = (
+        np.linspace(min_val - 0.01, max_val + 0.01, 40)
+        if np.isclose(min_val, max_val)
+        else np.linspace(min_val, max_val, 40)
+    )
+
+    if labels is None:
+        ax.hist(scores, bins=bins, alpha=0.7, color="teal", density=density)
+        return
+
+    for label_idx, config in LABEL_MAP.items():
+        mask = labels == label_idx
+        if mask.any():
+            ax.hist(
+                scores[mask],
+                bins=bins,
+                alpha=0.5,
+                label=config["name"],
+                color=config["color"],
+                density=density,
+            )
+    ax.legend()
+
+
+def _collect_weight_scores(
+    report: EvaluationReport,
+) -> dict[str, np.ndarray]:
+    """
+    Extract and flatten all (method, space, strategy) score arrays from a report.
+
+    The average method is excluded.
+
+    Parameters
+    ----------
+    report : EvaluationReport
+        Populated evaluation report.
+
+    Returns
+    -------
+    dict[str, np.ndarray]
+        Ordered mapping from a human-readable plot key to score array.
+    """
+    all_scores: dict[str, np.ndarray] = {}
+
+    for method_result in report.method_results:
+        if method_result.name == AVERAGE_NAME:
+            continue
+
+        for space, strategy_scores in method_result.scores.items():
+            for strategy, scores in strategy_scores.items():
+                key = f"{method_result.name} ({space.name} | {strategy})"
+                all_scores[key] = scores
+
+    return all_scores
+
+
+def _plot_weight_distributions(
+    all_scores: dict[str, np.ndarray],
+    labels: np.ndarray | None,
+    max_subplots: int,
+    density: bool,
+) -> list[plt.Figure]:
+    """
+    Produce batched weight distribution figures.
+
+    Parameters
+    ----------
+    all_scores : dict[str, np.ndarray]
+        Mapping from plot key to score array, as returned by
+        `_collect_weight_scores`.
+    labels : np.ndarray | None
+        Per-sample class labels.
+    max_subplots : int
+        Maximum subplots per figure.
+    density : bool
+        Whether to normalise histograms to probability density.
+
+    Returns
+    -------
+    list[plt.Figure]
+        One figure per batch.
+    """
+    figures = []
+    items = list(all_scores.items())
+
+    for batch_start in range(0, len(items), max_subplots):
+        chunk = items[batch_start : batch_start + max_subplots]
+        n = len(chunk)
+
+        fig, axes = plt.subplots(n, 1, figsize=(8.0, 3.0 * n), sharex=False)
+        if n == 1:
+            axes = [axes]
+
+        for ax, (plot_key, scores) in zip(axes, chunk):
+            _plot_weight_histogram(ax, scores, plot_key, labels, density)
+
+        fig.tight_layout()
+        figures.append(fig)
+
+    return figures
+
+
+def _plot_fsc_curves(report: EvaluationReport) -> plt.Figure | None:
+    """Produce the FSC curve comparison figure.
+
+    Parameters
+    ----------
+    report : EvaluationReport
+        Populated evaluation report.
+
+    Returns
+    -------
+    plt.Figure | None
+        The figure, or None if no FSC data is available.
+    """
+    fsc_items = [
+        (mr.name, mr.fsc_data)
+        for mr in report.method_results
+        if mr.fsc_data is not None
+    ]
+    if not fsc_items:
+        return None
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    for name, (freqs, fsc_curve) in fsc_items:
+        ax.plot(freqs, fsc_curve, label=name)
+
+    ax.axhline(
+        report.fsc_threshold,
+        color="r",
+        linestyle="--",
+        label=f"Threshold ({report.fsc_threshold})",
+    )
+
+    ax.set_xlabel("Normalised Spatial Frequency")
+    ax.set_ylabel("Fourier Shell Correlation")
+    ax.set_title("Resolution Estimates (FSC/FRC)")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(-0.1, 1.1)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    return fig
+
 
 def plot_report(
     report: EvaluationReport,
@@ -25,119 +196,26 @@ def plot_report(
 ) -> None:
     """Produce all diagnostic plots for an `EvaluationReport`.
 
-    Generates two groups of plots:
-
-    * **Weight distributions** — one histogram per (method, space, strategy)
-      combination, with bars separated by class label.  Figures contain at
-      most `max_subplots` subplots each so they remain readable.
-    * **FSC curves** — all methods overlaid on a single axes, with a
-      horizontal line at the experiment threshold.
-
     Parameters
     ----------
     report : EvaluationReport
         Populated report produced by `compute_metrics`.
     max_subplots : int, optional
-        Maximum number of histogram subplots per figure.  Default is `4`.
-    plot_weights: bool, optional.
-        Whether to plot the weight distribution histograms.  Default is `True`.
+        Maximum number of histogram subplots per figure. Default is 4.
+    plot_weights : bool, optional
+        Whether to plot weight distribution histograms. Default is True.
     density : bool, optional
-        If `True`, normalise histograms to probability density.  Default is `False`.
+        If True, normalise histograms to probability density. Default is False.
     plot_fsc : bool, optional
-        Whether to render the FSC curve comparison plot.  Default is `True`.
-
-    Returns
-    -------
-    None
+        Whether to render the FSC curve comparison plot. Default is True.
     """
-    labels = report.labels
-
-    # Weight distribution histograms
     if plot_weights:
-        # Flatten all (label, scores_array) pairs into an ordered dict for batching
-        all_scores: dict[str, np.ndarray] = {}
-        for method_result in report.method_results:
-            if method_result.name != AVERAGE_NAME:
-                for space, strategy_scores in method_result.scores.items():
-                    for strategy, scores in strategy_scores.items():
-                        # Generate an informative plot key
-                        key = f"{method_result.name} ({space.name} | {strategy})"
-                        all_scores[key] = scores
+        all_scores = _collect_weight_scores(report)
+        _ = _plot_weight_distributions(all_scores, report.labels, max_subplots, density)
+        plt.show()
 
-        # Iterate over the scores dict to plot weight distributions
-        items = list(all_scores.items())
-        for batch_start in range(0, len(items), max_subplots):
-            # Operate in batches to limit number of subplots
-            chunk = items[batch_start : batch_start + max_subplots]
-            n = len(chunk)
-            fig, axes = plt.subplots(n, 1, figsize=(8.0, 3.0 * n), sharex=False)
-            if n == 1:
-                axes = [axes]
-
-            # Plot weight distributions for every method in the batch
-            for ax, (plot_key, scores) in zip(axes, chunk):
-                ax.set_title(f"Weight Distribution: {plot_key}")
-                min_val, max_val = scores.min(), scores.max()
-                bins = (
-                    np.linspace(min_val - 0.01, max_val + 0.01, 40)
-                    if np.isclose(min_val, max_val)
-                    else np.linspace(min_val, max_val, 40)
-                )
-
-                if labels is None:
-                    # Plot overall distribution
-                    ax.hist(scores, bins=bins, alpha=0.7, color="teal", density=density)
-                else:
-                    # Plot per-class distributions
-                    for label_idx, config in LABEL_MAP.items():
-                        mask = labels == label_idx
-                        if mask.any():
-                            ax.hist(
-                                scores[mask],
-                                bins=bins,
-                                alpha=0.5,
-                                label=config["name"],
-                                color=config["color"],
-                                density=density,
-                            )
-                    ax.legend()
-
-            plt.tight_layout()
+    if plot_fsc:
+        fig = _plot_fsc_curves(report)
+        if fig is not None:
+            fig.show()
             plt.show()
-
-    # FSC curves
-    if not plot_fsc:
-        return
-
-    # Get fsc curve data from each method
-    fsc_items = [
-        (mr.name, mr.fsc_data)
-        for mr in report.method_results
-        if mr.fsc_data is not None
-    ]
-    if not fsc_items:
-        return
-
-    # Create figure and plot fsc curves for each method
-    plt.figure(figsize=(8, 5))
-    for name, (freqs, fsc_curve) in fsc_items:
-        plt.plot(freqs, fsc_curve, label=name)
-
-    # Plot the threshold as a horizontal line
-    plt.axhline(
-        report.fsc_threshold,
-        color="r",
-        linestyle="--",
-        label=f"Threshold ({report.fsc_threshold})",
-    )
-
-    # Labels, legends and titles
-    plt.xlabel("Normalised Spatial Frequency")
-    plt.ylabel("Fourier Shell Correlation")
-    plt.title("Resolution Estimates (FSC/FRC)")
-    plt.xlim(0, 1)
-    plt.ylim(-0.1, 1.1)
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.show()
