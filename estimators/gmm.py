@@ -90,7 +90,7 @@ class RecursiveGMMEstimator(Estimator):
         distance_function: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
         random_state: int | None = None,
         max_iter: int = 1,
-        tol: float = 1e-3,
+        tol: float = 1.0e-4,
         standardize_distances: bool = True,
         space: Space = Space.REAL,
         device: str = "cpu",
@@ -142,6 +142,11 @@ class RecursiveGMMEstimator(Estimator):
         for i in range(self.max_iter):
             # Calculate distances to the reference
             distances_to_ref = self.distance_function(images, reference)
+
+            # Initialize avg_distance and std_distance to avoid errors
+            # in case self.standardize_distances is False
+            avg_distance = torch.tensor(0.0, device = images.device)
+            std_distance = torch.tensor(1.0, device=images.device)
             if self.standardize_distances:
                 avg_distance = torch.mean(distances_to_ref)
                 std_distance = torch.std(distances_to_ref)
@@ -199,7 +204,9 @@ class RecursiveGMMEstimator(Estimator):
                 print(f"- Two comp: {self.model.bic(distances_to_ref_np)}")
 
             # Convergence check
-            if torch.norm(next_avg - reference) < self.tol:
+            diff_norm = torch.norm(next_avg - reference)
+            ref_norm = torch.norm(reference)
+            if (diff_norm / (ref_norm + 1.0e-8)) < self.tol:
                 reference = next_avg
                 self.converged = True
                 print(f"Achieved tolerance on iteration {i + 1}")
