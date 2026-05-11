@@ -287,7 +287,7 @@ def generate_figures_section(figure_paths: list[Path], caption_prefix: str) -> s
     return text
 
 
-def generate_plots_section(saved_figures: dict[str, list[Path]]) -> str:
+def generate_plots_section(saved_figures: dict[str, list[Path]], output_path: Path) -> str:
     """Generate a complete LaTeX plots section from saved figure paths.
 
     Parameters
@@ -295,6 +295,8 @@ def generate_plots_section(saved_figures: dict[str, list[Path]]) -> str:
     saved_figures : dict[str, list[Path]]
         Mapping returned by `save_report_figures`, with keys
         `"weight_distributions"` and `"fsc_curves"`.
+    output_path: Path
+        Path to the directory that contains the `report.tex` file.
 
     Returns
     -------
@@ -303,12 +305,12 @@ def generate_plots_section(saved_figures: dict[str, list[Path]]) -> str:
     """
     text = "\n\\section{Diagnostic Plots}\n"
 
-    weight_paths = saved_figures.get("weight_distributions", [])
+    weight_paths = [p.relative_to(output_path) for p in saved_figures.get("weight_distributions", [])]
     if weight_paths:
         text += "\n\\subsection{Weight Distributions}\n"
         text += generate_figures_section(weight_paths, "Weight distribution")
 
-    fsc_paths = saved_figures.get("fsc_curves", [])
+    fsc_paths = [p.relative_to(output_path) for p in saved_figures.get("fsc_curves", [])]
     if fsc_paths:
         text += "\n\\subsection{FSC Curves}\n"
         text += generate_figures_section(fsc_paths, "FSC curves")
@@ -357,7 +359,7 @@ def generate_latex_report(
     # Save figures and generate the plots section
     figures_path = output_path / "figures"
     saved_figures = save_report_figures(report, figures_path, **plot_options)
-    plots_section = generate_plots_section(saved_figures)
+    plots_section = generate_plots_section(saved_figures, output_path)
 
     with report_path.open("w") as f:
         f.write(report_preamble)
