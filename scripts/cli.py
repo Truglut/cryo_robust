@@ -114,12 +114,6 @@ def build_simulation_parser() -> argparse.ArgumentParser:
         type=float,
         help="Target signal to noise ratio in image generation. Overrides snr in config file",
     )
-    simulation_group.add_argument(
-        "--standardize",
-        type=str,
-        choices=STANDARDIZE_TYPES,
-        help="Standardize images *after* adding noise. By default no standardization is done",
-    )
 
     # Evaluation
     evaluation_group.add_argument(
