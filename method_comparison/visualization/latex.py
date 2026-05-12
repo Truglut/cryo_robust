@@ -5,7 +5,12 @@ import pandas as pd
 
 from method_comparison.domain.enums import Space, AggregationStrategy
 from method_comparison.domain.reports import EvaluationReport
-from method_comparison.visualization.plotting import AVERAGE_NAME, save_report_figures
+from method_comparison.visualization.plotting import (
+    AVERAGE_NAME,
+    save_snr_reports_figures,
+    produce_snr_classification_figures,
+    plot_vs_snr,
+)
 
 # Required LaTeX packages for rendering tables and formatting the document.
 LATEX_PACKAGES = ["booktabs", "float", "caption", "graphicx"]
@@ -176,7 +181,9 @@ def format_dataframe(
     return latex
 
 
-def generate_reconstruction_section(report: EvaluationReport) -> str:
+def create_reconstruction_table(
+    report: EvaluationReport, caption: str = "Reconstruction metrics for each method"
+) -> str:
     """
     Generate the reconstruction metrics section of the report.
 
@@ -192,17 +199,125 @@ def generate_reconstruction_section(report: EvaluationReport) -> str:
     """
     reconstruction_df = report.reconstruction_metrics_dataframe()
 
-    text = "\n\\section{Reconstruction metrics}\n\n"
-
-    return text + format_dataframe(
+    return format_dataframe(
         reconstruction_df,
-        caption="Reconstruction metrics for each method",
+        caption=caption,
     )
 
 
-def generate_classification_section(report: EvaluationReport) -> str:
+def generate_reconstruction_section(
+    snr_reports: dict[float, EvaluationReport],
+    output_path: Path,
+    figures_path: Path,
+    dpi: int = 150,
+) -> str:
+    text = "\n\\section{Reconstruction metrics}\n"
+
+    reconstruction_dfs: dict[float, pd.DataFrame] = {}
+    for snr, report in snr_reports.items():
+        text += f"\n\\subsection{{SNR {snr:.3f}}}\n"
+        text += create_reconstruction_table(
+            report, caption=f"Reconstruction metrics for each method at SNR {snr:.3f}"
+        )
+
+        df = report.reconstruction_metrics_dataframe()
+        df["snr"] = snr
+        reconstruction_dfs[snr] = df
+
+    overall_rec_df = pd.concat(reconstruction_dfs.values())
+
+    text += "\n\\subsection{Reconstruction metrics vs. SNR graphs}\n"
+
+    snr_vs_rmse_plot = plot_vs_snr(
+        df=overall_rec_df,
+        metrics=["rmse"],
+        save_path=figures_path / "snr_vs_rmse.pdf",
+        metric_labels=["RMSE"],
+        dpi=dpi,
+        title="RMSE vs SNR",
+        ylabel="RMSE",
+    ).relative_to(output_path)
+
+    text += "\n\\textbf{RMSE}\n"
+    text += generate_figures_section(
+        [snr_vs_rmse_plot], "Reconstruction metrics vs SNR: RMSE"
+    )
+
+    snr_vs_corr_plot = plot_vs_snr(
+        df=overall_rec_df,
+        metrics=["pearson_corr"],
+        save_path=figures_path / "snr_vs_corr.pdf",
+        metric_labels=["Correlation"],
+        dpi=dpi,
+        title="Reconstruction correlation vs SNR",
+        ylabel="Correlation",
+    ).relative_to(output_path)
+
+    text += "\n\\textbf{Correlation}\n"
+    text += generate_figures_section(
+        [snr_vs_corr_plot], "Reconstruction metrics vs SNR: correlation"
+    )
+
+    snr_vs_frc_plot = plot_vs_snr(
+        df=overall_rec_df,
+        metrics=["fsc_resolution"],
+        save_path=figures_path / "snr_vs_corr.pdf",
+        metric_labels=["FRC Resolution"],
+        dpi=dpi,
+        title="Reconstruction resolution vs SNR",
+        ylabel="Frequency",
+    ).relative_to(output_path)
+
+    text += "\n\\textbf{FRC Resolution}\n"
+    text += generate_figures_section(
+        [snr_vs_frc_plot], "Reconstruction metrics vs SNR: FRC resolution"
+    )
+
+    return text
+
+
+def get_classification_table(
+    classification_df: pd.DataFrame, space: Space, strategy: AggregationStrategy
+) -> pd.DataFrame | None:
     """
-    Generate the classification metrics section of the report.
+    _summary_
+
+    Parameters
+    ----------
+    classification_df : pd.DataFrame
+        _description_
+    space : Space
+        _description_
+    strategy : AggregationStrategy
+        _description_
+
+    Returns
+    -------
+    pd.DataFrame | None
+        _description_
+    """
+    space_rows = classification_df["space"] == space.name
+
+    if not space_rows.any():
+        return None
+
+    space_df = classification_df[space_rows]
+
+    # Skip sections containing only the baseline average method.
+    if len(space_df.index) == 1 and space_df["method"].iloc[0] == AVERAGE_NAME:
+        return None
+
+    rows = space_df["aggregation_strategy"] == strategy.value
+
+    if not rows.any():
+        return None
+
+    return space_df[rows]
+
+
+def generate_classification_tables(report: EvaluationReport) -> str:
+    """
+    Generate the classification metrics section of the report for one SNR level.
 
     Tables are grouped by:
     - reconstruction space
@@ -222,44 +337,88 @@ def generate_classification_section(report: EvaluationReport) -> str:
         LaTeX-formatted classification section.
     """
     classification_df = report.classification_metrics_dataframe()
-
-    text = "\n\\section{Classification metrics}\n"
+    text = ""
 
     for space in Space:
-        space_rows = classification_df["space"] == space.name
-
-        if not space_rows.any():
+        if not (df["space"] == space).any():
             continue
 
-        space_df = classification_df[space_rows]
-
-        # Skip sections containing only the baseline average method.
-        if len(space_df.index) == 1 and space_df["method"].iloc[0] == AVERAGE_NAME:
-            continue
-
-        text += f"\n\\subsection{{{space.label}}}\n"
+        text += f"\n\\subsubsection*{{{space.label}}}\n"
 
         for strategy in AggregationStrategy:
-            rows = space_df["aggregation_strategy"] == strategy.value
-
-            if not rows.any():
+            df = get_classification_table(classification_df, space, strategy)
+            if df is None:
                 continue
 
             text += f"\n\\textbf{{{strategy.label}}}\n\n" "\\smallskip\n\n"
 
             # Remove grouping columns before rendering the table.
-            df = space_df[rows].drop(
-                ["space", "aggregation_strategy"],
-                axis=1,
-            )
+            df = df.drop(["space", "aggregation_strategy"], axis=1)
 
             text += format_dataframe(df)
 
     return text
 
 
+def generate_classification_section(
+    snr_reports: dict[float, EvaluationReport],
+    output_path: Path,
+    figures_path: Path,
+    dpi: int = 150,
+) -> str:
+    """
+    Generates the complete classification section of the report, including all SNR
+    subsections and metrics-vs-snr plots.
+
+    Parameters
+    ----------
+    snr_reports : dict[float, EvaluationReport]
+        Dict mapping every SNR level to its evaluation report.
+    output_path : Path
+        Path to the directory where the `report.tex` will be generated.
+    figures_path : Path
+        Path to the directory where the figures will be saved
+    dpi : int, optional
+        _description_, by default 150
+
+    Returns
+    -------
+    str
+        LaTeX text for the classification section of the report, ready to be written
+        into the document. This section contains:
+            - One subsection per SNR level. Each of these subsections has a
+            classification metrics table per space and aggregation strategy where
+            methods have been tested.
+            - One 'metrics vs. SNR' section, containing a plot of soft precision
+            and soft recall (calculated according to Huang and Tagare) vs. SNR.
+    """
+    text = "\n\\section{Classification metrics}\n"
+
+    classification_dfs: dict[float, pd.DataFrame] = {}
+    for snr, report in snr_reports.items():
+        text += f"\n\\subsection{{SNR {snr:.3f}}}\n"
+        text += "\n"
+        text += generate_classification_tables(report)
+
+        classification_dfs[snr] = report.classification_metrics_dataframe()
+        classification_dfs[snr]["snr"] = snr
+
+    overall_df = pd.concat(classification_dfs.values())
+
+    classification_figure_path = produce_snr_classification_figures(
+        overall_df, figures_path, dpi
+    ).relative_to(output_path)
+
+    text += generate_figures_section(
+        [classification_figure_path], "Classification metrics vs SNR"
+    )
+
+    return text
+
+
 def generate_figures_section(figure_paths: list[Path], caption_prefix: str) -> str:
-    """Generate a LaTeX block embedding a list of figures.
+    """
+    Generate a LaTeX block embedding a list of figures.
 
     Parameters
     ----------
@@ -287,8 +446,11 @@ def generate_figures_section(figure_paths: list[Path], caption_prefix: str) -> s
     return text
 
 
-def generate_plots_section(saved_figures: dict[str, list[Path]], output_path: Path) -> str:
-    """Generate a complete LaTeX plots section from saved figure paths.
+def diagnostic_plots_text(
+    saved_figures: dict[str, list[Path]], output_path: Path
+) -> str:
+    """
+    Generate a complete LaTeX plots subsection from saved figure paths.
 
     Parameters
     ----------
@@ -303,14 +465,18 @@ def generate_plots_section(saved_figures: dict[str, list[Path]], output_path: Pa
     str
         LaTeX section string ready to be written into a document.
     """
-    text = "\n\\section{Diagnostic Plots}\n"
-
-    weight_paths = [p.relative_to(output_path) for p in saved_figures.get("weight_distributions", [])]
+    text = ""
+    weight_paths = [
+        p.relative_to(output_path)
+        for p in saved_figures.get("weight_distributions", [])
+    ]
     if weight_paths:
         text += "\n\\subsection{Weight Distributions}\n"
         text += generate_figures_section(weight_paths, "Weight distribution")
 
-    fsc_paths = [p.relative_to(output_path) for p in saved_figures.get("fsc_curves", [])]
+    fsc_paths = [
+        p.relative_to(output_path) for p in saved_figures.get("fsc_curves", [])
+    ]
     if fsc_paths:
         text += "\n\\subsection{FSC Curves}\n"
         text += generate_figures_section(fsc_paths, "FSC curves")
@@ -318,8 +484,52 @@ def generate_plots_section(saved_figures: dict[str, list[Path]], output_path: Pa
     return text
 
 
+def generate_plots_section(
+    snr_reports: dict[float, EvaluationReport],
+    output_path: Path,
+    figures_path: Path,
+    plot_options: dict[str, Any],
+) -> str:
+    """
+    Generates the LaTeX text for the plots section.
+
+    Parameters
+    ----------
+    snr_reports : dict[float, EvaluationReport]
+        Dict mapping every SNR level to its evaluation report
+    output_path : Path
+        Path to the directory where the `report.tex` will be generated. 
+    figures_path : Path
+        Path to the directory where the figures will be saved.
+    plot_options : dict[str, Any]
+        Dict containing the following keyword arguments for the figure generation:
+            - max_subplots: int
+            - density: bool
+            - dpi: int
+
+    Returns
+    -------
+    str
+        LaTeX text for the 'diagnostic plots' section. This section contains one
+        subsection per SNR level. Each of these subsection contains:
+            - Weight distribution histograms, for each method, space and aggregation strategy.
+            - One plot representing the FRC curves for all methods.
+    """
+    plots = save_snr_reports_figures(
+        snr_reports, output_path=figures_path, **plot_options
+    )
+
+    text = "\n\\section{Diagnostic plots}\n"
+
+    for snr in snr_reports:
+        text += f"\n\\subsection{{SNR {snr:.3f}}}\n"
+        text += diagnostic_plots_text(saved_figures=plots[snr], output_path=output_path)
+
+    return text
+
+
 def generate_latex_report(
-    report: EvaluationReport,
+    snr_reports: dict[float, EvaluationReport],
     output_path: Path,
     plot_options: dict[str, Any],
 ) -> None:
@@ -336,12 +546,12 @@ def generate_latex_report(
 
     Parameters
     ----------
-    report : EvaluationReport
-        Evaluation report containing all metrics.
+    snr_reports : dict[float, EvaluationReport]
+        Dict mapping every SNR level to its EvaluationReport of results.
     output_path : Path
         Directory where the LaTeX report should be written.
     plot_options: dict[str, Any]
-        Dict containing the follwing keyword arguments for the figure generation:
+        Dict containing the following keyword arguments for the figure generation:
             - max_subplots: int
             - density: bool
             - dpi: int
@@ -349,24 +559,42 @@ def generate_latex_report(
     output_path.mkdir(parents=True, exist_ok=True)
 
     report_path = output_path / "report.tex"
+    figures_path = output_path / "figures"
 
+    # Preamble: document class, packages and setup
     report_preamble = generate_document_preamble()
 
-    classification_section = generate_classification_section(report)
+    # Classification section: recall, precision, etc.
+    class_section = generate_classification_section(
+        snr_reports=snr_reports,
+        output_path=output_path,
+        figures_path=figures_path,
+        dpi=plot_options["dpi"],
+    )
 
-    reconstruction_section = generate_reconstruction_section(report)
+    # Reconstruction section: rmse, correlation, resolution
+    reconstruction_section = generate_reconstruction_section(
+        snr_reports=snr_reports,
+        output_path=output_path,
+        figures_path=figures_path,
+        dpi=plot_options["dpi"],
+    )
 
     # Save figures and generate the plots section
-    figures_path = output_path / "figures"
-    saved_figures = save_report_figures(report, figures_path, **plot_options)
-    plots_section = generate_plots_section(saved_figures, output_path)
+    plots_section = generate_plots_section(
+        snr_reports=snr_reports,
+        output_path=output_path,
+        figures_path=figures_path,
+        plot_options=plot_options,
+    )
 
+    # Write all the contents to the file
     with report_path.open("w") as f:
         f.write(report_preamble)
 
         f.write("\n\\begin{document}\n")
 
-        f.write(classification_section)
+        f.write(class_section)
 
         f.write(reconstruction_section)
 

@@ -105,17 +105,10 @@ def main():
 
         snr_report = run_experiment(cfg, args, snr=snr)
         reports[snr] = snr_report
-
-        # Optionally save the report
-        if args.report is not None:
-            snr_str = f"{snr:.3f}".replace(".", "p")
-
-            output_path = args.report.with_name(
-                f"{args.report.stem}_snr_{snr_str}{args.report.suffix}"
-            )
-            generate_latex_report(
-                snr_report, output_path=output_path, plot_options=args.plot_options
-            )
+    
+    # Optionally save the report
+    if args.report is not None:
+        generate_latex_report(reports, args.report, plot_options=args.plot_options)
 
 
 if __name__ == "__main__":

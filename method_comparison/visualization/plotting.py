@@ -1,7 +1,9 @@
 from pathlib import Path
+from typing import Sequence
 
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from method_comparison.domain.reports import EvaluationReport
 
@@ -151,7 +153,8 @@ def _plot_weight_distributions(
 
 
 def _plot_fsc_curves(report: EvaluationReport) -> plt.Figure | None:
-    """Produce the FSC curve comparison figure.
+    """
+    Produce the FSC curve comparison figure.
 
     Parameters
     ----------
@@ -202,7 +205,8 @@ def plot_report(
     density: bool = False,
     plot_fsc: bool = True,
 ) -> None:
-    """Produce all diagnostic plots for an `EvaluationReport`.
+    """
+    Produce all diagnostic plots for an `EvaluationReport`.
 
     Parameters
     ----------
@@ -236,7 +240,8 @@ def save_report_figures(
     density: bool = False,
     dpi: int = 150,
 ) -> dict[str, list[Path]]:
-    """Save all report figures to disk and return their paths.
+    """
+    Save all report figures to disk and return their paths.
 
     Parameters
     ----------
@@ -277,3 +282,251 @@ def save_report_figures(
         saved["fsc_curves"].append(path)
 
     return saved
+
+
+def save_snr_reports_figures(
+    snr_reports: dict[float, EvaluationReport],
+    output_path: Path,
+    max_subplots: int,
+    density: bool = False,
+    dpi: int = 150,
+) -> dict[str, list[Path]]:
+    """
+    Save all report figures to disk and return their paths.
+
+    Parameters
+    ----------
+    snr_reports : dict[float, EvaluationReport]
+        Dict mapping every SNR value to its corresponding evaluation report.
+    output_path : Path
+        Directory in which figures are saved. Created if absent.
+    max_subplots : int
+        Maximum subplots per weight-distribution figure.
+    density : bool, optional
+        Whether to normalise histograms to probability density.
+    dpi : int, optional
+        Output resolution in dots per inch. Default is 150.
+
+    Returns
+    -------
+    dict[float, dict[str, list[Path]]]
+        Maps every SNR value to a dict with keys ``"weight_distributions"`` and ``"fsc_curves"``,
+        whose values are lists of saved file paths (FSC list has 0 or 1 entries).
+    """
+    output_path.mkdir(parents=True, exist_ok=True)
+    saved: dict[float, dict[str, list[Path]]] = dict()
+    for snr, report in snr_reports.items():
+        snr_str = f"{snr:.3f}".replace(".", "p")
+        snr_output = output_path.with_name(
+            f"{output_path.stem}_snr_{snr_str}{output_path.suffix}"
+        )
+        snr_output.mkdir(parents=True, exist_ok=True)
+
+        saved[snr] = save_report_figures(
+            report, snr_output, max_subplots=max_subplots, density=density, dpi=dpi
+        )
+
+    return saved
+
+
+def produce_snr_classification_figures(
+    overall_classification_df: pd.DataFrame, output_path: Path, dpi: int = 150
+) -> Path:
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    required_columns = {"method", "snr", "soft_precision", "soft_recall_huang_tagare"}
+    missing = required_columns - set(overall_classification_df.columns)
+
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Get unique methods
+    methods = sorted(overall_classification_df["method"].unique())
+
+    # Use one color per method
+    cmap = plt.get_cmap("tab10")
+
+    for idx, method in enumerate(methods):
+        method_df = overall_classification_df[
+            overall_classification_df["method"] == method
+        ].sort_values("snr")
+
+        color = cmap(idx % 10)
+
+        # Precision line
+        ax.plot(
+            method_df["snr"],
+            method_df["soft_precision"],
+            label=f"{method} - precision",
+            color=color,
+            linestyle="-",
+            marker="o",
+        )
+
+        # Recall line
+        ax.plot(
+            method_df["snr"],
+            method_df["soft_recall_huang_tagare"],
+            label=f"{method} - recall",
+            color=color,
+            linestyle="--",
+            marker="s",
+        )
+
+    ax.set_xscale("log")
+
+    ax.set_xlabel("SNR")
+    ax.set_ylabel("Score")
+    ax.set_title("Precision and Recall vs SNR")
+    ax.grid(True, which="both", linestyle=":")
+    ax.legend()
+
+    fig.tight_layout()
+
+    save_path = output_path / "snr_vs_precision_recall.pdf"
+
+    fig.savefig(save_path, dpi=dpi, bbox_inches="tight")
+    plt.close(fig)
+
+    return save_path
+
+
+def plot_vs_snr(
+    df: pd.DataFrame,
+    metrics: str | Sequence[str],
+    save_path: str | Path,
+    *,
+    metric_labels: Sequence[str] | None = None,
+    method_column: str = "method",
+    snr_column: str = "snr",
+    dpi: int = 150,
+    figsize: tuple[int, int] = (10, 6),
+    title: str | None = None,
+    ylabel: str = "Score",
+) -> Path:
+    """Plot one or more metrics as a function of SNR for each method.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe containing the method, SNR, and metric columns.
+    metrics : str | Sequence[str]
+        Metric column name or sequence of metric column names to plot.
+    save_path : str | Path
+        Full output path of the saved figure.
+    metric_labels : Sequence[str] | None, optional
+        Display names for metrics in the legend. If ``None``, metric column
+        names are used directly.
+    method_column : str, optional
+        Name of the dataframe column identifying reconstruction or evaluation
+        methods. Default is ``"method"``.
+    snr_column : str, optional
+        Name of the dataframe column containing SNR values.
+        Default is ``"snr"``.
+    dpi : int, optional
+        Output resolution in dots per inch. Default is 150.
+    figsize : tuple[int, int], optional
+        Figure size in inches as ``(width, height)``.
+        Default is ``(10, 6)``.
+    title : str | None, optional
+        Figure title. If ``None``, a title is generated automatically from
+        the selected metrics.
+    ylabel : str, optional
+        Label of the y-axis. Default is ``"Score"``.
+
+    Returns
+    -------
+    Path
+        Path to the saved figure file.
+
+    Raises
+    ------
+    ValueError
+        If required dataframe columns are missing.
+    ValueError
+        If ``metrics`` and ``metric_labels`` have different lengths.
+    """
+
+    # Normalize inputs
+    if isinstance(metrics, str):
+        metrics = [metrics]
+    else:
+        metrics = list(metrics)
+
+    if metric_labels is None:
+        metric_labels = metrics
+    else:
+        metric_labels = list(metric_labels)
+
+    if len(metrics) != len(metric_labels):
+        raise ValueError("`metrics` and `metric_labels` must have the same length")
+
+    # Validate columns
+    required_columns = {
+        method_column,
+        snr_column,
+        *metrics,
+    }
+
+    missing = required_columns - set(df.columns)
+
+    if missing:
+        raise ValueError(f"Missing required columns: {sorted(missing)}")
+
+    save_path = Path(save_path)
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    methods = sorted(df[method_column].unique())
+
+    # One color per method
+    cmap = plt.get_cmap("tab10")
+
+    # Reusable style cycles
+    linestyles = ["-", "--", "-.", ":"]
+    markers = ["o", "s", "^", "D", "v"]
+
+    # For each method, plot metrics vs snr
+    for method_idx, method in enumerate(methods):
+        method_df = df[df[method_column] == method].sort_values(snr_column)
+
+        color = cmap(method_idx % cmap.N)
+
+        # Plot every metric in a different style
+        for metric_idx, (metric, metric_label) in enumerate(
+            zip(metrics, metric_labels)
+        ):
+            ax.plot(
+                method_df[snr_column],
+                method_df[metric],
+                label=f"{method} — {metric_label}",
+                color=color,
+                linestyle=linestyles[metric_idx % len(linestyles)],
+                marker=markers[metric_idx % len(markers)],
+            )
+
+    ax.set_xscale("log")
+
+    ax.set_xlabel("SNR")
+    ax.set_ylabel(ylabel)
+
+    if title is None:
+        if len(metric_labels) == 1:
+            title = f"{metric_labels[0]} vs SNR"
+        else:
+            title = "Metrics vs SNR"
+
+    ax.set_title(title)
+
+    ax.grid(True, which="both", linestyle=":")
+    ax.legend()
+
+    fig.tight_layout()
+
+    fig.savefig(save_path, dpi=dpi, bbox_inches="tight")
+    plt.close(fig)
+
+    return save_path
