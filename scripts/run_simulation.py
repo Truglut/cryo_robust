@@ -55,7 +55,9 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
 
     # Identify and save requested subsets
     image_path = Path(cfg["data"]["reference_image_path"])
-    process_and_save_subsets(results, image_path, images_save=images, args=args, snr=snr)
+    process_and_save_subsets(
+        results, image_path, images_save=images, args=args, snr=snr
+    )
 
     # Calculate complete report with classification and reconstruction metrics
     report = compute_report_labeled(
@@ -87,7 +89,7 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
     # Show images (averages and original images) with napari
     if args.show_images:
         visualize_results(results, tensor_images, args, ground_truth, labels)
-    
+
     return report
 
 

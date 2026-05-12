@@ -471,14 +471,14 @@ def diagnostic_plots_text(
         for p in saved_figures.get("weight_distributions", [])
     ]
     if weight_paths:
-        text += "\n\\subsection{Weight Distributions}\n"
+        text += "\n\\subsubsection{Weight Distributions}\n"
         text += generate_figures_section(weight_paths, "Weight distribution")
 
     fsc_paths = [
         p.relative_to(output_path) for p in saved_figures.get("fsc_curves", [])
     ]
     if fsc_paths:
-        text += "\n\\subsection{FSC Curves}\n"
+        text += "\n\\subsubsection{FSC Curves}\n"
         text += generate_figures_section(fsc_paths, "FSC curves")
 
     return text

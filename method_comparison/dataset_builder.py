@@ -33,7 +33,7 @@ def add_noise(
 
     print("Adding noise to images:")
     print(
-        f"\t- Average image std:  {np.sqrt(signal_var):.4f}\tVariance:  {signal_var:6f}"
+        f"\t- Signal std:  {np.sqrt(signal_var):.4f}\tVariance:  {signal_var:6f}"
     )
     print(f"\t- Noise std:          {noise_std:.4f}\tVariance:  {noise_std**2:.6f}")
     print(f"\t- SNR:                {snr:.4f}\n")
