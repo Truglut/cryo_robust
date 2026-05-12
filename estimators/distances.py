@@ -86,7 +86,13 @@ def cross_correlation(
     inv_type: str = "neg",
 ):
     image_dims = tuple(range(1, images.ndim))
-    return cosine_similarity(images, reference, std, eps, inv_type)
+    return cosine_similarity(
+        images - images.mean(dim=image_dims, keepdim=True),
+        reference - reference.mean(),
+        std,
+        eps,
+        inv_type,
+    )
 
 
 @torch.no_grad()
@@ -101,17 +107,17 @@ def cross_correlation_tagare(
     y_flat = y.flatten(1)
 
     # First term: replace cosine similarity with cross correlation
-    cos_abs = torch.abs(
+    corr_abs = torch.abs(
         cross_correlation(y, reference=ref_image, std=std, eps=eps, inv_type="none")
     )
 
     # Second term: norm of the orthogonal component
-    orth_norm_sq = y_flat.square().sum(dim=1) * (1.0 - cos_abs.square())
+    orth_norm_sq = y_flat.square().sum(dim=1) * (1.0 - corr_abs.square())
 
     # Avoid negative values caused by floating point errors
     orth_norm_sq = torch.clamp(orth_norm_sq, min=0.0)
 
-    weights = cos_abs * torch.exp(-beta * orth_norm_sq)
+    weights = corr_abs * torch.exp(-beta * orth_norm_sq)
 
     return invert_similarity(weights, inv_type=inv_type, eps=eps)
 
@@ -149,7 +155,7 @@ def invert_similarity(
 ):
     if inv_type is None:
         return sim
-    
+
     inv_type = inv_type.lower()
     if inv_type in ["neg", "negative"]:
         return -sim
@@ -179,6 +185,7 @@ NEED_BETA_PARAMETER = [
     "global",  # just in case
     "tagare_weights",
     "negexp_orthogonal_residual_norm",
+    "cross_correlation_tagare",
 ]
 
 
