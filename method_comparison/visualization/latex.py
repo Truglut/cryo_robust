@@ -261,7 +261,7 @@ def generate_reconstruction_section(
     snr_vs_frc_plot = plot_vs_snr(
         df=overall_rec_df,
         metrics=["fsc_resolution"],
-        save_path=figures_path / "snr_vs_corr.pdf",
+        save_path=figures_path / "snr_vs_frc.pdf",
         metric_labels=["FRC Resolution"],
         dpi=dpi,
         title="Reconstruction resolution vs SNR",
