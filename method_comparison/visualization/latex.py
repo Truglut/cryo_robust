@@ -255,6 +255,31 @@ def generate_reconstruction_section(
     figures_path: Path,
     dpi: int = 150,
 ) -> str:
+    """
+    Generate the reconstruction metrics section of the LaTeX report.
+
+    Produces one subsection per SNR level with a formatted metrics table,
+    followed by a 'metrics vs. SNR' subsection containing plots for RMSE,
+    Pearson correlation, and FRC resolution.
+
+    Parameters
+    ----------
+    snr_reports : dict[float, EvaluationReport]
+        Dict mapping every SNR level to its evaluation report.
+    output_path : Path
+        Path to the directory where ``report.tex`` will be generated.
+        Used to compute relative figure paths.
+    figures_path : Path
+        Directory where generated figure files will be saved.
+    dpi : int, optional
+        Resolution for saved figures, by default 150.
+
+    Returns
+    -------
+    str
+        LaTeX text for the reconstruction section, ready to be written
+        into the document.
+    """
     text = "\n\\section{Reconstruction metrics}\n"
 
     reconstruction_dfs: dict[float, pd.DataFrame] = {}
@@ -324,21 +349,28 @@ def get_classification_table(
     classification_df: pd.DataFrame, space: Space, strategy: AggregationStrategy
 ) -> pd.DataFrame | None:
     """
-    _summary_
+    Extract a classification metrics sub-table for a given space and strategy.
+
+    Filters ``classification_df`` to rows matching ``space`` and
+    ``strategy``, and returns ``None`` when the result would be empty or
+    consist solely of the baseline average method.
 
     Parameters
     ----------
     classification_df : pd.DataFrame
-        _description_
+        Full classification metrics dataframe from
+        ``EvaluationReport.classification_metrics_dataframe()``.
     space : Space
-        _description_
+        Reconstruction space to filter on (matched against the ``"space"``
+        column by name).
     strategy : AggregationStrategy
-        _description_
+        Aggregation strategy to filter on (matched against the
+        ``"aggregation_strategy"`` column by value).
 
     Returns
     -------
     pd.DataFrame | None
-        _description_
+        Filtered dataframe, or ``None`` if no relevant rows exist.
     """
     space_rows = classification_df["space"] == space.name
 
@@ -423,7 +455,7 @@ def generate_classification_section(
     figures_path : Path
         Path to the directory where the figures will be saved
     dpi : int, optional
-        _description_, by default 150
+        Resolution for saved figures, by default 150.
 
     Returns
     -------
@@ -564,7 +596,7 @@ def generate_plots_section(
     snr_reports : dict[float, EvaluationReport]
         Dict mapping every SNR level to its evaluation report
     output_path : Path
-        Path to the directory where the `report.tex` will be generated. 
+        Path to the directory where the `report.tex` will be generated.
     figures_path : Path
         Path to the directory where the figures will be saved.
     plot_options : dict[str, Any]
@@ -604,9 +636,10 @@ def generate_latex_report(
     Generate a complete LaTeX report document.
 
     The generated report contains:
-    - classification metrics section
-    - reconstruction metrics section
-    - fully formatted LaTeX tables
+    - Experiment configuration summary
+    - Classification metrics section (tables and vs-SNR plots)
+    - Reconstruction metrics section (tables and vs-SNR plots)
+    - Diagnostic plots section (weight distributions and FRC curves)
 
     The report is written to `report.tex` inside the specified
     output directory.
