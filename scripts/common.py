@@ -108,7 +108,11 @@ def get_weights(estimator: Estimator, final_weights: dict[Space, torch.Tensor]):
 
 
 def process_and_save_subsets(
-    results: dict, image_path: Path, images_save: np.ndarray, args
+    results: dict,
+    image_path: Path,
+    images_save: np.ndarray,
+    args,
+    snr: float | None = None,
 ) -> None:
     # Initialize quantiles and thresholds arrays from args
     quantiles = np.array(args.quantiles) if args.quantiles else np.array([])
@@ -116,7 +120,10 @@ def process_and_save_subsets(
 
     # Create subsets directory if saves requested
     if args.save_quantiles or args.save_thresholds:
-        subsets_dir = image_path.parent / "subsets"
+        if snr is not None:
+            subsets_dir = image_path.parent / f"subsets_snr_{snr:.3f}"
+        else:
+            subsets_dir = image_path.parent / "subsets"
         subsets_dir.mkdir(exist_ok=True)
 
     # Iterate over methods to identify subsets and save if requested

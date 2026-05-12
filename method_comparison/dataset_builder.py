@@ -91,7 +91,7 @@ def load_misclassified_images(
 
 
 def create_evaluation_dataset(
-    cfg: dict, rng: np.random.Generator
+    cfg: dict, rng: np.random.Generator, snr: float | None = None
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Generates an evaluation dataset with rotated inliers, rotated outliers,
@@ -99,7 +99,6 @@ def create_evaluation_dataset(
     """
     data_cfg = cfg["data"]
     gen_cfg = cfg["generation"]
-    noise_cfg = cfg["noise"]
 
     # Load Reference
     ref_image = mrcfile.read(data_cfg["reference_image_path"])
@@ -163,8 +162,7 @@ def create_evaluation_dataset(
         dataset,
         rng=rng,
         signal_var=true_signal_var,
-        snr=noise_cfg.get("snr"),
-        noise_std=noise_cfg.get("noise_std"),
+        snr=snr,
     )
 
     return final_dataset, ref_image, labels

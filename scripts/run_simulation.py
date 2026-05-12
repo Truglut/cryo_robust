@@ -4,6 +4,7 @@ import numpy as np
 import torch
 
 from method_comparison.domain.enums import Space, AggregationStrategy
+from method_comparison.domain.reports import EvaluationReport
 from method_comparison.dataset_builder import create_evaluation_dataset
 from method_comparison.evaluation.report_building import compute_report_labeled
 from method_comparison.visualization.printing import print_report
@@ -23,19 +24,15 @@ FSC_THRESHOLD = 0.143
 RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
 
 
-def main():
-    args = parse_arguments(build_simulation_parser())
-
-    # Load configurations
-    cfg = load_config(args.config, args.snr)
-
-    # rng seed for reproducibility
+def run_experiment(cfg, args, snr) -> EvaluationReport:
+    # rng seed for reproducibilty
     seed = cfg.get("seed", None)
     rng = np.random.default_rng(seed=seed)
 
-    # Generate the data (good copies, rotated outliers, misclassified outliers + noise)
-    print("Generating data...")
-    images, ground_truth, labels = create_evaluation_dataset(cfg, rng)
+    # Generate the data
+    images, ground_truth, labels = create_evaluation_dataset(cfg, rng, snr)
+
+    # Move images to torch
     tensor_images = torch.from_numpy(images).to(dtype=torch.float32, device=args.device)
 
     # Apply mask to images
@@ -58,7 +55,7 @@ def main():
 
     # Identify and save requested subsets
     image_path = Path(cfg["data"]["reference_image_path"])
-    process_and_save_subsets(results, image_path, images_save=images, args=args)
+    process_and_save_subsets(results, image_path, images_save=images, args=args, snr=snr)
 
     # Calculate complete report with classification and reconstruction metrics
     report = compute_report_labeled(
@@ -87,15 +84,38 @@ def main():
         plot_fsc="fsc" in args.plot,
     )
 
-    # Optionally save the report
-    if args.report is not None:
-        generate_latex_report(
-            report, output_path=args.report, plot_options=args.plot_options
-        )
-
     # Show images (averages and original images) with napari
     if args.show_images:
         visualize_results(results, tensor_images, args, ground_truth, labels)
+    
+    return report
+
+
+def main():
+    args = parse_arguments(build_simulation_parser())
+
+    # Load configurations
+    cfg = load_config(args.config, args.snr)
+
+    reports = dict()
+
+    # Run simulations with every specified snr
+    for snr in args.snr:
+        print(f"Running experiment with SNR {snr:.3f}")
+
+        snr_report = run_experiment(cfg, args, snr=snr)
+        reports[snr] = snr_report
+
+        # Optionally save the report
+        if args.report is not None:
+            snr_str = f"{snr:.3f}".replace(".", "p")
+
+            output_path = args.report.with_name(
+                f"{args.report.stem}_snr_{snr_str}{args.report.suffix}"
+            )
+            generate_latex_report(
+                snr_report, output_path=output_path, plot_options=args.plot_options
+            )
 
 
 if __name__ == "__main__":
