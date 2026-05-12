@@ -107,10 +107,12 @@ def main():
 
         snr_report = run_experiment(cfg, args, snr=snr)
         reports[snr] = snr_report
-    
+
     # Optionally save the report
     if args.report is not None:
-        generate_latex_report(reports, args.report, plot_options=args.plot_options)
+        generate_latex_report(
+            reports, args.report, cfg=cfg, plot_options=args.plot_options
+        )
 
 
 if __name__ == "__main__":

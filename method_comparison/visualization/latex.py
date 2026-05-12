@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 import pandas as pd
 
@@ -179,6 +179,50 @@ def format_dataframe(
         latex = move_caption_to_bottom(latex, caption)
 
     return latex
+
+
+def write_experiment_info(cfg: dict[str, Any], snr_list: Iterable[float]) -> str:
+    """
+    Generate a LaTeX summary of the experiment configuration.
+
+    Produces an itemized list of image generation parameters and the
+    SNR levels used in the experiment.
+
+    Parameters
+    ----------
+    cfg : dict[str, Any]
+        Full experiment configuration dict. Must contain a ``"generation"``
+        sub-dict with keys: ``n_copies``, ``n_copies_rotated``,
+        ``n_misclassified``, ``max_rotation_reference``,
+        ``min_rotation_very_rotated``, and ``max_rotation_very_rotated``.
+    snr_list : Iterable[float]
+        SNR values tested in the experiment.
+
+    Returns
+    -------
+    str
+        LaTeX-formatted experiment summary block.
+    """
+    generation_cfg = cfg["generation"]
+    text = ""
+
+    text += "\n\\textbf{Image generation parameters:}\n"
+    text += "\n\\begin{itemize}\n"
+
+    text += f"\t\\item Number of good copies of reference: ${generation_cfg["n_copies"]}$.\n"
+    text += f"\t\\item Number of badly misaligned images: ${generation_cfg["n_copies_rotated"]}$.\n"
+    text += f"\t\\item Number of misclassified images: ${generation_cfg["n_misclassified"]}$.\n"
+    text += f"\t\\item Max rotation of good copies: $\\pm {generation_cfg["max_rotation_reference"]:.2f}$ degrees.\n"
+    text += f"\t\\item Maximum rotation of misaligned images: ${generation_cfg["max_rotation_very_rotated"]:.2f}$ degrees.\n"
+    text += f"\t\\item Minimum rotation of misaligned images: ${generation_cfg["min_rotation_very_rotated"]:.2f}$ degrees.\n"
+
+    text += "\n\\end{itemize}\n"
+
+    text += "\n\\textbf{Signal-to-noise ratios tested:} "
+    text += ", ".join([f"{snr:.3f}" for snr in snr_list])
+    text += "\n"
+
+    return text
 
 
 def create_reconstruction_table(
@@ -531,6 +575,7 @@ def generate_plots_section(
 def generate_latex_report(
     snr_reports: dict[float, EvaluationReport],
     output_path: Path,
+    cfg: dict[str, Any],
     plot_options: dict[str, Any],
 ) -> None:
     """
@@ -550,6 +595,8 @@ def generate_latex_report(
         Dict mapping every SNR level to its EvaluationReport of results.
     output_path : Path
         Directory where the LaTeX report should be written.
+    cfg: dict[str, Any]
+        Experiment configuration dict.
     plot_options: dict[str, Any]
         Dict containing the following keyword arguments for the figure generation:
             - max_subplots: int
@@ -593,6 +640,8 @@ def generate_latex_report(
         f.write(report_preamble)
 
         f.write("\n\\begin{document}\n")
+
+        f.write(write_experiment_info(cfg, snr_list=snr_reports.keys()))
 
         f.write(class_section)
 
