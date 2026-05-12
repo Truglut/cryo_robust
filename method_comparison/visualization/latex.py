@@ -340,7 +340,7 @@ def generate_classification_tables(report: EvaluationReport) -> str:
     text = ""
 
     for space in Space:
-        if not (df["space"] == space).any():
+        if not (classification_df["space"] == space).any():
             continue
 
         text += f"\n\\subsubsection*{{{space.label}}}\n"
