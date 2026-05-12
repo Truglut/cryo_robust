@@ -398,7 +398,7 @@ def plot_vs_snr(
     metrics: str | Sequence[str],
     save_path: str | Path,
     *,
-    metric_labels: Sequence[str] | None = None,
+    metric_labels: Sequence[str] | str | None = None,
     method_column: str = "method",
     snr_column: str = "snr",
     dpi: int = 150,
@@ -457,6 +457,8 @@ def plot_vs_snr(
 
     if metric_labels is None:
         metric_labels = metrics
+    elif isinstance(metric_labels, str):
+        metric_labels = [metric_labels]
     else:
         metric_labels = list(metric_labels)
 
