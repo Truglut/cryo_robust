@@ -111,8 +111,9 @@ def build_simulation_parser() -> argparse.ArgumentParser:
     # Simulation
     simulation_group.add_argument(
         "--snr",
+        nargs="+",
         type=float,
-        help="Target signal to noise ratio in image generation. Overrides snr in config file",
+        help="Target signal to noise ratio in image generation",
     )
 
     # Evaluation
