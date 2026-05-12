@@ -449,12 +449,34 @@ def generate_classification_section(
 
     overall_df = pd.concat(classification_dfs.values())
 
-    classification_figure_path = produce_snr_classification_figures(
-        overall_df, figures_path, dpi
+    precision_and_recall_curves = plot_vs_snr(
+        overall_df,
+        metrics=["soft_precision", "soft_recall_huang_tagare"],
+        save_path=figures_path / "snr_vs_precision_recall.pdf",
+        metric_labels=["Soft precision", "Soft recall"],
+        dpi=dpi,
+        title="Precision and recall vs SNR",
+        ylabel="Score",
     ).relative_to(output_path)
 
+    text += "\n\\textbf{Precision and recall curves}\n"
     text += generate_figures_section(
-        [classification_figure_path], "Classification metrics vs SNR"
+        [precision_and_recall_curves], "Classification metrics vs. SNR"
+    )
+
+    average_precision_curves = plot_vs_snr(
+        overall_df,
+        metrics="ap",
+        save_path=figures_path / "snr_vs_average_precision.pdf",
+        metric_labels="Average precision",
+        dpi=dpi,
+        title="Average precision vs SNR",
+        ylabel="Average precision",
+    ).relative_to(output_path)
+
+    text += "\n\\textbf{Average precision curves}\n"
+    text += generate_figures_section(
+        [average_precision_curves], "Average precision vs. SNR"
     )
 
     return text
