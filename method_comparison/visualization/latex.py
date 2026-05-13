@@ -490,36 +490,56 @@ def generate_classification_section(
 
     overall_df = pd.concat(classification_dfs.values())
 
-    precision_and_recall_curves = plot_vs_snr(
-        overall_df,
-        metrics=["soft_precision", "soft_recall_huang_tagare"],
-        save_path=figures_path / "snr_vs_precision_recall.pdf",
-        metric_labels=["Soft precision", "Soft recall"],
-        dpi=dpi,
-        title="Precision and recall vs SNR",
-        ylabel="Score",
-    ).relative_to(output_path)
+    # For every space and aggregation strategy, plot precision and recall vs snr
+    # and average precision vs snr
+    text += "\n\\subsection{Classification metrics vs SNR}"
+    for space in Space:
+        space_rows = overall_df["space"] == space.name
+        space_df = overall_df[space_rows]
 
-    text += "\n\\subsection{Precision and recall curves}\n"
-    text += create_figure_block(
-        precision_and_recall_curves,
-        caption="Soft precision and soft recall vs. SNR",
-    )
+        non_average = space_df[space_df["method"] != AVERAGE_NAME]
 
-    average_precision_curves = plot_vs_snr(
-        overall_df,
-        metrics="ap",
-        save_path=figures_path / "snr_vs_average_precision.pdf",
-        metric_labels="Average precision",
-        dpi=dpi,
-        title="Average precision vs SNR",
-        ylabel="Average precision",
-    ).relative_to(output_path)
+        if non_average.empty:
+            continue
+        
+        text += f"\n\\subsubsection{{{space.label}}}\n"
 
-    text += "\n\\subsection{Average precision curves}\n"
-    text += create_figure_block(
-        average_precision_curves, caption="Average precision vs. SNR"
-    )
+        for strategy in AggregationStrategy:
+            df = get_classification_table(overall_df, space, strategy)
+            if df is None:
+                continue
+
+            text += f"\n\\textbf{{{strategy.label}}}\n"
+
+            space_strategy_identifier = f"{space.name.lower()}_{strategy.value.lower()}"
+
+            precision_and_recall_curves = plot_vs_snr(
+                df,
+                metrics=["soft_precision", "soft_recall_huang_tagare"],
+                save_path=figures_path / f"snr_vs_pr_{space_strategy_identifier}.pdf",
+                metric_labels=["Soft precision", "Soft recall"],
+                dpi=dpi,
+                title="Precision and recall vs SNR",
+                ylabel="Score",
+            ).relative_to(output_path)
+            text += create_figure_block(
+                precision_and_recall_curves,
+                caption=f"Soft precision and soft recall vs. SNR ({space.label} - {strategy.label})",
+            )
+
+            average_precision_curves = plot_vs_snr(
+                df,
+                metrics="ap",
+                save_path=figures_path / f"snr_vs_ap_{space_strategy_identifier}.pdf",
+                metric_labels="Average precision",
+                dpi=dpi,
+                title="Average precision vs. SNR",
+                ylabel="Average precision",
+            ).relative_to(output_path)
+            text += create_figure_block(
+                average_precision_curves,
+                caption=f"Average precision vs. SNR ({space.label} - {strategy.label})",
+            )
 
     return text
 
@@ -653,7 +673,7 @@ def generate_figures_grid(
     return text
 
 
-def diagnostic_plots_text(
+def weights_and_fsc_plots_latex(
     saved_figures: dict[str, list[Path]], output_path: Path
 ) -> str:
     """
@@ -730,7 +750,9 @@ def generate_plots_section(
 
     for snr in snr_reports:
         text += f"\n\\subsection{{SNR {snr:.3f}}}\n"
-        text += diagnostic_plots_text(saved_figures=plots[snr], output_path=output_path)
+        text += weights_and_fsc_plots_latex(
+            saved_figures=plots[snr], output_path=output_path
+        )
 
     return text
 
