@@ -128,8 +128,9 @@ def build_simulation_parser() -> argparse.ArgumentParser:
     # Evaluation
     evaluation_group.add_argument(
         "--reapply-mask",
-        action="store_true",
-        help="Reapply the mask to estimations before evaluation",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Reapply the mask to estimations before evaluation"
     )
     return parser
 
