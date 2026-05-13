@@ -788,12 +788,13 @@ def generate_images_section(
     text += create_figure_block(
         ground_truth_fig_path.relative_to(output_path),
         caption="Ground truth image",
-        width="0.5\\textwidth",
+        width="0.3\\textwidth",
     )
 
     images_dir = figures_path / "estimated_avgs"
 
     for snr, report in snr_reports.items():
+        text += "\n\\newpage\n"
         text += f"\n\\subsection{{SNR {snr:.3f}}}\n"
 
         snr_str = f"{snr:.3f}".replace(".", "p")
