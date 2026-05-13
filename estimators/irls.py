@@ -192,7 +192,7 @@ class IRLSFourier(Estimator):
         images: Dict[Space, torch.Tensor] | torch.Tensor,
         image_variance: Dict[Space, torch.Tensor] | None = None,
         ctf: torch.Tensor | float | None = None,
-        initial_reference: torch.Tensor | None = None,
+        reference: torch.Tensor | None = None,
         prior_mean: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
         prior_variance: Dict[Space, torch.Tensor] | float | None = None,
         precomp_ctf_images: Dict[Space, torch.Tensor] | None = None,
@@ -224,27 +224,27 @@ class IRLSFourier(Estimator):
                     Space.FOURIER_REAL: prior_mean,
                     Space.FOURIER_IMAG: prior_mean,
                 }
-        if initial_reference is None:
-            initial_reference = {
+        if reference is None:
+            reference = {
                 space: torch.mean(images[space], dim=0) for space in Space
             }
-        if isinstance(initial_reference, torch.Tensor):
-            if torch.is_complex(initial_reference):
-                initial_reference = {
-                    Space.FOURIER_REAL: initial_reference.real,
-                    Space.FOURIER_IMAG: initial_reference.imag,
+        if isinstance(reference, torch.Tensor):
+            if torch.is_complex(reference):
+                reference = {
+                    Space.FOURIER_REAL: reference.real,
+                    Space.FOURIER_IMAG: reference.imag,
                 }
             else:
-                initial_reference = {
-                    Space.FOURIER_REAL: initial_reference,
-                    Space.FOURIER_IMAG: initial_reference,
+                reference = {
+                    Space.FOURIER_REAL: reference,
+                    Space.FOURIER_IMAG: reference,
                 }
 
         ref_real, weights_real = self.irls_real.fit(
             images,
             image_variance=image_variance,
             ctf=ctf,
-            reference=initial_reference[Space.FOURIER_REAL],
+            reference=reference[Space.FOURIER_REAL],
             prior_mean=prior_mean,
             prior_variance=prior_variance,
             precomp_ctf_images=precomp_ctf_images,
@@ -255,7 +255,7 @@ class IRLSFourier(Estimator):
             images,
             image_variance=image_variance,
             ctf=ctf,
-            reference=initial_reference[Space.FOURIER_IMAG],
+            reference=reference[Space.FOURIER_IMAG],
             prior_mean=prior_mean,
             prior_variance=prior_variance,
             precomp_ctf_images=precomp_ctf_images,
