@@ -309,8 +309,11 @@ def generate_reconstruction_section(
     ).relative_to(output_path)
 
     text += "\n\\textbf{RMSE}\n"
-    text += generate_figures_section(
-        [snr_vs_rmse_plot], "Reconstruction metrics vs SNR: RMSE"
+    text += create_figure_block(
+        snr_vs_rmse_plot, caption="Reconstruction RMSE vs SNR", width="0.8\\textwidth"
+    )
+    text += create_figure_block(
+        snr_vs_rmse_plot, caption="Reconstruction RMSE vs SNR", width="0.8\\textwidth"
     )
 
     snr_vs_corr_plot = plot_vs_snr(
@@ -324,8 +327,15 @@ def generate_reconstruction_section(
     ).relative_to(output_path)
 
     text += "\n\\textbf{Correlation}\n"
-    text += generate_figures_section(
-        [snr_vs_corr_plot], "Reconstruction metrics vs SNR: correlation"
+    text += create_figure_block(
+        snr_vs_corr_plot,
+        caption="Correlation with ground truth vs SNR",
+        width="0.8\\textwidth",
+    )
+    text += create_figure_block(
+        snr_vs_corr_plot,
+        caption="Correlation with ground truth vs SNR",
+        width="0.8\\textwidth",
     )
 
     snr_vs_frc_plot = plot_vs_snr(
@@ -339,10 +349,16 @@ def generate_reconstruction_section(
     ).relative_to(output_path)
 
     text += "\n\\textbf{FRC Resolution}\n"
-    text += generate_figures_section(
-        [snr_vs_frc_plot], "Reconstruction metrics vs SNR: FRC resolution"
+    text += create_figure_block(
+        snr_vs_frc_plot,
+        caption="FRC resolution (frequency) vs SNR",
+        width="0.8\\textwidth",
     )
-
+    text += create_figure_block(
+        snr_vs_frc_plot,
+        caption="FRC resolution (frequency) vs SNR",
+        width="0.8\\textwidth",
+    )
     return text
 
 
@@ -498,8 +514,13 @@ def generate_classification_section(
     ).relative_to(output_path)
 
     text += "\n\\subsection{Precision and recall curves}\n"
-    text += generate_figures_section(
-        [precision_and_recall_curves], "Classification metrics vs. SNR"
+    text += create_figure_block(
+        precision_and_recall_curves,
+        caption="Soft precision and soft recall vs. SNR",
+    )
+    text += create_figure_block(
+        precision_and_recall_curves,
+        caption="Soft precision and soft recall vs. SNR",
     )
 
     average_precision_curves = plot_vs_snr(
@@ -513,8 +534,11 @@ def generate_classification_section(
     ).relative_to(output_path)
 
     text += "\n\\subsection{Average precision curves}\n"
-    text += generate_figures_section(
-        [average_precision_curves], "Average precision vs. SNR"
+    text += create_figure_block(
+        average_precision_curves, caption="Average precision vs. SNR"
+    )
+    text += create_figure_block(
+        average_precision_curves, caption="Average precision vs. SNR"
     )
 
     return text
@@ -533,7 +557,8 @@ def generate_figures_section(
     caption_prefix : str
         Prefix used in each figure caption, e.g. `"Weight distribution"`.
     width: str
-        Desired width for the figures. Must be in an appropriate format for the 
+        Desired width for the figures. Must be in an appropriate format for the
+        Desired width for the figures. Must be in an appropriate format for the
         \\includegraphics LaTeX command, e.g. `"\\textwidth"`.
 
     Returns
@@ -544,13 +569,43 @@ def generate_figures_section(
     text = ""
 
     for i, path in enumerate(figure_paths, start=1):
-        text += (
-            f"\n\\begin{{figure}}[H]\n"
-            f"  \\centering\n"
-            f"  \\includegraphics[width=\\textwidth]{{{path.as_posix()}}}\n"
-            f"  \\caption{{{caption_prefix} {i}}}\n"
-            f"\\end{{figure}}\n"
+        text += create_figure_block(
+            path=path, caption=f"{caption_prefix} {i}", width=width
         )
+
+    return text
+
+
+def create_figure_block(
+    figure_path: Path, caption: str = "", width: str = "\\textwidth"
+):
+    """
+    Generate a LaTeX `figure` environment for a single image.
+
+    Parameters
+    ----------
+    figure_path : Path
+        Path to the figure file to include.
+    caption : str, optional
+        Caption text displayed below the figure. Defaults to an empty string.
+    width : str, optional
+        Desired width for the figure, formatted for the LaTeX
+        ``\\includegraphics`` command, e.g. ``"\\textwidth"`` or ``"0.8\\textwidth"``.
+        Defaults to ``"\\textwidth"``.
+
+    Returns
+    -------
+    str
+        LaTeX string containing a complete `figure` environment with the
+        specified image and caption.
+    """
+    return (
+        f"\n\\begin{{figure}}[H]\n"
+        f"  \\centering\n"
+        f"  \\includegraphics[width={width}]{{{figure_path.as_posix()}}}\n"
+        f"  \\caption{{{caption}}}\n"
+        f"\\end{{figure}}\n"
+    )
 
     return text
 
