@@ -417,10 +417,15 @@ def generate_classification_tables(report: EvaluationReport) -> str:
     text = ""
 
     for space in Space:
-        if not (classification_df["space"] == space).any():
+        # Filter out spaces that have no associated methods or only the baseline average
+        space_rows = classification_df["space"] == space.name
+        space_df = classification_df[space_rows]
+        if len(space_df.index) == 0:
+            continue
+        if len(space_df.index) == 1 and space_df["method"].iloc[0] == AVERAGE_NAME:
             continue
 
-        text += f"\n\\subsubsection*{{{space.label}}}\n"
+        text += f"\n\\subsubsection{{{space.label}}}\n"
 
         for strategy in AggregationStrategy:
             df = get_classification_table(classification_df, space, strategy)
@@ -492,7 +497,7 @@ def generate_classification_section(
         ylabel="Score",
     ).relative_to(output_path)
 
-    text += "\n\\textbf{Precision and recall curves}\n"
+    text += "\n\\subsection{Precision and recall curves}\n"
     text += generate_figures_section(
         [precision_and_recall_curves], "Classification metrics vs. SNR"
     )
@@ -507,7 +512,7 @@ def generate_classification_section(
         ylabel="Average precision",
     ).relative_to(output_path)
 
-    text += "\n\\textbf{Average precision curves}\n"
+    text += "\n\\subsection{Average precision curves}\n"
     text += generate_figures_section(
         [average_precision_curves], "Average precision vs. SNR"
     )
@@ -529,7 +534,7 @@ def generate_figures_section(
         Prefix used in each figure caption, e.g. `"Weight distribution"`.
     width: str
         Desired width for the figures. Must be in an appropriate format for the 
-        \includegraphics LaTeX command, e.g. `"\\textwidth"`.
+        \\includegraphics LaTeX command, e.g. `"\\textwidth"`.
 
     Returns
     -------
