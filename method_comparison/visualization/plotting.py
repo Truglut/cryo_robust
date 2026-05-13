@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, Iterable
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -532,3 +532,51 @@ def plot_vs_snr(
     plt.close(fig)
 
     return save_path
+
+
+def generate_image_plots(
+    images: Iterable[np.ndarray],
+    save_paths: Iterable[Path],
+    link_contrast: bool = True,
+    *,
+    figsize: tuple[int, int] = (6, 6),
+    dpi: int = 150,
+) -> list[Path]:
+    images = list(images)
+    save_paths = list(save_paths)
+
+    if len(images) != len(save_paths):
+        raise ValueError("images and save_paths must have the same length")
+
+    if link_contrast:
+        vmin = min([image.min() for image in images])
+        vmax = max([image.max() for image in images])
+    else:
+        vmin = None
+        vmax = None
+
+    for image, save_path in zip(images, save_paths):
+        fig, ax = plt.subplots(figsize=figsize)
+
+        ax.imshow(image, cmap="gray", interpolation="nearest", vmin=vmin, vmax=vmax)
+
+        # Remove axes
+        ax.axis("off")
+
+        # Remove all surrounding whitespace
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+        # Save cleanly
+        fig.savefig(
+            save_path,
+            bbox_inches="tight",
+            pad_inches=0,
+            dpi=dpi
+        )
+
+        plt.close(fig)
+    
+    return save_paths
+
+        
+

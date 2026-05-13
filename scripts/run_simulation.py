@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+import mrcfile
 import torch
 
 from method_comparison.domain.enums import Space, AggregationStrategy
@@ -98,6 +99,7 @@ def main():
 
     # Load configurations
     cfg = load_config(args.config, args.snr)
+    ground_truth_image: np.ndarray = mrcfile.read(cfg["data"]["reference_image_path"])
 
     reports = dict()
 
@@ -111,7 +113,11 @@ def main():
     # Optionally save the report
     if args.report is not None:
         generate_latex_report(
-            reports, args.report, cfg=cfg, plot_options=args.plot_options
+            reports,
+            args.report,
+            cfg=cfg,
+            ground_truth_image=ground_truth_image,
+            plot_options=args.plot_options,
         )
 
 

@@ -2,14 +2,15 @@ from pathlib import Path
 from typing import Any, Iterable
 
 import pandas as pd
+import numpy as np
 
 from method_comparison.domain.enums import Space, AggregationStrategy
 from method_comparison.domain.reports import EvaluationReport
 from method_comparison.visualization.plotting import (
     AVERAGE_NAME,
     save_snr_reports_figures,
-    produce_snr_classification_figures,
     plot_vs_snr,
+    generate_image_plots,
 )
 
 # Required LaTeX packages for rendering tables and formatting the document.
@@ -514,7 +515,9 @@ def generate_classification_section(
     return text
 
 
-def generate_figures_section(figure_paths: list[Path], caption_prefix: str) -> str:
+def generate_figures_section(
+    figure_paths: list[Path], caption_prefix: str, width: str = "\\textwidth"
+) -> str:
     """
     Generate a LaTeX block embedding a list of figures.
 
@@ -524,6 +527,9 @@ def generate_figures_section(figure_paths: list[Path], caption_prefix: str) -> s
         Paths to the figure files to include.
     caption_prefix : str
         Prefix used in each figure caption, e.g. `"Weight distribution"`.
+    width: str
+        Desired width for the figures. Must be in an appropriate format for the 
+        \includegraphics LaTeX command, e.g. `"\\textwidth"`.
 
     Returns
     -------
@@ -600,7 +606,7 @@ def generate_plots_section(
     figures_path : Path
         Path to the directory where the figures will be saved.
     plot_options : dict[str, Any]
-        Dict containing the following keyword arguments for the figure generation:
+        Dict containing the following keyword arguments for figure generation:
             - max_subplots: int
             - density: bool
             - dpi: int
@@ -626,10 +632,92 @@ def generate_plots_section(
     return text
 
 
+def generate_images_section(
+    snr_reports: dict[float, EvaluationReport],
+    ground_truth_image: np.ndarray,
+    output_path: Path,
+    figures_path: Path,
+    plot_options: dict[str, Any],
+) -> str:
+    """
+    Generate the LaTeX code for the images section of the report, containing the
+    ground truth image and the various reconstructed averages for the methods at
+    each SNR level.
+
+    Parameters
+    ----------
+    snr_reports : dict[float, EvaluationReport]
+        Dict mapping each SNR level to its evaluation report
+    ground_truth_image: np.ndarray
+        2-dimensional array holding the ground truth image used
+        for generating the dataset.
+    output_path : Path
+        Path to the directory where the `report.tex` will be generated.
+    figures_path : Path
+        Path to the directory where the images will be saved.
+    plot_options : dict[str, Any]
+        Dict containing the following keyword arguments for figure generation:
+            - max_subplots: int
+            - density: bool
+            - dpi: int
+
+    Returns
+    -------
+    str
+        LaTeX text for the images section ready to be written into the report document.
+        This section contains:
+            - A figure representing the ground truth image from which the dataset was
+            generated.
+            - One subsection per SNR level, which contains the reconstructed averages
+            produced by each of the estimation methods at that SNR level.
+    """
+    text = "\n\\section{Estimated images}\n"
+
+    ground_truth_fig_path = figures_path / "ground_truth.png"
+    ground_truth_fig_path = generate_image_plots(
+        [ground_truth_image],
+        [ground_truth_fig_path],
+        link_contrast=False,
+        dpi=plot_options["dpi"],
+    )[0]
+    text += "\n\\textbf{Ground truth}\n"
+
+    text += generate_figures_section(
+        [ground_truth_fig_path.relative_to(output_path)], "Ground truth image"
+    )
+
+    images_dir = figures_path / "estimated_avgs"
+
+    for snr, report in snr_reports.items():
+        text += f"\n\\subsection{{SNR {snr:.3f}}}\n"
+
+        snr_str = f"{snr:.3f}".replace(".", "p")
+        snr_images_dir = images_dir / snr_str
+        snr_images_dir.mkdir(parents=True, exist_ok=True)
+
+        method_names = [mr.name for mr in report.method_results]
+        images = [mr.estimated_img for mr in report.method_results]
+        save_paths = [
+            snr_images_dir / (mr.name + ".png") for mr in report.method_results
+        ]
+
+        save_paths = generate_image_plots(
+            images, save_paths=save_paths, link_contrast=True, dpi=plot_options["dpi"]
+        )
+
+        for method_name, img_path in zip(method_names, save_paths):
+            text += generate_figures_section(
+                [img_path.relative_to(output_path)], f"Estimation with {method_name}"
+            )
+
+    return text
+
+
 def generate_latex_report(
     snr_reports: dict[float, EvaluationReport],
     output_path: Path,
     cfg: dict[str, Any],
+    ground_truth_image: np.ndarray,
     plot_options: dict[str, Any],
 ) -> None:
     """
@@ -652,8 +740,11 @@ def generate_latex_report(
         Directory where the LaTeX report should be written.
     cfg: dict[str, Any]
         Experiment configuration dict.
+    ground_truth_image: np.ndarray
+        2-dimensional array holding the ground truth image used
+        for generating the dataset.
     plot_options: dict[str, Any]
-        Dict containing the following keyword arguments for the figure generation:
+        Dict containing the following keyword arguments for figure generation:
             - max_subplots: int
             - density: bool
             - dpi: int
@@ -662,6 +753,7 @@ def generate_latex_report(
 
     report_path = output_path / "report.tex"
     figures_path = output_path / "figures"
+    figures_path.mkdir(parents=True, exist_ok=True)
 
     # Preamble: document class, packages and setup
     report_preamble = generate_document_preamble()
@@ -690,6 +782,15 @@ def generate_latex_report(
         plot_options=plot_options,
     )
 
+    # Images section with ground truth and estimation
+    images_section = generate_images_section(
+        snr_reports=snr_reports,
+        ground_truth_image=ground_truth_image,
+        output_path=output_path,
+        figures_path=figures_path,
+        plot_options=plot_options,
+    )
+
     # Write all the contents to the file
     with report_path.open("w") as f:
         f.write(report_preamble)
@@ -703,5 +804,7 @@ def generate_latex_report(
         f.write(reconstruction_section)
 
         f.write(plots_section)
+
+        f.write(images_section)
 
         f.write("\n\n\\end{document}")
