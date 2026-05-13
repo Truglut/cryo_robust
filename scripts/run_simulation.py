@@ -75,7 +75,7 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
         fsc_threshold=FSC_THRESHOLD,
         recall_methods=RECALL_METHODS,
         real_agg_strategies=(AggregationStrategy.MEAN,),
-        fourier_agg_strategies=(AggregationStrategy.ENERGY,),
+        fourier_agg_strategies=(AggregationStrategy.MEAN,),
         energy_reference="ground_truth",
     )
 
