@@ -43,6 +43,10 @@ def load_and_preprocess(cfg: dict, args) -> tuple:
         dtype=torch.float32, device=args.device
     )
 
+    if args.standardize:
+        global_image_std = tensor_images.std()
+        tensor_images /= global_image_std
+
     return tensor_images, images_save, image_path
 
 

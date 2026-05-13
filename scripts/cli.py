@@ -28,6 +28,12 @@ def build_base_parser() -> tuple[
     parser.add_argument(
         "--device", type=str, default="cpu", help="Compute device for PyTorch"
     )
+    parser.add_argument(
+        "--standardize",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable or disable global standardization",
+    )
 
     # Visualization
     visualization_group.add_argument(
@@ -37,7 +43,10 @@ def build_base_parser() -> tuple[
         help="Maximum number of subplots to include in the same figure",
     )
     visualization_group.add_argument(
-        "--dpi", type=int, default=BASE_PLOT_OPTIONS["dpi"], help="DPI for saved figures"
+        "--dpi",
+        type=int,
+        default=BASE_PLOT_OPTIONS["dpi"],
+        help="DPI for saved figures",
     )
     visualization_group.add_argument(
         "--density",
