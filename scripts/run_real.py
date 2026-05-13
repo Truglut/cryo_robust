@@ -84,7 +84,13 @@ def main():
         real_agg_strategies=(AggregationStrategy.MEAN,),
         fourier_agg_strategies=(AggregationStrategy.MEAN,),
     )
-    plot_report(report, plot_weights="weights" in args.plot, density=False, plot_fsc=False)
+    plot_report(
+        report,
+        plot_weights="weights" in args.plot,
+        density=False,
+        plot_fsc=False,
+        max_subplots=args.max_subplots,
+    )
 
     # Show images (averages and original images) with napari
     if args.show_images:
