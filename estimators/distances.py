@@ -4,7 +4,13 @@ from typing import Tuple, Callable
 
 import torch
 
-from .weights import calculate_beta_auto
+from .weights import (
+    calculate_beta_auto,
+    tagare_weights,
+    cosine_similarity,
+    cross_correlation,
+    cc_tagare_weights,
+)
 
 
 @torch.no_grad()
@@ -47,52 +53,32 @@ def tagare_distance(
     eps: float = 1.0e-6,
     inv_type: str = "neg",
 ) -> torch.Tensor:
-    y_flat = y.flatten(1)
-    ref_image_flat = ref_image.flatten()
 
-    # First term: absolute cosine
-    cos_abs = torch.abs(torch.cosine_similarity(y_flat, ref_image_flat, dim=1, eps=eps))
-
-    # Second term: norm of the orthogonal component
-    orth_norm_sq = y_flat.square().sum(dim=1) * (1.0 - cos_abs.square())
-
-    # Avoid negative values caused by floating point errors
-    orth_norm_sq = torch.clamp(orth_norm_sq, min=0.0)
-
-    weights = cos_abs * torch.exp(-beta * orth_norm_sq)
+    weights = tagare_weights(y, ref_image, std, beta, eps).view(-1)
 
     return invert_similarity(weights, inv_type=inv_type, eps=eps)
 
 
-def cosine_similarity(
+def cosine_similarity_dist(
     y: torch.Tensor,
     ref_image: torch.Tensor,
     std: torch.Tensor | float = 1.0,
     eps: float = 1.0e-8,
     inv_type: str = "neg",
 ):
-    return invert_similarity(
-        torch.cosine_similarity(y.flatten(1), ref_image.flatten(), dim=1, eps=eps),
-        inv_type=inv_type,
-        eps=eps,
-    )
+    cos_sim = cosine_similarity(y, ref_image, std, eps).view(-1)
+    return invert_similarity(cos_sim, inv_type=inv_type, eps=eps)
 
 
-def cross_correlation(
+def cross_correlation_dist(
     images: torch.Tensor,
     reference: torch.Tensor,
     std: torch.Tensor | float = 1.0,
     eps: float = 1.0e-8,
     inv_type: str = "neg",
 ):
-    image_dims = tuple(range(1, images.ndim))
-    return cosine_similarity(
-        images - images.mean(dim=image_dims, keepdim=True),
-        reference - reference.mean(),
-        std,
-        eps,
-        inv_type,
-    )
+    cc = cross_correlation(images, reference, std, eps).view(-1)
+    return invert_similarity(cc, inv_type=inv_type, eps=eps)
 
 
 @torch.no_grad()
@@ -104,20 +90,7 @@ def cross_correlation_tagare(
     eps: float = 1.0e-6,
     inv_type: str = "neg",
 ) -> torch.Tensor:
-    y_flat = y.flatten(1)
-
-    # First term: replace cosine similarity with cross correlation
-    corr_abs = torch.abs(
-        cross_correlation(y, reference=ref_image, std=std, eps=eps, inv_type="none")
-    )
-
-    # Second term: norm of the orthogonal component
-    orth_norm_sq = y_flat.square().sum(dim=1) * (1.0 - corr_abs.square())
-
-    # Avoid negative values caused by floating point errors
-    orth_norm_sq = torch.clamp(orth_norm_sq, min=0.0)
-
-    weights = corr_abs * torch.exp(-beta * orth_norm_sq)
+    weights = cc_tagare_weights(y, ref_image, std, beta, eps).view(-1)
 
     return invert_similarity(weights, inv_type=inv_type, eps=eps)
 
@@ -174,8 +147,8 @@ FUNCTION_REGISTRY = {
     "lp": lp_norm,
     "l1_and_l2": l1_and_l2_norm,
     "tagare_weights": tagare_distance,
-    "cosine_similarity": cosine_similarity,
-    "cross_correlation": cross_correlation,
+    "cosine_similarity": cosine_similarity_dist,
+    "cross_correlation": cross_correlation_dist,
     "cross_correlation_tagare": cross_correlation_tagare,
     "orthogonal_residual_norm": orthogonal_residual_norm,
     "negexp_orthogonal_residual_norm": negexp_orthogonal_residual_norm,
