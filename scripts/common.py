@@ -67,6 +67,15 @@ def run_estimators(
                 plot_fits="gmm" in args.plot,
                 plot_title=method_name,
             )
+        elif isinstance(estimator, ADMMSolver):
+            ref_real = reference
+            if ref_real is not None:
+                ref_fourier = torch.fft.rfft2(ref_real, norm="ortho")
+            else:
+                ref_fourier = None
+            estimator.fit(
+                images_dict, initial_ref_real=ref_real, initial_ref_fourier=ref_fourier
+            )
         else:
             estimator.fit(images_dict, reference=reference)
 
