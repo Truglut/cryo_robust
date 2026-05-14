@@ -36,6 +36,7 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
     if args.standardize:
         global_image_std = images.std()
         images = images / (global_image_std + 1.0e-8)
+        ground_truth = ground_truth / (global_image_std + 1.0e-8)
 
     # Move images to torch
     tensor_images = torch.from_numpy(images).to(dtype=torch.float32, device=args.device)
