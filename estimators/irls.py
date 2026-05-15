@@ -58,11 +58,11 @@ class IRLSSolver(Estimator):
         # Calculate new point (update)
         if prior_mean is not None and prior_variance is not None:
             safe_variance = image_variance + self.eps
-            update = (s_1 / safe_variance + prior_mean / prior_variance) / (
-                s_2 / safe_variance + 1 / prior_variance
-            )
+            numer = s_1 / safe_variance + prior_mean / (prior_variance + self.eps)
+            denom = s_2 / safe_variance + 1 / (prior_variance + self.eps)
+            update = numer / (denom + self.eps)
         else:
-            update = s_1 / s_2
+            update = s_1 / (s_2 + self.eps)
 
         # Handle update damping
         coef = self.damping_coef
@@ -117,6 +117,7 @@ class IRLSSolver(Estimator):
             image_variance = image_variance[self.space]
         if image_std is None or isinstance(image_std, dict):
             image_std = torch.sqrt(image_variance)
+        image_std = torch.clamp(image_std, min=self.eps)
 
         # ctf
         if ctf is None:
@@ -133,6 +134,8 @@ class IRLSSolver(Estimator):
         # Initial reference
         if reference is None:
             reference = torch.mean(images, dim=0)
+        else:
+            reference = reference.clone()
 
         # Prior mean and variance: choose relevant space
         if isinstance(prior_mean, dict):
@@ -144,7 +147,6 @@ class IRLSSolver(Estimator):
         max_iter = max_iter_override or self.max_iter
 
         # Algorithm initialization
-        reference = reference
         weights = None
         self.converged = False
 
