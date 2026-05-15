@@ -4,8 +4,14 @@ import torch
 
 
 @torch.no_grad()
-def huber_weights(y, x, std, delta, sigma_f=1):
-    residuals = sigma_f * (y - x) / std
+def huber_weights(
+    images: torch.Tensor,
+    reference: torch.Tensor,
+    std: torch.Tensor | float,
+    delta: float,
+    sigma_f: float = 1.0,
+):
+    residuals = sigma_f * (images - reference) / std
     abs_res = residuals.abs()
 
     weights = torch.ones_like(residuals, dtype=torch.float32)
@@ -17,8 +23,15 @@ def huber_weights(y, x, std, delta, sigma_f=1):
 
 
 @torch.no_grad()
-def smooth_redescending_weights(y, x, std, delta, sigma_f=1, normalise=True):
-    residuals = sigma_f * (y - x) / (std + 1e-8)
+def smooth_redescending_weights(
+    images: torch.Tensor,
+    reference: torch.Tensor,
+    std: float | torch.Tensor,
+    delta: float,
+    sigma_f: float = 1.0,
+    normalise: bool = True,
+):
+    residuals = sigma_f * (images - reference) / (std + 1e-8)
     if not normalise:
         return (2 / (delta**2)) * torch.exp(-torch.square(residuals) / (delta**2))
     return torch.exp(-torch.square(residuals) / (delta**2))
@@ -26,14 +39,14 @@ def smooth_redescending_weights(y, x, std, delta, sigma_f=1, normalise=True):
 
 @torch.no_grad()
 def tagare_weights(
-    y: torch.Tensor,
-    ref_image: torch.Tensor,
+    images: torch.Tensor,
+    reference: torch.Tensor,
     std: torch.Tensor | float = 1.0,
     beta: float = 1.0e-6,
     eps: float = 1.0e-6,
 ) -> torch.Tensor:
-    y_flat = y.flatten(1)
-    ref_image_flat = ref_image.flatten()
+    y_flat = images.flatten(1)
+    ref_image_flat = reference.flatten()
 
     # First term: absolute cosine
     cos_abs = torch.abs(torch.cosine_similarity(y_flat, ref_image_flat, dim=1, eps=eps))
@@ -44,47 +57,18 @@ def tagare_weights(
     # Avoid negative values caused by floating point errors
     orth_norm_sq = torch.clamp(orth_norm_sq, min=0.0)
 
-    return (cos_abs * torch.exp(-beta * orth_norm_sq)).view(-1, *([1] * ref_image.ndim))
-
-
-# @torch.no_grad()
-# def global_weights(y, x, std, beta, eps=1e-8):
-#     n = y.shape[0]
-
-#     # Dot product
-#     dot = (y * x).sum(dim=(1, 2))  # (n,)
-
-#     # Squared norms
-#     y_norm_sq = (y * y).sum(dim=(1, 2))  # (n,)
-#     x_norm_sq = (x * x).sum()  # scalar
-
-#     # First term: absolute cosine
-#     # Protect the denominator of the cosine by combining both norms with clamp
-#     denom = torch.clamp(y_norm_sq * x_norm_sq, min=eps).sqrt()
-#     cos_abs = dot.abs() / denom
-
-#     # Second term: norm of the orthogonal component
-#     # Protect the division by adding eps to x_norm_sq
-#     x_norm_sq_safe = torch.clamp(x_norm_sq, min=eps)
-#     orth_norm_sq = y_norm_sq - (dot**2) / x_norm_sq_safe
-
-#     # Avoid negative values caused by floating point errors
-#     orth_norm_sq = torch.clamp(orth_norm_sq, min=0.0)
-
-#     term2 = torch.exp(-beta * orth_norm_sq)
-
-#     return (cos_abs * term2).reshape(n, 1, 1)
+    return (cos_abs * torch.exp(-beta * orth_norm_sq)).view(-1, *([1] * reference.ndim))
 
 
 def cosine_similarity(
-    y: torch.Tensor,
-    ref_image: torch.Tensor,
+    images: torch.Tensor,
+    reference: torch.Tensor,
     std: torch.Tensor | float = 1.0,
     eps: float = 1.0e-8,
 ):
     return torch.cosine_similarity(
-        y.flatten(1), ref_image.flatten(), dim=1, eps=eps
-    ).view(-1, *([1] * ref_image.ndim))
+        images.flatten(1), reference.flatten(), dim=1, eps=eps
+    ).view(-1, *([1] * reference.ndim))
 
 
 def cross_correlation(
@@ -104,17 +88,17 @@ def cross_correlation(
 
 @torch.no_grad()
 def cc_tagare_weights(
-    y: torch.Tensor,
-    ref_image: torch.Tensor,
+    images: torch.Tensor,
+    reference: torch.Tensor,
     std: torch.Tensor | float = 1.0,
     beta: float = 1.0e-6,
     eps: float = 1.0e-6,
 ) -> torch.Tensor:
-    y_flat = y.flatten(1)
+    y_flat = images.flatten(1)
 
     # First term: replace cosine similarity with cross correlation
     corr_abs = torch.abs(
-        cross_correlation(y, reference=ref_image, std=std, eps=eps)
+        cross_correlation(images, reference=reference, std=std, eps=eps)
     ).view(-1)
 
     # Second term: norm of the orthogonal component
@@ -124,23 +108,37 @@ def cc_tagare_weights(
     orth_norm_sq = torch.clamp(orth_norm_sq, min=0.0)
 
     return (corr_abs * torch.exp(-beta * orth_norm_sq)).view(
-        -1, *([1] * ref_image.ndim)
+        -1, *([1] * reference.ndim)
     )
 
 
 @torch.no_grad()
-def cauchy_weights(y, x, std, c):
-    return 1 / (1 + ((y - x) / (c * std)).square())
+def cauchy_weights(
+    images: torch.Tensor, reference: torch.Tensor, std: torch.Tensor | float, c: float
+):
+    return 1 / (1 + ((images - reference) / (c * std)).square())
 
 
 @torch.no_grad()
-def student_weights(y, x, std, df, sigma_f=1):
-    return (df + 1) / (df + (sigma_f * (y - x) / std).square())
+def student_weights(
+    images: torch.Tensor,
+    reference: torch.Tensor,
+    std: torch.Tensor | float,
+    df: float,
+    sigma_f: float = 1.0,
+):
+    return (df + 1) / (df + (sigma_f * (images - reference) / std).square())
 
 
 @torch.no_grad()
-def q_norm_weights(y, x, std, q, sigma_f=1):
-    return (sigma_f * (y - x) / std).abs().clamp(min=1).pow(q - 2)
+def q_norm_weights(
+    images: torch.Tensor,
+    reference: torch.Tensor,
+    std: torch.Tensor | float,
+    q: float,
+    sigma_f: float = 1.0,
+):
+    return (sigma_f * (images - reference) / std).abs().clamp(min=1).pow(q - 2)
 
 
 FUNCTION_REGISTRY = {
