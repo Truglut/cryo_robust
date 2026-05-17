@@ -4,9 +4,7 @@ from pathlib import Path
 from method_comparison.dataset_builder import STANDARDIZE_TYPES
 from method_comparison.visualization.plotting import BASE_PLOT_OPTIONS
 
-BASE_PLOTS = ["weights", "gmm"]
-SIMULATION_PLOTS = ["fsc"]
-EXPERIMENTAL_PLOTS = []
+ALL_PLOTS = ["weights", "gmm", "fsc"]
 
 
 def build_base_parser() -> tuple[
@@ -36,6 +34,13 @@ def build_base_parser() -> tuple[
     )
 
     # Visualization
+    visualization_group.add_argument(
+        "--plot",
+        nargs="+",
+        type=str,
+        choices=ALL_PLOTS + ["all"],
+        help="Plots to generate",
+    )
     visualization_group.add_argument(
         "--max-subplots",
         type=int,
@@ -98,16 +103,7 @@ def build_base_parser() -> tuple[
 
 
 def build_simulation_parser() -> argparse.ArgumentParser:
-    parser, visualization_group, _, saving_group = build_base_parser()
-
-    # Add relevant plots to visualization
-    visualization_group.add_argument(
-        "--plot",
-        nargs="+",
-        type=str,
-        choices=BASE_PLOTS + SIMULATION_PLOTS,
-        help="Plots to generate",
-    )
+    parser, _, _, saving_group = build_base_parser()
 
     # Add reports to saving group
     saving_group.add_argument(
@@ -136,16 +132,7 @@ def build_simulation_parser() -> argparse.ArgumentParser:
 
 
 def build_experimental_parser() -> argparse.ArgumentParser:
-    parser, visualization_group, _, _ = build_base_parser()
-
-    # Add relevant plots to visualization group
-    visualization_group.add_argument(
-        "--plot",
-        nargs="+",
-        type=str,
-        choices=BASE_PLOTS + EXPERIMENTAL_PLOTS,
-        help="Plots to generate",
-    )
+    parser, _, _, _ = build_base_parser()
     return parser
 
 
@@ -162,6 +149,8 @@ def parse_arguments(parser: argparse.ArgumentParser) -> argparse.Namespace:
     # Standardize args.plot to always be a list
     if args.plot is None:
         args.plot = []
+    if "all" in args.plot:
+        args.plot = ALL_PLOTS
 
     # Build plot options
     args.plot_options = {
