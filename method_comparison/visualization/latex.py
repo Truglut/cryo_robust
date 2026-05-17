@@ -691,7 +691,7 @@ def generate_figures_grid(
     return text
 
 
-def weights_and_fsc_plots_latex(
+def weights_and_frc_plots_latex(
     saved_figures: dict[str, list[Path]], output_path: Path
 ) -> str:
     """
@@ -701,7 +701,7 @@ def weights_and_fsc_plots_latex(
     ----------
     saved_figures : dict[str, list[Path]]
         Mapping returned by `save_report_figures`, with keys
-        `"weight_distributions"` and `"fsc_curves"`.
+        `"weight_distributions"` and `"frc_curves"`.
     output_path: Path
         Path to the directory that contains the `report.tex` file.
 
@@ -719,12 +719,12 @@ def weights_and_fsc_plots_latex(
         text += "\n\\subsubsection{Weight Distributions}\n"
         text += generate_figures_section(weight_paths, "Weight distribution")
 
-    fsc_paths = [
-        p.relative_to(output_path) for p in saved_figures.get("fsc_curves", [])
+    frc_paths = [
+        p.relative_to(output_path) for p in saved_figures.get("frc_curves", [])
     ]
-    if fsc_paths:
-        text += "\n\\subsubsection{FSC Curves}\n"
-        text += generate_figures_section(fsc_paths, "FSC curves")
+    if frc_paths:
+        text += "\n\\subsubsection{FRC Curves}\n"
+        text += generate_figures_section(frc_paths, "FRC curves")
 
     return text
 
@@ -768,7 +768,7 @@ def generate_plots_section(
 
     for snr in snr_reports:
         text += f"\n\\subsection{{SNR {snr:.3f}}}\n"
-        text += weights_and_fsc_plots_latex(
+        text += weights_and_frc_plots_latex(
             saved_figures=plots[snr], output_path=output_path
         )
 

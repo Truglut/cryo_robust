@@ -1,10 +1,9 @@
 import argparse
 from pathlib import Path
 
-from method_comparison.dataset_builder import STANDARDIZE_TYPES
 from method_comparison.visualization.plotting import BASE_PLOT_OPTIONS
 
-ALL_PLOTS = ["weights", "gmm", "fsc"]
+ALL_PLOTS = ["weights", "gmm", "frc"]
 
 
 def build_base_parser() -> tuple[

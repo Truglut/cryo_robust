@@ -89,7 +89,7 @@ def main():
         report,
         plot_weights="weights" in args.plot,
         density=False,
-        plot_frc="fsc" in args.plot,
+        plot_frc="frc" in args.plot,
         max_subplots=args.max_subplots,
     )
 

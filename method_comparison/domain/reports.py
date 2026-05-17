@@ -94,14 +94,13 @@ class EvaluationReport:
         One entry per estimation method, in the order they were evaluated.
     labels : np.ndarray or None
         Per-image ground-truth class labels.  `None` for unlabeled data.
-    fsc_threshold : float
-        The FSC threshold used to define resolution (e.g. 0.143 or 0.5).
-        `None` for unlabeled data.
+    frc_threshold : float
+        The FRC threshold used to define resolution (e.g. 0.143 or 0.5).
     """
 
     method_results: list[MethodResults]
     labels: np.ndarray | None
-    frc_threshold: float | None
+    frc_threshold: float
 
     def reconstruction_metrics_dataframe(self) -> pd.DataFrame:
         return pd.DataFrame(

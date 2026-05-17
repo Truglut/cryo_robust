@@ -16,7 +16,7 @@ class ReconstructionMetrics:
     pearson_corr : float or None
         Pearson correlation coefficient between the estimated and ground truth images.
         `None` when no ground-truth is available.
-    gt_fsc_resolution : float or None
+    gt_frc_resolution : float or None
         The spatial resolution (typically in angstroms or normalized spatial frequency)
         at which the Fourier Ring Correlation (FRC) curve drops below the experiment-level
         threshold (e.g., the 0.143 "gold standard" or 0.5 criterion).
@@ -104,7 +104,7 @@ class MethodMetrics:
     Parameters
     ----------
     reconstruction_metrics : ReconstructionMetrics
-        Metrics evaluating the final reconstructed map (e.g. RMSE, FSC resolution).
+        Metrics evaluating the final reconstructed map (e.g. RMSE, FRC resolution).
         Only contains `hs_frc_resolution` for data where no ground truth is 
         available.
     space_metrics : dict of {Space: dict of {AggregationStrategy: SpaceMetrics}}

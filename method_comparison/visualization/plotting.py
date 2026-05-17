@@ -278,11 +278,11 @@ def save_report_figures(
     Returns
     -------
     dict[str, list[Path]]
-        Keys are ``"weight_distributions"`` and ``"fsc_curves"``.
-        Values are lists of saved file paths (FSC list has 0, 1 or 2 entries).
+        Keys are ``"weight_distributions"`` and ``"frc_curves"``.
+        Values are lists of saved file paths (FRC list has 0, 1 or 2 entries).
     """
     output_path.mkdir(parents=True, exist_ok=True)
-    saved: dict[str, list[Path]] = {"weight_distributions": [], "fsc_curves": []}
+    saved: dict[str, list[Path]] = {"weight_distributions": [], "frc_curves": []}
 
     all_scores = _collect_weight_scores(report)
     for i, fig in enumerate(
@@ -299,12 +299,12 @@ def save_report_figures(
         path = output_path / "gt_frc_curves.pdf"
         gt_frc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
         plt.close(gt_frc_fig)
-        saved["fsc_curves"].append(path)
+        saved["frc_curves"].append(path)
     if hs_frc_fig is not None:
         path = output_path / "hs_frc_curves.pdf"
         hs_frc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
         plt.close(hs_frc_fig)
-        saved["fsc_curves"].append(path)
+        saved["frc_curves"].append(path)
 
     return saved
 
@@ -335,8 +335,8 @@ def save_snr_reports_figures(
     Returns
     -------
     dict[float, dict[str, list[Path]]]
-        Maps every SNR value to a dict with keys ``"weight_distributions"`` and ``"fsc_curves"``,
-        whose values are lists of saved file paths (FSC list has 0, 1 or 2 entries).
+        Maps every SNR value to a dict with keys ``"weight_distributions"`` and ``"frc_curves"``,
+        whose values are lists of saved file paths (FRC list has 0, 1 or 2 entries).
     """
     output_path.mkdir(parents=True, exist_ok=True)
     saved: dict[float, dict[str, list[Path]]] = dict()
