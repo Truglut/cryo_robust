@@ -17,6 +17,8 @@ from scripts.common import (
 )
 from scripts.napari_visualization import visualize_results
 
+FRC_THRESHOLD = 0.5
+
 
 def load_and_preprocess(cfg: dict, args) -> tuple:
     """Loads images on the target device"""
@@ -84,6 +86,7 @@ def main():
         real_agg_strategies=(AggregationStrategy.MEAN,),
         fourier_agg_strategies=(AggregationStrategy.MEAN,),
         energy_reference="global_avg",
+        frc_threshold=FRC_THRESHOLD,
     )
     plot_report(
         report,

@@ -21,7 +21,7 @@ from scripts.common import (
 )
 from scripts.napari_visualization import visualize_results
 
-FRC_THRESHOLD = 0.143
+FRC_THRESHOLD = 0.5
 RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
 
 
