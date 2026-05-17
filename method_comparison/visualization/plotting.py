@@ -153,20 +153,16 @@ def _plot_weight_distributions(
 
 
 def _plot_frc_curves(
-    data: list[FRCData],
-    method_names: list[str],
+    data_items: list[tuple[str, FRCData]],
     frc_threshold: float | None = None,
     title: str = "Resolution Estimates (FRC)",
 ) -> plt.Figure | None:
-    if len(data) != len(method_names):
-        raise ValueError("data and method_names must have the same length")
-
-    if not data:
+    if not data_items:
         return None
 
     fig, ax = plt.subplots(figsize=(8, 5))
 
-    for name, frc_data in zip(method_names, data):
+    for name, frc_data in data_items:
         ax.plot(frc_data.resolutions, frc_data.frc, label=name)
 
     if frc_threshold is not None:
@@ -186,6 +182,35 @@ def _plot_frc_curves(
     fig.tight_layout()
 
     return fig
+
+
+def plot_report_frc_curves(
+    report: EvaluationReport,
+) -> tuple[plt.Figure | None, plt.Figure | None]:
+    gt_frc_items = [
+        (mr.name, mr.ground_truth_frc_data)
+        for mr in report.method_results
+        if mr.ground_truth_frc_data is not None
+    ]
+
+    hs_frc_items = [
+        (mr.name, mr.half_set_frc_data)
+        for mr in report.method_results
+        if mr.half_set_frc_data is not None
+    ]
+
+    gt_fig = _plot_frc_curves(
+        gt_frc_items,
+        frc_threshold=report.frc_threshold,
+        title="Ground Truth Resolution Estimates (FRC)",
+    )
+    hs_fig = _plot_frc_curves(
+        hs_frc_items,
+        frc_threshold=report.frc_threshold,
+        title="Half-set Resolution Estimates (FRC)",
+    )
+
+    return gt_fig, hs_fig
 
 
 def _plot_fsc_curves(report: EvaluationReport) -> plt.Figure | None:
@@ -263,22 +288,7 @@ def plot_report(
         plt.show()
 
     if plot_frc:
-        gt_frcs = [mr.ground_truth_frc_data for mr in report.method_results]
-        hs_frcs = [mr.half_set_frc_data for mr in report.method_results]
-        method_names = [mr.name for mr in report.method_results]
-
-        gt_fig = _plot_frc_curves(
-            gt_frcs,
-            method_names,
-            frc_threshold=report.frc_threshold,
-            title="Ground truth resolution estimates (FRC)",
-        )
-        hs_fig = _plot_frc_curves(
-            hs_frcs,
-            method_names,
-            frc_threshold=report.frc_threshold,
-            title="Half-set resolution estimates (FRC)",
-        )
+        gt_fig, hs_fig = plot_report_frc_curves(report)
 
         if gt_fig is not None:
             gt_fig.show()
@@ -315,7 +325,7 @@ def save_report_figures(
     -------
     dict[str, list[Path]]
         Keys are ``"weight_distributions"`` and ``"fsc_curves"``.
-        Values are lists of saved file paths (FSC list has 0 or 1 entries).
+        Values are lists of saved file paths (FSC list has 0, 1 or 2 entries).
     """
     output_path.mkdir(parents=True, exist_ok=True)
     saved: dict[str, list[Path]] = {"weight_distributions": [], "fsc_curves": []}
@@ -329,11 +339,17 @@ def save_report_figures(
         plt.close(fig)
         saved["weight_distributions"].append(path)
 
-    fsc_fig = _plot_fsc_curves(report)
-    if fsc_fig is not None:
-        path = output_path / "fsc_curves.pdf"
-        fsc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
-        plt.close(fsc_fig)
+    # FRC curves
+    gt_frc_fig, hs_frc_fig = plot_report_frc_curves(report)
+    if gt_frc_fig is not None:
+        path = output_path / "gt_frc_curves.pdf"
+        gt_frc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
+        plt.close(gt_frc_fig)
+        saved["fsc_curves"].append(path)
+    if hs_frc_fig is not None:
+        path = output_path / "hs_frc_curves.pdf"
+        hs_frc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
+        plt.close(hs_frc_fig)
         saved["fsc_curves"].append(path)
 
     return saved
@@ -366,7 +382,7 @@ def save_snr_reports_figures(
     -------
     dict[float, dict[str, list[Path]]]
         Maps every SNR value to a dict with keys ``"weight_distributions"`` and ``"fsc_curves"``,
-        whose values are lists of saved file paths (FSC list has 0 or 1 entries).
+        whose values are lists of saved file paths (FSC list has 0, 1 or 2 entries).
     """
     output_path.mkdir(parents=True, exist_ok=True)
     saved: dict[float, dict[str, list[Path]]] = dict()
@@ -461,7 +477,8 @@ def plot_vs_snr(
     title: str | None = None,
     ylabel: str = "Score",
 ) -> Path:
-    """Plot one or more metrics as a function of SNR for each method.
+    """
+    Plot one or more metrics as a function of SNR for each method.
 
     Parameters
     ----------

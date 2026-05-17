@@ -29,7 +29,8 @@ CLASSIFICATION_METRIC_NAMES = {
 RECONSTRUCTION_METRIC_NAMES = {
     "rmse": "RMSE",
     "pearson_corr": "Correlation",
-    "fsc_resolution": "Resolution",
+    "gt_frc_resolution": "Ground Truth FRC Resolution",
+    "hs_frc_resolution": "Half-Set FRC Resolution"
 }
 
 
@@ -330,20 +331,37 @@ def generate_reconstruction_section(
         width="0.8\\textwidth",
     )
 
-    snr_vs_frc_plot = plot_vs_snr(
+    snr_vs_gt_frc_plot = plot_vs_snr(
         df=overall_rec_df,
-        metrics=["fsc_resolution"],
-        save_path=figures_path / "snr_vs_frc.pdf",
-        metric_labels=["FRC Resolution"],
+        metrics=["gt_frc_resolution"],
+        save_path=figures_path / "snr_vs_gt_frc.pdf",
+        metric_labels=["Ground truth FRC resolution"],
         dpi=dpi,
-        title="Reconstruction resolution vs SNR",
-        ylabel="Frequency",
+        title="Ground truth reconstruction resolution vs SNR",
+        ylabel="Resolution",
     ).relative_to(output_path)
 
-    text += "\n\\textbf{FRC Resolution}\n"
+    text += "\n\\textbf{Ground truth FRC resolution}\n"
     text += create_figure_block(
-        snr_vs_frc_plot,
-        caption="FRC resolution (frequency) vs SNR",
+        snr_vs_gt_frc_plot,
+        caption="FRC resolution vs SNR (comparing global average to ground truth)",
+        width="0.8\\textwidth",
+    )
+
+    snr_vs_hs_frc_plot = plot_vs_snr(
+        df=overall_rec_df,
+        metrics=["hs_frc_resolution"],
+        save_path=figures_path / "snr_vs_hs_frc.pdf",
+        metric_labels=["Half-set FRC resolution"],
+        dpi=dpi,
+        title="Half-set reconstruction resolution vs SNR",
+        ylabel="Resolution",
+    ).relative_to(output_path)
+
+    text += "\n\\textbf{Ground truth FRC resolution}\n"
+    text += create_figure_block(
+        snr_vs_hs_frc_plot,
+        caption="FRC resolution vs SNR (comparing half-set averages)",
         width="0.8\\textwidth",
     )
     return text
