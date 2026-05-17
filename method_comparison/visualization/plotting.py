@@ -213,52 +213,6 @@ def plot_report_frc_curves(
     return gt_fig, hs_fig
 
 
-def _plot_fsc_curves(report: EvaluationReport) -> plt.Figure | None:
-    """
-    Produce the FSC curve comparison figure.
-
-    Parameters
-    ----------
-    report : EvaluationReport
-        Populated evaluation report.
-
-    Returns
-    -------
-    plt.Figure | None
-        The figure, or None if no FSC data is available.
-    """
-    fsc_items = [
-        (mr.name, mr.ground_truth_frc_data)
-        for mr in report.method_results
-        if mr.ground_truth_frc_data is not None
-    ]
-    if not fsc_items:
-        return None
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-
-    for name, (freqs, fsc_curve) in fsc_items:
-        ax.plot(freqs, fsc_curve, label=name)
-
-    ax.axhline(
-        report.frc_threshold,
-        color="r",
-        linestyle="--",
-        label=f"Threshold ({report.frc_threshold})",
-    )
-
-    ax.set_xlabel("Normalised Spatial Frequency")
-    ax.set_ylabel("Fourier Shell Correlation")
-    ax.set_title("Resolution Estimates (FSC/FRC)")
-    ax.set_xlim(0, 1)
-    ax.set_ylim(-0.1, 1.1)
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-
-    return fig
-
-
 def plot_report(
     report: EvaluationReport,
     max_subplots: int,
@@ -398,70 +352,6 @@ def save_snr_reports_figures(
         )
 
     return saved
-
-
-def produce_snr_classification_figures(
-    overall_classification_df: pd.DataFrame, output_path: Path, dpi: int = 150
-) -> Path:
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    required_columns = {"method", "snr", "soft_precision", "soft_recall_huang_tagare"}
-    missing = required_columns - set(overall_classification_df.columns)
-
-    if missing:
-        raise ValueError(f"Missing required columns: {missing}")
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    # Get unique methods
-    methods = sorted(overall_classification_df["method"].unique())
-
-    # Use one color per method
-    cmap = plt.get_cmap("tab10")
-
-    for idx, method in enumerate(methods):
-        method_df = overall_classification_df[
-            overall_classification_df["method"] == method
-        ].sort_values("snr")
-
-        color = cmap(idx % 10)
-
-        # Precision line
-        ax.plot(
-            method_df["snr"],
-            method_df["soft_precision"],
-            label=f"{method} - precision",
-            color=color,
-            linestyle="-",
-            marker="o",
-        )
-
-        # Recall line
-        ax.plot(
-            method_df["snr"],
-            method_df["soft_recall_huang_tagare"],
-            label=f"{method} - recall",
-            color=color,
-            linestyle="--",
-            marker="s",
-        )
-
-    ax.set_xscale("log")
-
-    ax.set_xlabel("SNR")
-    ax.set_ylabel("Score")
-    ax.set_title("Precision and Recall vs SNR")
-    ax.grid(True, which="both", linestyle=":")
-    ax.legend()
-
-    fig.tight_layout()
-
-    save_path = output_path / "snr_vs_precision_recall.pdf"
-
-    fig.savefig(save_path, dpi=dpi, bbox_inches="tight")
-    plt.close(fig)
-
-    return save_path
 
 
 def plot_vs_snr(
