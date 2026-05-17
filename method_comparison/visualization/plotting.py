@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from method_comparison.domain.reports import EvaluationReport
+from method_comparison.domain.reports import EvaluationReport, FRCData
 
 # Helper for consistent coloring
 LABEL_MAP = {
@@ -152,6 +152,42 @@ def _plot_weight_distributions(
     return figures
 
 
+def _plot_frc_curves(
+    data: list[FRCData],
+    method_names: list[str],
+    frc_threshold: float | None = None,
+    title: str = "Resolution Estimates (FRC)",
+) -> plt.Figure | None:
+    if len(data) != len(method_names):
+        raise ValueError("data and method_names must have the same length")
+
+    if not data:
+        return None
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    for name, frc_data in zip(method_names, data):
+        ax.plot(frc_data.resolutions, frc_data.frc, label=name)
+
+    if frc_threshold is not None:
+        ax.axhline(
+            frc_threshold,
+            color="r",
+            linestyle="--",
+            label=f"Threshold ({frc_threshold})",
+        )
+
+    ax.set_xlabel("Spatial Resolution")
+    ax.set_ylabel("Fourier Shell Correlation")
+    ax.set_title(title)
+    ax.set_ylim(-0.1, 1.1)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    return fig
+
+
 def _plot_fsc_curves(report: EvaluationReport) -> plt.Figure | None:
     """
     Produce the FSC curve comparison figure.
@@ -167,9 +203,9 @@ def _plot_fsc_curves(report: EvaluationReport) -> plt.Figure | None:
         The figure, or None if no FSC data is available.
     """
     fsc_items = [
-        (mr.name, mr.fsc_data)
+        (mr.name, mr.ground_truth_frc_data)
         for mr in report.method_results
-        if mr.fsc_data is not None
+        if mr.ground_truth_frc_data is not None
     ]
     if not fsc_items:
         return None
@@ -180,10 +216,10 @@ def _plot_fsc_curves(report: EvaluationReport) -> plt.Figure | None:
         ax.plot(freqs, fsc_curve, label=name)
 
     ax.axhline(
-        report.fsc_threshold,
+        report.frc_threshold,
         color="r",
         linestyle="--",
-        label=f"Threshold ({report.fsc_threshold})",
+        label=f"Threshold ({report.frc_threshold})",
     )
 
     ax.set_xlabel("Normalised Spatial Frequency")
@@ -203,7 +239,7 @@ def plot_report(
     max_subplots: int,
     plot_weights: bool = True,
     density: bool = False,
-    plot_fsc: bool = True,
+    plot_frc: bool = True,
 ) -> None:
     """
     Produce all diagnostic plots for an `EvaluationReport`.
@@ -218,18 +254,37 @@ def plot_report(
         Whether to plot weight distribution histograms. Default is True.
     density : bool, optional
         If True, normalise histograms to probability density. Default is False.
-    plot_fsc : bool, optional
-        Whether to render the FSC curve comparison plot. Default is True.
+    plot_frc : bool, optional
+        Whether to render the FRC curve comparison plot. Default is True.
     """
     if plot_weights:
         all_scores = _collect_weight_scores(report)
         _ = _plot_weight_distributions(all_scores, report.labels, max_subplots, density)
         plt.show()
 
-    if plot_fsc:
-        fig = _plot_fsc_curves(report)
-        if fig is not None:
-            fig.show()
+    if plot_frc:
+        gt_frcs = [mr.ground_truth_frc_data for mr in report.method_results]
+        hs_frcs = [mr.half_set_frc_data for mr in report.method_results]
+        method_names = [mr.name for mr in report.method_results]
+
+        gt_fig = _plot_frc_curves(
+            gt_frcs,
+            method_names,
+            frc_threshold=report.frc_threshold,
+            title="Ground truth resolution estimates (FRC)",
+        )
+        hs_fig = _plot_frc_curves(
+            hs_frcs,
+            method_names,
+            frc_threshold=report.frc_threshold,
+            title="Half-set resolution estimates (FRC)",
+        )
+
+        if gt_fig is not None:
+            gt_fig.show()
+        if hs_fig is not None:
+            hs_fig.show()
+        if gt_fig is not None or hs_fig is not None:
             plt.show()
 
 
@@ -567,16 +622,8 @@ def generate_image_plots(
         plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
         # Save cleanly
-        fig.savefig(
-            save_path,
-            bbox_inches="tight",
-            pad_inches=0,
-            dpi=dpi
-        )
+        fig.savefig(save_path, bbox_inches="tight", pad_inches=0, dpi=dpi)
 
         plt.close(fig)
-    
+
     return save_paths
-
-        
-

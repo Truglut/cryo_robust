@@ -8,6 +8,26 @@ from method_comparison.domain.metrics import MethodMetrics
 
 
 @dataclass
+class FRCData:
+    """
+    Fourier Ring Correlation curve data.
+
+    Parameters
+    ----------
+    resolutions : np.ndarray
+        1D array of the spatial resolutions FRC was computed at.
+    freqs: np.ndarray
+        1D array of the spatial frequencies FRC was computed at.
+    frc: np.ndarray
+        1D array containing the FRC values at the specified resolutions/frequencies.
+    """
+
+    resolutions: np.ndarray
+    freqs: np.ndarray
+    frc: np.ndarray
+
+
+@dataclass
 class MethodResults:
     """
     All outputs produced for a single estimation method.
@@ -23,9 +43,14 @@ class MethodResults:
         Aggregated per-image scalar weights, keyed by space then aggregation
         strategy.  Shape of each array is `(n_images,)`.  Used directly by
         plotting and report-generation code.
-    fsc_data : tuple of (np.ndarray, np.ndarray) or None
-        `(freqs, fsc_curve)` arrays returned by `compute_fsc`.
+    ground_truth_frc_data : FRCData or None
+        Computed by comparing the estimated class average against ground truth.
+        `FRCData` returned by `compute_frc`.
         `None` when no ground truth is available.
+    half_set_frc_data : FRCData
+        Computed by comparing the weighted averages resulting from splitting the
+        images into two half-sets.
+        Returned by `compute_frc`.
     estimated_img : np.ndarray
         The reconstructed average image produced by this method.
     """
@@ -33,7 +58,8 @@ class MethodResults:
     name: str
     metrics: MethodMetrics | None
     scores: dict[Space, np.ndarray]
-    fsc_data: tuple[np.ndarray, np.ndarray] | None
+    ground_truth_frc_data: FRCData | None
+    half_set_frc_data: FRCData
     estimated_img: np.ndarray
 
     def reconstruction_metrics_record(self) -> dict:
@@ -75,7 +101,7 @@ class EvaluationReport:
 
     method_results: list[MethodResults]
     labels: np.ndarray | None
-    fsc_threshold: float | None
+    frc_threshold: float | None
 
     def reconstruction_metrics_dataframe(self) -> pd.DataFrame:
         return pd.DataFrame(

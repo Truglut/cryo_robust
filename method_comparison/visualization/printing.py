@@ -1,13 +1,14 @@
 from method_comparison.domain.reports import EvaluationReport
 
+
 def print_report(report: EvaluationReport) -> None:
     """
     Print a structured summary of an `EvaluationReport`.
 
-    For each method, the output contains reconstruction metrics (RMSE, Pearson
-    correlation, FSC resolution) followed by outlier-rejection metrics
-    (average precision, soft precision, soft recall) broken down by weight
-    space and aggregation strategy.
+    For each method, the output contains available reconstruction metrics (RMSE, Pearson
+    correlation, ground truth FRC resolution and half-set FRC resolution) 
+    followed by outlier-rejection metrics (average precision, soft precision, 
+    soft recall) broken down by weight space and aggregation strategy.
 
     Parameters
     ----------
@@ -25,16 +26,15 @@ def print_report(report: EvaluationReport) -> None:
         print(f"--- {method_result.name.upper()} ---")
 
         m = method_result.metrics
-        if m is None:
-            print("  No ground-truth metrics available.\n")
-            continue
-        
+        # if m is None:
+        #     print("  No metrics available.\n")
+        #     continue
+
         reconstruction_m = m.reconstruction_metrics
-        print(
-            f"  RMSE: {reconstruction_m.rmse:.4f} | "
-            f"Pearson: {reconstruction_m.pearson_corr:.4f} | "
-            f"FSC Resolution ({report.fsc_threshold}): {reconstruction_m.fsc_resolution:.4f}"
-        )
+        print(reconstruction_m.print_text())
+
+        if m.space_metrics is None:
+            continue
 
         for space, strategy_metrics in m.space_metrics.items():
             for strategy, metrics in strategy_metrics.items():
