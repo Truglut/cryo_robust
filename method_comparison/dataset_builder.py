@@ -1,7 +1,6 @@
 import numpy as np
 import mrcfile
 import scipy
-from typing import Tuple
 
 LABEL_TYPES = {
     0: "generated copies of reference",
@@ -92,7 +91,7 @@ def load_misclassified_images(
 
 def create_evaluation_dataset(
     cfg: dict, rng: np.random.Generator, snr: float | None = None
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Generates an evaluation dataset with rotated inliers, rotated outliers,
     misclassified outliers, and applies Gaussian noise.

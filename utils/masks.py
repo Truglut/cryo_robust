@@ -1,8 +1,7 @@
 import numpy as np
-from typing import Tuple
 
 
-def create_circular_mask(image_shape: Tuple[int, int], radius: float) -> np.ndarray:
+def create_circular_mask(image_shape: tuple[int, int], radius: float) -> np.ndarray:
     h, w = image_shape
 
     center = (w // 2, h // 2)
