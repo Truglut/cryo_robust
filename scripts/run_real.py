@@ -4,7 +4,7 @@ import torch
 import mrcfile
 
 from method_comparison.domain.enums import Space, AggregationStrategy
-from method_comparison.evaluation.report_building import compute_report_unlabeled
+from method_comparison.evaluation.report_building import compute_report_labeled
 from method_comparison.visualization.printing import print_report
 from method_comparison.visualization.plotting import plot_report
 
@@ -78,17 +78,18 @@ def main():
     )
 
     # Show report of results (currently just plots weight distributions)
-    report = compute_report_unlabeled(
+    report = compute_report_labeled(
         results,
         images_dict,
         real_agg_strategies=(AggregationStrategy.MEAN,),
         fourier_agg_strategies=(AggregationStrategy.MEAN,),
+        energy_reference="global_avg",
     )
     plot_report(
         report,
         plot_weights="weights" in args.plot,
         density=False,
-        plot_fsc=False,
+        plot_frc=False,
         max_subplots=args.max_subplots,
     )
 

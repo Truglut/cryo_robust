@@ -21,7 +21,7 @@ from scripts.common import (
 )
 from scripts.napari_visualization import visualize_results
 
-FSC_THRESHOLD = 0.143
+FRC_THRESHOLD = 0.143
 RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
 
 
@@ -73,7 +73,7 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
         labels=labels,
         reapply_mask=args.reapply_mask,
         mask=mask,
-        fsc_threshold=FSC_THRESHOLD,
+        frc_threshold=FRC_THRESHOLD,
         recall_methods=RECALL_METHODS,
         real_agg_strategies=(AggregationStrategy.MEAN,),
         fourier_agg_strategies=(AggregationStrategy.MEAN,),
@@ -89,7 +89,7 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
         max_subplots=args.max_subplots,
         plot_weights="weights" in args.plot,
         density=False,
-        plot_fsc="fsc" in args.plot,
+        plot_frc="fsc" in args.plot,
     )
 
     # Show images (averages and original images) with napari
