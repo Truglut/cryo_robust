@@ -1,12 +1,10 @@
-from typing import Dict
-
 import torch
 
-from .irls import IRLSSolver, IRLSFourier
-from .gmm import GMMEstimator, RecursiveGMMEstimator
-from .admm import ADMMSolver
-from .weights import get_weight_function
-from .distances import get_distance_function
+from estimators.irls import IRLSSolver, IRLSFourier
+from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
+from estimators.admm import ADMMSolver
+from estimators.weights import get_weight_function
+from estimators.distances import get_distance_function
 
 from method_comparison.domain.enums import Space
 
@@ -14,7 +12,7 @@ TAGARE_CONSTANT = 1.0e-5
 
 
 def build_estimator(
-    method_cfg: dict, images: Dict[Space, torch.Tensor], device: str = "cpu"
+    method_cfg: dict, images: dict[Space, torch.Tensor], device: str = "cpu"
 ):
     """
     Factory function that reads the YAML config block and returns

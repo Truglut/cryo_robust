@@ -1,4 +1,4 @@
-from typing import Callable, Tuple, Dict
+from typing import Callable
 
 import torch
 
@@ -44,7 +44,7 @@ class IRLSSolver(Estimator):
         reference: torch.Tensor,
         prior_mean: torch.Tensor | None,
         prior_variance: torch.Tensor | float | None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Performs a single iteration of the Reweighted Least Squares update."""
 
         weights = self.weight_function(images, reference, image_std)
@@ -73,16 +73,16 @@ class IRLSSolver(Estimator):
     @torch.inference_mode()
     def fit(
         self,
-        images: Dict[Space, torch.Tensor] | torch.Tensor,
-        image_variance: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
-        image_std: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
+        images: dict[Space, torch.Tensor] | torch.Tensor,
+        image_variance: dict[Space, torch.Tensor] | torch.Tensor | None = None,
+        image_std: dict[Space, torch.Tensor] | torch.Tensor | None = None,
         ctf: torch.Tensor | float | None = None,
         reference: torch.Tensor | None = None,
-        prior_mean: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
-        prior_variance: Dict[Space, torch.Tensor] | torch.Tensor | float | None = None,
-        precomp_ctf_images: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
+        prior_mean: dict[Space, torch.Tensor] | torch.Tensor | None = None,
+        prior_variance: dict[Space, torch.Tensor] | torch.Tensor | float | None = None,
+        precomp_ctf_images: dict[Space, torch.Tensor] | torch.Tensor | None = None,
         precomp_ctf_squared: (
-            Dict[Space, torch.Tensor] | torch.Tensor | float | None
+            dict[Space, torch.Tensor] | torch.Tensor | float | None
         ) = None,
         max_iter_override: int | None = None,
     ):
@@ -202,13 +202,13 @@ class IRLSFourier(Estimator):
     @torch.inference_mode()
     def fit(
         self,
-        images: Dict[Space, torch.Tensor] | torch.Tensor,
-        image_variance: Dict[Space, torch.Tensor] | None = None,
+        images: dict[Space, torch.Tensor] | torch.Tensor,
+        image_variance: dict[Space, torch.Tensor] | None = None,
         ctf: torch.Tensor | float | None = None,
         reference: torch.Tensor | None = None,
-        prior_mean: Dict[Space, torch.Tensor] | torch.Tensor | None = None,
-        prior_variance: Dict[Space, torch.Tensor] | float | None = None,
-        precomp_ctf_images: Dict[Space, torch.Tensor] | None = None,
+        prior_mean: dict[Space, torch.Tensor] | torch.Tensor | None = None,
+        prior_variance: dict[Space, torch.Tensor] | float | None = None,
+        precomp_ctf_images: dict[Space, torch.Tensor] | None = None,
         precomp_ctf_squared: torch.Tensor | float | None = None,
     ):
         if isinstance(images, torch.Tensor):

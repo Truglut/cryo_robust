@@ -1,10 +1,10 @@
 ### Distance functions for GMM
 from functools import partial
-from typing import Tuple, Callable
+from typing import Callable
 
 import torch
 
-from .weights import (
+from estimators.weights import (
     calculate_beta_auto,
     tagare_weights,
     cosine_similarity,
@@ -163,7 +163,7 @@ NEED_BETA_PARAMETER = [
 
 
 def get_distance_function(
-    name: str, params: dict | Tuple, imgs: torch.Tensor | None = None
+    name: str, params: dict | tuple, imgs: torch.Tensor | None = None
 ) -> Callable[[torch.Tensor, torch.Tensor], torch.Tensor]:
     try:
         base_function = FUNCTION_REGISTRY[name]

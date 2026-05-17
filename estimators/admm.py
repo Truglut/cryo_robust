@@ -1,5 +1,3 @@
-from typing import Tuple, Dict
-
 import numpy as np
 import torch
 
@@ -44,19 +42,19 @@ class ADMMSolver(Estimator):
 
     def step(
         self,
-        images: Dict[Space, torch.Tensor],
-        image_variance: Dict[Space, torch.Tensor],
-        image_std: Dict[Space, torch.Tensor],
+        images: dict[Space, torch.Tensor],
+        image_variance: dict[Space, torch.Tensor],
+        image_std: dict[Space, torch.Tensor],
         ctf: torch.Tensor,
-        precomp_ctf_images: Dict[Space, torch.Tensor],
-        precomp_ctf_squared: Dict[Space, torch.Tensor | float],
+        precomp_ctf_images: dict[Space, torch.Tensor],
+        precomp_ctf_squared: dict[Space, torch.Tensor | float],
         ref_real: torch.Tensor,
         ref_fourier: torch.Tensor,
         dual_vars: torch.Tensor,
         mu: float,
         real_irls_max_iter: int | None = None,
         fourier_irls_max_iter: int | None = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor, Dict[Space, torch.Tensor]]:
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[Space, torch.Tensor]]:
         """
         Performs a single iteration of the ADMM method, updating real and fourier space
         through IRLS with their respective prior means and variances.
@@ -122,8 +120,8 @@ class ADMMSolver(Estimator):
     @torch.inference_mode()
     def fit(
         self,
-        images: Dict[Space, torch.Tensor] | torch.Tensor,
-        image_variance: Dict[Space, torch.Tensor] | None = None,
+        images: dict[Space, torch.Tensor] | torch.Tensor,
+        image_variance: dict[Space, torch.Tensor] | None = None,
         ctf: torch.Tensor | float | None = None,
         initial_ref_real: torch.Tensor | None = None,
         initial_ref_fourier: torch.Tensor | None = None,

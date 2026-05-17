@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Tuple
+from typing import Callable
 
 import numpy as np
 import torch
@@ -35,9 +35,9 @@ class GMMEstimator(Estimator):
     @torch.inference_mode()
     def fit(
         self,
-        images: Dict[Space, torch.Tensor] | torch.Tensor,
+        images: dict[Space, torch.Tensor] | torch.Tensor,
         reference: torch.Tensor | None = None,
-    ) -> Tuple[torch.Tensor, Dict[Space, torch.Tensor]]:
+    ) -> tuple[torch.Tensor, dict[Space, torch.Tensor]]:
         # Ensure images are a pytorch tensor on the correct device
         if isinstance(images, dict):
             images = images[self.space]
@@ -114,12 +114,12 @@ class RecursiveGMMEstimator(Estimator):
     @torch.inference_mode()
     def fit(
         self,
-        images: Dict[Space, torch.Tensor] | torch.Tensor,
+        images: dict[Space, torch.Tensor] | torch.Tensor,
         reference: torch.Tensor | None = None,
         initialize_params: bool = False,
         plot_fits: bool = False,
         plot_title: str = "GMM Distances & Fit",
-    ) -> Tuple[torch.Tensor, Dict[Space, torch.Tensor]]:
+    ) -> tuple[torch.Tensor, dict[Space, torch.Tensor]]:
         # Ensure images are a pytorch tensor on the correct device
         if isinstance(images, dict):
             images = images[self.space]
