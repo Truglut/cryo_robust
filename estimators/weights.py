@@ -2,6 +2,11 @@ from functools import partial
 
 import torch
 
+@torch.no_grad()
+def weighted_average(
+    y: torch.Tensor, weights: torch.Tensor, dim: int = 0, eps: float = 0.0
+) -> torch.Tensor:
+    return (weights * y).sum(dim=dim) / (weights.sum(dim=0) + eps)
 
 @torch.no_grad()
 def huber_weights(

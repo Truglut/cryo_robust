@@ -7,15 +7,9 @@ import scipy.stats as stats
 import matplotlib.pyplot as plt
 
 from estimators.base import Estimator
+from estimators.weights import weighted_average
 
 from method_comparison.domain.enums import Space
-
-
-@torch.no_grad()
-def weighted_average(
-    y: torch.Tensor, weights: torch.Tensor, dim: int = 0, eps: float = 0.0
-) -> torch.Tensor:
-    return (weights * y).sum(dim=dim) / (weights.sum(dim=0) + eps)
 
 
 class GMMEstimator(Estimator):
@@ -83,6 +77,13 @@ class GMMEstimator(Estimator):
 
         return self.avg, self.final_weights
 
+    def reconstruct_from_weights(
+        self,
+        images: dict[Space, torch.Tensor],
+        weights: dict[Space, torch.Tensor | None],
+    ) -> torch.Tensor:
+        return weighted_average(images[Space.REAL], weights[Space.REAL])
+
 
 class RecursiveGMMEstimator(Estimator):
     def __init__(
@@ -145,7 +146,7 @@ class RecursiveGMMEstimator(Estimator):
 
             # Initialize avg_distance and std_distance to avoid errors
             # in case self.standardize_distances is False
-            avg_distance = torch.tensor(0.0, device = images.device)
+            avg_distance = torch.tensor(0.0, device=images.device)
             std_distance = torch.tensor(1.0, device=images.device)
             if self.standardize_distances:
                 avg_distance = torch.mean(distances_to_ref)
@@ -240,6 +241,14 @@ class RecursiveGMMEstimator(Estimator):
             fig.tight_layout()
 
         return self.avg, self.final_weights
+    
+
+    def reconstruct_from_weights(
+        self,
+        images: dict[Space, torch.Tensor],
+        weights: dict[Space, torch.Tensor | None],
+    ) -> torch.Tensor:
+        return weighted_average(images[Space.REAL], weights[Space.REAL])
 
 
 def plot_gmm_fit(

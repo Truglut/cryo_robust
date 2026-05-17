@@ -2,7 +2,8 @@ from typing import Callable, Tuple, Dict
 
 import torch
 
-from .base import Estimator
+from estimators.base import Estimator
+from estimators.weights import weighted_average
 
 from method_comparison.domain.enums import Space
 
@@ -176,6 +177,16 @@ class IRLSSolver(Estimator):
 
         return reference, weights
 
+    def reconstruct_from_weights(
+        self,
+        images: dict[Space, torch.Tensor],
+        weights: dict[Space, torch.Tensor | None],
+    ) -> torch.Tensor:
+        imgs = images[self.space]
+        weights = weights[self.space]
+
+        return weighted_average(imgs, weights, eps=self.eps)
+
 
 class IRLSFourier(Estimator):
     def __init__(self, irls_real: IRLSSolver, irls_imag: IRLSSolver, device=None):
@@ -227,9 +238,7 @@ class IRLSFourier(Estimator):
                     Space.FOURIER_IMAG: prior_mean,
                 }
         if reference is None:
-            reference = {
-                space: torch.mean(images[space], dim=0) for space in Space
-            }
+            reference = {space: torch.mean(images[space], dim=0) for space in Space}
         if isinstance(reference, torch.Tensor):
             if torch.is_complex(reference):
                 reference = {
@@ -270,3 +279,20 @@ class IRLSFourier(Estimator):
             Space.FOURIER_REAL: weights_real,
             Space.FOURIER_IMAG: weights_imag,
         }
+
+    def reconstruct_from_weights(
+        self,
+        images: dict[Space, torch.Tensor],
+        weights: dict[Space, torch.Tensor | None],
+    ) -> torch.Tensor:
+        reconstructed_fourier_real = self.irls_real.reconstruct_from_weights(
+            images, weights
+        )
+        reconstructed_fourier_imag = self.irls_imag.reconstruct_from_weights(
+            images, weights
+        )
+
+        return torch.fft.irfft(
+            torch.complex(reconstructed_fourier_real, reconstructed_fourier_imag),
+            norm="ortho",
+        )

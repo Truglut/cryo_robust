@@ -1,5 +1,3 @@
-from typing import Dict, Tuple
-
 import torch
 import numpy as np
 
@@ -13,8 +11,8 @@ class Estimator:
         self.device = torch.device(device) if device is not None else None
 
     def _prepare_data(
-        self, images: Dict[Space, torch.Tensor | np.ndarray] | torch.Tensor | np.ndarray
-    ) -> Dict[Space, torch.Tensor]:
+        self, images: dict[Space, torch.Tensor | np.ndarray] | torch.Tensor | np.ndarray
+    ) -> dict[Space, torch.Tensor]:
         """Ensures input is a PyTorch tensor on the correct device."""
         device = self.device if self.device is not None else images.device
         if isinstance(images, dict):
@@ -31,6 +29,15 @@ class Estimator:
         return images.to(dtype=torch.float32, device=device)
 
     def fit(
-        self, images: Dict[Space, torch.Tensor]
-    ) -> Tuple[torch.Tensor, Dict[Space, torch.Tensor]]:
+        self, images: dict[Space, torch.Tensor]
+    ) -> tuple[torch.Tensor, dict[Space, torch.Tensor]]:
         raise NotImplementedError("Subclasses must implement the fit method.")
+
+    def reconstruct_from_weights(
+        self,
+        images: dict[Space, torch.Tensor | None],
+        weights: dict[Space, torch.Tensor | None],
+    ) -> torch.Tensor:
+        raise NotImplementedError(
+            "Subclasses must implement the reconstruct from weights method"
+        )

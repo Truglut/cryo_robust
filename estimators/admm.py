@@ -3,8 +3,9 @@ from typing import Tuple, Dict
 import numpy as np
 import torch
 
-from .base import Estimator
-from .irls import IRLSSolver
+from estimators.base import Estimator
+from estimators.irls import IRLSSolver
+from estimators.weights import weighted_average
 
 from method_comparison.domain.enums import Space
 
@@ -279,3 +280,23 @@ class ADMMSolver(Estimator):
         self.avg = (ref_real + torch.fft.irfft2(ref_fourier, norm="ortho")) / 2
         self.final_weights = weights
         return ref_real, ref_fourier, weights
+
+    def reconstruct_from_weights(self, images, weights):
+        # Compute real space estimate using images and weights
+        ref_real = weighted_average(images[Space.REAL], weights[Space.REAL], eps=1.0e-8)
+
+        # Compute estimates for real and imaginary part of Fourier space
+        ref_fourier_real = weighted_average(
+            images[Space.FOURIER_REAL], weights[Space.FOURIER_REAL], eps=1.0e-8
+        )
+        ref_fourier_imag = weighted_average(
+            images[Space.FOURIER_IMAG], weights[Space.FOURIER_IMAG], eps=1.0e-8
+        )
+
+        # Transform Fourier space estimates back to real space through irfft2
+        ref_inverse_fourier = torch.fft.irfft2(
+            torch.complex(ref_fourier_real, ref_fourier_imag), norm="ortho"
+        )
+
+        # Return average of real-space and fourier-space estimates
+        return 0.5 * (ref_real + ref_inverse_fourier)
