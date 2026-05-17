@@ -157,14 +157,34 @@ def _plot_frc_curves(
     frc_threshold: float | None = None,
     title: str = "Resolution Estimates (FRC)",
 ) -> plt.Figure | None:
+    """
+    Plot Fourier Ring Correlation (FRC) curves.
+
+    Parameters
+    ----------
+    data_items : list[tuple[str, FRCData]]
+        A list of tuples containing the method name and its corresponding FRC data.
+    frc_threshold : float | None, optional
+        A threshold value to draw as a horizontal dashed line. Default is None.
+    title : str, optional
+        The title of the axes. Default is "Resolution Estimates (FRC)".
+
+    Returns
+    -------
+    plt.Figure | None
+        The generated figure, or None if `data_items` is empty.
+    """
+    # Early exit if no data is provided to avoid generating empty figures
     if not data_items:
         return None
 
     fig, ax = plt.subplots(figsize=(8, 5))
 
+    # Plot each curve with its corresponding method name as the legend label
     for name, frc_data in data_items:
         ax.plot(frc_data.resolutions, frc_data.frc, label=name)
 
+    # Optionally draw a horizontal threshold line
     if frc_threshold is not None:
         ax.axhline(
             frc_threshold,
@@ -187,18 +207,35 @@ def _plot_frc_curves(
 def plot_report_frc_curves(
     report: EvaluationReport,
 ) -> tuple[plt.Figure | None, plt.Figure | None]:
+    """
+    Generate FRC curve figures for ground truth and half-set data from a report.
+
+    Parameters
+    ----------
+    report : EvaluationReport
+        The evaluation report containing the method results and FRC data.
+
+    Returns
+    -------
+    tuple[plt.Figure | None, plt.Figure | None]
+        A tuple containing the ground truth FRC figure and the half-set FRC figure.
+        Either or both can be `None` if the respective data is not present.
+    """
+    # Extract ground truth FRC data only for methods where it exists
     gt_frc_items = [
         (mr.name, mr.ground_truth_frc_data)
         for mr in report.method_results
         if mr.ground_truth_frc_data is not None
     ]
 
+    # Extract half-set FRC data only for methods where it exists
     hs_frc_items = [
         (mr.name, mr.half_set_frc_data)
         for mr in report.method_results
         if mr.half_set_frc_data is not None
     ]
 
+    # Plot both sets of curves
     gt_fig = _plot_frc_curves(
         gt_frc_items,
         frc_threshold=report.frc_threshold,
@@ -210,6 +247,7 @@ def plot_report_frc_curves(
         title="Half-set Resolution Estimates (FRC)",
     )
 
+    # Return the figures
     return gt_fig, hs_fig
 
 
@@ -235,6 +273,10 @@ def plot_report(
         If True, normalise histograms to probability density. Default is False.
     plot_frc : bool, optional
         Whether to render the FRC curve comparison plot. Default is True.
+
+    Returns
+    -------
+    `None`
     """
     if plot_weights:
         all_scores = _collect_weight_scores(report)
@@ -315,7 +357,7 @@ def save_snr_reports_figures(
     max_subplots: int,
     density: bool = False,
     dpi: int = 150,
-) -> dict[str, list[Path]]:
+) -> dict[float, dict[str, list[Path]]]:
     """
     Save all report figures to disk and return their paths.
 
@@ -504,12 +546,41 @@ def generate_image_plots(
     figsize: tuple[int, int] = (6, 6),
     dpi: int = 150,
 ) -> list[Path]:
+    """
+    Generate and save individual plots for a sequence of images.
+
+    Parameters
+    ----------
+    images : Iterable[np.ndarray]
+        An iterable of 2D arrays representing the images to plot.
+    save_paths : Iterable[Path]
+        An iterable of file paths where the corresponding images should be saved.
+    link_contrast : bool, optional
+        If True, applies a global minimum and maximum contrast across all images.
+        Default is True.
+    figsize : tuple[int, int], optional
+        The dimensions of each generated figure in inches. Default is (6, 6).
+    dpi : int, optional
+        The resolution of the saved figures in dots per inch. Default is 150.
+
+    Returns
+    -------
+    list[Path]
+        A list of paths where the images were saved.
+
+    Raises
+    ------
+    ValueError
+        If the number of images and save paths do not match.
+    """
+    # Convert iterables to lists to safely calculate length and iterate multiple times
     images = list(images)
     save_paths = list(save_paths)
 
     if len(images) != len(save_paths):
         raise ValueError("images and save_paths must have the same length")
 
+    # Determine global contrast limits if requested
     if link_contrast:
         vmin = min([image.min() for image in images])
         vmax = max([image.max() for image in images])
@@ -522,10 +593,8 @@ def generate_image_plots(
 
         ax.imshow(image, cmap="gray", interpolation="nearest", vmin=vmin, vmax=vmax)
 
-        # Remove axes
+        # Remove axes and whitespace for a clean image output
         ax.axis("off")
-
-        # Remove all surrounding whitespace
         plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
         # Save cleanly
