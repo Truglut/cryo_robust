@@ -356,7 +356,7 @@ def generate_reconstruction_section(
 
     text += "\n\\textbf{AUFRC}\n"
     snr_vs_gt_aufrc_plot = plot_vs_snr(
-        df = overall_rec_df,
+        df=overall_rec_df,
         metrics=["AUFRC (GT)"],
         save_path=figures_path / "snr_vs_gt_aufrc.pdf",
         metric_labels=[""],
@@ -366,7 +366,7 @@ def generate_reconstruction_section(
     text += create_figure_block(
         snr_vs_gt_aufrc_plot,
         caption="Area under the ground-truth FRC curve vs. SNR",
-        width="0.8\\textwidth"
+        width="0.8\\textwidth",
     )
 
     snr_vs_hs_frc_plot = plot_vs_snr(
@@ -389,7 +389,7 @@ def generate_reconstruction_section(
 
     text += "\n\\textbf{AUFRC}\n"
     snr_vs_hs_aufrc_plot = plot_vs_snr(
-        df = overall_rec_df,
+        df=overall_rec_df,
         metrics=["AUFRC (HS)"],
         save_path=figures_path / "snr_vs_hs_aufrc.pdf",
         metric_labels=[""],
@@ -399,7 +399,7 @@ def generate_reconstruction_section(
     text += create_figure_block(
         snr_vs_hs_aufrc_plot,
         caption="Area under the half-set FRC curve vs. SNR",
-        width="0.8\\textwidth"
+        width="0.8\\textwidth",
     )
 
     return text
@@ -799,7 +799,7 @@ def generate_plots_section(
             - One plot representing the FRC curves for all methods.
     """
     plots = save_snr_reports_figures(
-        snr_reports, output_path=figures_path, **plot_options
+        snr_reports, output_path=output_path, figures_path=figures_path, **plot_options
     )
 
     text = "\n\\section{Diagnostic plots}\n"

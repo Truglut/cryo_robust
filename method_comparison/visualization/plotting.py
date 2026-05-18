@@ -366,6 +366,7 @@ def save_report_figures(
 def save_snr_reports_figures(
     snr_reports: dict[float, EvaluationReport],
     output_path: Path,
+    figures_path: Path,
     max_subplots: int,
     density: bool = False,
     dpi: int = 150,
@@ -396,13 +397,15 @@ def save_snr_reports_figures(
     saved: dict[float, dict[str, list[Path]]] = dict()
     for snr, report in snr_reports.items():
         snr_str = f"{snr:.3f}".replace(".", "p")
-        snr_output = output_path.with_name(
-            f"{output_path.stem}_snr_{snr_str}{output_path.suffix}"
-        )
-        snr_output.mkdir(parents=True, exist_ok=True)
+        snr_figures_output = figures_path / snr_str
+        snr_figures_output.mkdir(parents=True, exist_ok=True)
 
         saved[snr] = save_report_figures(
-            report, snr_output, max_subplots=max_subplots, density=density, dpi=dpi
+            report,
+            snr_figures_output,
+            max_subplots=max_subplots,
+            density=density,
+            dpi=dpi,
         )
 
     return saved
