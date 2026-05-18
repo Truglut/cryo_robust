@@ -94,6 +94,7 @@ class RecursiveGMMEstimator(Estimator):
         tol: float = 1.0e-4,
         standardize_distances: bool = True,
         space: Space = Space.REAL,
+        pixel_normalize: bool = False,
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -104,6 +105,7 @@ class RecursiveGMMEstimator(Estimator):
         self.converged = False
         self.tol = tol
         self.space = space
+        self.pixel_normalize = pixel_normalize
         self.standardize_distances = standardize_distances
 
         # Possible extensions:
@@ -125,6 +127,9 @@ class RecursiveGMMEstimator(Estimator):
             images = images[self.space]
         images = self._prepare_data(images)
 
+        if self.pixel_normalize:
+            per_pixel_std = images.std(dim=0) + 1.0e-8
+
         # Get initial reference
         if reference is None:
             print("Using image average as reference")
@@ -142,7 +147,12 @@ class RecursiveGMMEstimator(Estimator):
         self.converged = False
         for i in range(self.max_iter):
             # Calculate distances to the reference
-            distances_to_ref = self.distance_function(images, reference)
+            if self.pixel_normalize:
+                distances_to_ref = self.distance_function(
+                    images / per_pixel_std.unsqueeze(0), reference / per_pixel_std
+                )
+            else:
+                distances_to_ref = self.distance_function(images, reference)
 
             # Initialize avg_distance and std_distance to avoid errors
             # in case self.standardize_distances is False
@@ -241,7 +251,6 @@ class RecursiveGMMEstimator(Estimator):
             fig.tight_layout()
 
         return self.avg, self.final_weights
-    
 
     def reconstruct_from_weights(
         self,
