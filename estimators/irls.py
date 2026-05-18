@@ -292,7 +292,7 @@ class IRLSFourier(Estimator):
             images, weights
         )
 
-        return torch.fft.irfft(
+        return torch.fft.irfft2(
             torch.complex(reconstructed_fourier_real, reconstructed_fourier_imag),
             norm="ortho",
         )
