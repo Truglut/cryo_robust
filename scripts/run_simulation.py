@@ -60,6 +60,14 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
     # Run the Estimation Methods
     results = run_estimators(cfg, images_dict, args, add_avg=True)
 
+    # Undo standardization
+    if args.standardize:
+        for _, data in results.items():
+            data["avg"] = data["avg"] * (global_image_std + 1.0e-8)
+
+        images *= (global_image_std + 1.0e-8)
+        ground_truth *= (global_image_std + 1.0e-8)
+
     # Identify and save requested subsets
     image_path = Path(cfg["data"]["reference_image_path"])
     process_and_save_subsets(
