@@ -169,12 +169,13 @@ def get_distance_function(
         base_function = FUNCTION_REGISTRY[name]
     except KeyError:
         raise ValueError(f"Unknown function name: {name}")
+    params = params.copy()
 
     # Calculate automatic beta parameter for tagare distance
     if name in NEED_BETA_PARAMETER and (params.get("beta", "auto") == "auto"):
         if imgs is None:
             raise ValueError("Cannot calculate auto beta without images")
-        mult = params.get("auto_multiplier", 1)
+        mult = params.pop("auto_multiplier", 1.0)
         beta = calculate_beta_auto(imgs, mult)
 
         # Update params
