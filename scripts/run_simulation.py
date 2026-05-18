@@ -7,6 +7,7 @@ import torch
 from method_comparison.domain.enums import Space, AggregationStrategy
 from method_comparison.domain.reports import EvaluationReport
 from method_comparison.dataset_builder import create_evaluation_dataset
+from method_comparison.evaluation.frc import FRCThreshold
 from method_comparison.evaluation.report_building import compute_report_labeled
 from method_comparison.visualization.printing import print_report
 from method_comparison.visualization.plotting import plot_report
@@ -21,7 +22,7 @@ from scripts.common import (
 )
 from scripts.napari_visualization import visualize_results
 
-FRC_THRESHOLD = 0.5
+FRC_THRESHOLDS = [FRCThreshold.ONE_HALF, FRCThreshold.HALF_BIT]
 RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
 
 
@@ -73,7 +74,7 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
         labels=labels,
         reapply_mask=args.reapply_mask,
         mask=mask,
-        frc_threshold=FRC_THRESHOLD,
+        frc_thresholds=FRC_THRESHOLDS,
         recall_methods=RECALL_METHODS,
         real_agg_strategies=(AggregationStrategy.MEAN,),
         fourier_agg_strategies=(AggregationStrategy.MEAN,),

@@ -5,7 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from method_comparison.domain.reports import EvaluationReport, FRCData
+from method_comparison.domain.reports import EvaluationReport
+from method_comparison.evaluation.frc import FRCData, FRCThreshold, get_threshold
 
 # Helper for consistent coloring
 LABEL_MAP = {
@@ -13,6 +14,12 @@ LABEL_MAP = {
     1: {"name": "Rotated Outliers", "color": "orange"},
     2: {"name": "Misclassified", "color": "red"},
     3: {"name": "Noise", "color": "darkorange"},
+}
+
+THRESHOLD_COLORS = {
+    FRCThreshold.ONE_OVER_SEVEN: "tomato",
+    FRCThreshold.ONE_HALF: "orange",
+    FRCThreshold.HALF_BIT: "seagreen",
 }
 
 AVERAGE_NAME = "Average"
@@ -154,7 +161,7 @@ def _plot_weight_distributions(
 
 def _plot_frc_curves(
     data_items: list[tuple[str, FRCData]],
-    frc_threshold: float | None = None,
+    frc_thresholds: list[FRCThreshold] = [],
     title: str = "Resolution Estimates (FRC)",
 ) -> plt.Figure | None:
     """
@@ -182,15 +189,20 @@ def _plot_frc_curves(
 
     # Plot each curve with its corresponding method name as the legend label
     for name, frc_data in data_items:
-        ax.plot(frc_data.resolutions, frc_data.frc, label=name)
+        ax.plot(frc_data.spatial_resolutions, frc_data.frc, label=name)
 
-    # Optionally draw a horizontal threshold line
-    if frc_threshold is not None:
-        ax.axhline(
-            frc_threshold,
-            color="r",
+    frc_data = data_items[0][1]
+
+    # Optionally draw threshold lines
+    for threshold in frc_thresholds:
+        thr = get_threshold(frc_data, threshold)
+
+        ax.plot(
+            frc_data.spatial_resolutions,
+            thr,
             linestyle="--",
-            label=f"Threshold ({frc_threshold})",
+            label=threshold,
+            color=THRESHOLD_COLORS.get(threshold, "gray"),
         )
 
     ax.set_xlabel("Spatial Resolution")
@@ -238,12 +250,12 @@ def plot_report_frc_curves(
     # Plot both sets of curves
     gt_fig = _plot_frc_curves(
         gt_frc_items,
-        frc_threshold=report.frc_threshold,
+        frc_thresholds=report.frc_thresholds,
         title="Ground Truth Resolution Estimates (FRC)",
     )
     hs_fig = _plot_frc_curves(
         hs_frc_items,
-        frc_threshold=report.frc_threshold,
+        frc_thresholds=report.frc_thresholds,
         title="Half-set Resolution Estimates (FRC)",
     )
 

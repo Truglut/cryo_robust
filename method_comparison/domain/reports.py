@@ -5,26 +5,7 @@ import pandas as pd
 
 from method_comparison.domain.enums import Space
 from method_comparison.domain.metrics import MethodMetrics
-
-
-@dataclass
-class FRCData:
-    """
-    Fourier Ring Correlation curve data.
-
-    Parameters
-    ----------
-    resolutions : np.ndarray
-        1D array of the spatial resolutions FRC was computed at.
-    freqs: np.ndarray
-        1D array of the spatial frequencies FRC was computed at.
-    frc: np.ndarray
-        1D array containing the FRC values at the specified resolutions/frequencies.
-    """
-
-    resolutions: np.ndarray
-    freqs: np.ndarray
-    frc: np.ndarray
+from method_comparison.evaluation.frc import FRCData, FRCThreshold
 
 
 @dataclass
@@ -94,13 +75,13 @@ class EvaluationReport:
         One entry per estimation method, in the order they were evaluated.
     labels : np.ndarray or None
         Per-image ground-truth class labels.  `None` for unlabeled data.
-    frc_threshold : float
-        The FRC threshold used to define resolution (e.g. 0.143 or 0.5).
+    frc_thresholds : list[FRCThreshold]
+        The FRC thresholds used to define resolution (e.g. 0.143 or 0.5).
     """
 
     method_results: list[MethodResults]
     labels: np.ndarray | None
-    frc_threshold: float
+    frc_thresholds: list[FRCThreshold]
 
     def reconstruction_metrics_dataframe(self) -> pd.DataFrame:
         return pd.DataFrame(

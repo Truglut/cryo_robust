@@ -282,6 +282,9 @@ def generate_reconstruction_section(
         LaTeX text for the reconstruction section, ready to be written
         into the document.
     """
+    if len(snr_reports) == 0:
+        return ""
+    
     text = "\n\\section{Reconstruction metrics}\n"
 
     reconstruction_dfs: dict[float, pd.DataFrame] = {}
@@ -294,6 +297,8 @@ def generate_reconstruction_section(
         df = report.reconstruction_metrics_dataframe()
         df["snr"] = snr
         reconstruction_dfs[snr] = df
+
+        frc_thresholds = report.frc_thresholds
 
     overall_rec_df = pd.concat(reconstruction_dfs.values())
 
@@ -333,9 +338,9 @@ def generate_reconstruction_section(
 
     snr_vs_gt_frc_plot = plot_vs_snr(
         df=overall_rec_df,
-        metrics=["gt_frc_resolution"],
+        metrics=["GT Resolution" + f"({threshold.value})" for threshold in frc_thresholds],
         save_path=figures_path / "snr_vs_gt_frc.pdf",
-        metric_labels=["Ground truth FRC resolution"],
+        metric_labels=[f"Resolution ({threshold.value})" for threshold in frc_thresholds],
         dpi=dpi,
         title="Ground truth reconstruction resolution vs SNR",
         ylabel="Resolution",
@@ -350,15 +355,15 @@ def generate_reconstruction_section(
 
     snr_vs_hs_frc_plot = plot_vs_snr(
         df=overall_rec_df,
-        metrics=["hs_frc_resolution"],
+        metrics=["HS Resolution" + f"({threshold.value})" for threshold in frc_thresholds],
         save_path=figures_path / "snr_vs_hs_frc.pdf",
-        metric_labels=["Half-set FRC resolution"],
+        metric_labels=[f"Resolution ({threshold.value})" for threshold in frc_thresholds],
         dpi=dpi,
         title="Half-set reconstruction resolution vs SNR",
         ylabel="Resolution",
     ).relative_to(output_path)
 
-    text += "\n\\textbf{Ground truth FRC resolution}\n"
+    text += "\n\\textbf{Half-set FRC resolution}\n"
     text += create_figure_block(
         snr_vs_hs_frc_plot,
         caption="FRC resolution vs SNR (comparing half-set averages)",

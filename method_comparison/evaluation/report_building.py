@@ -6,18 +6,20 @@ import torch
 from method_comparison.domain.enums import Space, AggregationStrategy
 from method_comparison.domain.metrics import MethodMetrics
 from method_comparison.domain.reports import MethodResults, EvaluationReport
-from method_comparison.evaluation.classification_metrics import (
-    ALL_RECALL_METHODS,
-    compute_space_metrics,
-)
-from method_comparison.evaluation.reconstruction_metrics import (
-    compute_reconstruction_metrics,
-    get_half_set_indices,
-)
 from method_comparison.evaluation.aggregation import (
     compute_aggregated_weights,
     setup_energy_reference,
 )
+from method_comparison.evaluation.classification_metrics import (
+    ALL_RECALL_METHODS,
+    compute_space_metrics,
+)
+from method_comparison.evaluation.frc import FRCThreshold
+from method_comparison.evaluation.reconstruction_metrics import (
+    compute_reconstruction_metrics,
+    get_half_set_indices,
+)
+
 
 
 def compute_report_labeled(
@@ -27,7 +29,7 @@ def compute_report_labeled(
     labels: np.ndarray | None = None,
     reapply_mask: bool = False,
     mask: np.ndarray = np.array([1]),
-    frc_threshold: float = 0.5,
+    frc_thresholds: list[FRCThreshold] = [FRCThreshold.ONE_OVER_SEVEN],
     recall_methods: Iterable[str] = ALL_RECALL_METHODS,
     real_agg_strategies: Iterable[AggregationStrategy] = ("mean",),
     fourier_agg_strategies: Iterable[AggregationStrategy] = ("mean", "energy"),
@@ -61,7 +63,7 @@ def compute_report_labeled(
             compute_reconstruction_metrics(
                 ground_truth_img,
                 estimated_img,
-                frc_threshold=frc_threshold,
+                frc_thresholds=frc_thresholds,
                 images_dict=images_dict,
                 estimator=estimator,
                 weights=weights,
@@ -103,7 +105,7 @@ def compute_report_labeled(
         )
 
     return EvaluationReport(
-        method_results=all_results, labels=labels, frc_threshold=frc_threshold
+        method_results=all_results, labels=labels, frc_thresholds=frc_thresholds
     )
 
 
