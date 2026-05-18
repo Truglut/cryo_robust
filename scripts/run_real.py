@@ -96,6 +96,9 @@ def main():
         max_subplots=args.max_subplots,
     )
 
+    if args.print:
+        print_report(report)
+
     # Show images (averages and original images) with napari
     if args.show_images:
         visualize_results(results, tensor_images, args)

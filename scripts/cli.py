@@ -41,6 +41,12 @@ def build_base_parser() -> tuple[
         help="Plots to generate",
     )
     visualization_group.add_argument(
+        "--print",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Print the report to terminal"
+    )
+    visualization_group.add_argument(
         "--max-subplots",
         type=int,
         default=BASE_PLOT_OPTIONS["max_subplots"],

@@ -82,7 +82,8 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
     )
 
     # Print report to terminal
-    print_report(report)
+    if args.print:
+        print_report(report)
 
     # Optionally plot the report
     plot_report(
