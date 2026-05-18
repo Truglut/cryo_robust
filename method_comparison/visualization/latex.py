@@ -30,7 +30,7 @@ RECONSTRUCTION_METRIC_NAMES = {
     "rmse": "RMSE",
     "pearson_corr": "Correlation",
     "gt_frc_resolution": "Ground Truth FRC Resolution",
-    "hs_frc_resolution": "Half-Set FRC Resolution"
+    "hs_frc_resolution": "Half-Set FRC Resolution",
 }
 
 
@@ -284,7 +284,7 @@ def generate_reconstruction_section(
     """
     if len(snr_reports) == 0:
         return ""
-    
+
     text = "\n\\section{Reconstruction metrics}\n"
 
     reconstruction_dfs: dict[float, pd.DataFrame] = {}
@@ -338,37 +338,70 @@ def generate_reconstruction_section(
 
     snr_vs_gt_frc_plot = plot_vs_snr(
         df=overall_rec_df,
-        metrics=["GT Resolution" + f"({threshold.value})" for threshold in frc_thresholds],
+        metrics=["GT Resolution" + f"({thr.value})" for thr in frc_thresholds],
         save_path=figures_path / "snr_vs_gt_frc.pdf",
-        metric_labels=[f"Resolution ({threshold.value})" for threshold in frc_thresholds],
+        metric_labels=[f"Resolution ({thr.value})" for thr in frc_thresholds],
         dpi=dpi,
         title="Ground truth reconstruction resolution vs SNR",
         ylabel="Resolution",
     ).relative_to(output_path)
 
-    text += "\n\\textbf{Ground truth FRC resolution}\n"
+    text += "\n\\textbf{Ground truth FRC}\n"
+    text += "\n\\textbf{Resolution}\n"
     text += create_figure_block(
         snr_vs_gt_frc_plot,
         caption="FRC resolution vs SNR (comparing global average to ground truth)",
         width="0.8\\textwidth",
     )
 
+    text += "\n\\textbf{AUFRC}\n"
+    snr_vs_gt_aufrc_plot = plot_vs_snr(
+        df = overall_rec_df,
+        metrics=["AUFRC (GT)"],
+        save_path=figures_path / "snr_vs_gt_aufrc.pdf",
+        metric_labels=[""],
+        title="Area under the ground-truth FRC curve vs. SNR",
+        ylabel="AUFRC",
+    ).relative_to(output_path)
+    text += create_figure_block(
+        snr_vs_gt_aufrc_plot,
+        caption="Area under the ground-truth FRC curve vs. SNR",
+        width="0.8\\textwidth"
+    )
+
     snr_vs_hs_frc_plot = plot_vs_snr(
         df=overall_rec_df,
-        metrics=["HS Resolution" + f"({threshold.value})" for threshold in frc_thresholds],
+        metrics=["HS Resolution" + f"({thr.value})" for thr in frc_thresholds],
         save_path=figures_path / "snr_vs_hs_frc.pdf",
-        metric_labels=[f"Resolution ({threshold.value})" for threshold in frc_thresholds],
+        metric_labels=[f"Resolution ({thr.value})" for thr in frc_thresholds],
         dpi=dpi,
         title="Half-set reconstruction resolution vs SNR",
         ylabel="Resolution",
     ).relative_to(output_path)
 
-    text += "\n\\textbf{Half-set FRC resolution}\n"
+    text += "\n\\textbf{Half-set FRC}\n"
+    text += "\n\\textbf{Resolution}\n"
     text += create_figure_block(
         snr_vs_hs_frc_plot,
         caption="FRC resolution vs SNR (comparing half-set averages)",
         width="0.8\\textwidth",
     )
+
+    text += "\n\\textbf{AUFRC}\n"
+    snr_vs_hs_aufrc_plot = plot_vs_snr(
+        df = overall_rec_df,
+        metrics=["AUFRC (HS)"],
+        save_path=figures_path / "snr_vs_hs_aufrc.pdf",
+        metric_labels=[""],
+        title="Area under the half-set FRC curve vs. SNR",
+        ylabel="AUFRC",
+    ).relative_to(output_path)
+    text += create_figure_block(
+        snr_vs_hs_aufrc_plot,
+        caption="Area under the half-set FRC curve vs. SNR",
+        width="0.8\\textwidth"
+    )
+
     return text
 
 
@@ -524,7 +557,7 @@ def generate_classification_section(
 
         if non_average.empty:
             continue
-        
+
         text += f"\n\\subsubsection{{{space.label}}}\n"
 
         for strategy in AggregationStrategy:
