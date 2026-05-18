@@ -51,7 +51,7 @@ class FRCData:
     resolutions: dict = field(default_factory=dict)
 
     @property
-    def spatial_resolutions(self):
+    def spatial_resolutions(self) -> np.ndarray:
         spatial_resolutions = np.zeros_like(self.freqs, dtype=float)
         spatial_resolutions[0] = np.inf
         spatial_resolutions[1:] = 1.0 / self.freqs[1:]
