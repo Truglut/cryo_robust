@@ -396,7 +396,7 @@ def save_snr_reports_figures(
     output_path.mkdir(parents=True, exist_ok=True)
     saved: dict[float, dict[str, list[Path]]] = dict()
     for snr, report in snr_reports.items():
-        snr_str = f"{snr:.3f}".replace(".", "p")
+        snr_str = f"snr_{snr:.3f}".replace(".", "p")
         snr_figures_output = figures_path / snr_str
         snr_figures_output.mkdir(parents=True, exist_ok=True)
 
