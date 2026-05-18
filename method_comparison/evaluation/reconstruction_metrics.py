@@ -87,10 +87,13 @@ def get_resolution_from_frc(frc_data: FRCData, threshold: float = 0.5) -> float:
     q1, q2 = freqs[idx - 1], freqs[idx]
 
     # Solve for frequency crossing the threshold
-    freq_thresh = q1 + (threshold - f1) * (q2 - q1) / (f2 - f1)
+    if f2 == f1:
+        freq_thresh = q1
+    else:
+        freq_thresh = q1 + (threshold - f1) * (q2 - q1) / (f2 - f1)
 
     # Convert frequency back to spatial resolution
-    return freq_thresh
+    return np.inf if freq_thresh <= 0 else 1.0 / freq_thresh
 
 
 def get_half_set_indices(
