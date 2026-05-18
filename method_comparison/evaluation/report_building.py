@@ -29,7 +29,7 @@ def compute_report_labeled(
     labels: np.ndarray | None = None,
     reapply_mask: bool = False,
     mask: np.ndarray = np.array([1]),
-    frc_thresholds: list[FRCThreshold] = [FRCThreshold.ONE_OVER_SEVEN],
+    frc_thresholds: list[FRCThreshold] | None = None,
     recall_methods: Iterable[str] = ALL_RECALL_METHODS,
     real_agg_strategies: Iterable[AggregationStrategy] = ("mean",),
     fourier_agg_strategies: Iterable[AggregationStrategy] = ("mean", "energy"),
@@ -39,6 +39,9 @@ def compute_report_labeled(
     """
     Compute all quantitative metrics for a set of estimation results.
     """
+    if frc_thresholds is None:
+        frc_thresholds = [FRCThreshold.ONE_OVER_SEVEN]
+        
     ref_real, ref_fourier = setup_energy_reference(
         ground_truth_img, images_dict, energy_reference
     )

@@ -108,7 +108,9 @@ def compute_reconstruction_metrics(
     corr, _ = pearsonr(ground_truth_img.flatten(), estimated_img.flatten())
 
     # and ground truth FRC
-    ground_truth_frc_data = compute_frc(estimated_img, ground_truth_img)
+    ground_truth_frc_data = compute_frc(
+        estimated_img, ground_truth_img, pixel_size=pixel_size
+    )
     for threshold in frc_thresholds:
         ground_truth_frc_data.resolutions[threshold] = get_resolution(
             ground_truth_frc_data, threshold=threshold

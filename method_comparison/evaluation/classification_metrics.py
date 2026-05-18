@@ -66,7 +66,7 @@ def compute_soft_metrics(
 def compute_space_metrics(
     agg_weights: dict[Space, dict[AggregationStrategy, np.ndarray]],
     labels: np.ndarray,
-    recall_methods = Iterable[str]
+    recall_methods: Iterable[str]
 ) -> dict[Space, dict[AggregationStrategy, dict]]:
     space_metrics: dict[Space, dict[AggregationStrategy, SpaceMetrics]] = {}
 
