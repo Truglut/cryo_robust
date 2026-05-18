@@ -129,51 +129,6 @@ def get_half_set_indices(
     return indices[:half_idx], indices[half_idx:]
 
 
-# def calculate_half_set_resolution(
-#     images: torch.Tensor,
-#     weights: torch.Tensor,
-#     pixel_size: float = 1.0,
-#     threshold: float = 0.5,
-#     split_indices: tuple[np.ndarray, np.ndarray] | None = None,
-# ) -> tuple[float, FRCData]:
-#     """
-#     Computes the weighted average for two half-sets and returns the FRC resolution.
-#     If split_indices are provided, uses those; otherwise, splits randomly.
-#     """
-#     num_images = images.shape[0]
-#     if num_images < 2:
-#         raise ValueError("At least 2 images are required to split into half-sets.")
-
-#     # Use provided indices or generate them dynamically
-#     if split_indices is not None:
-#         idx_A, idx_B = split_indices
-#     else:
-#         idx_A, idx_B = get_half_set_indices(num_images, device=images.device)
-
-#     imgs_A, weights_A = images[idx_A], weights[idx_A]
-#     imgs_B, weights_B = images[idx_B], weights[idx_B]
-
-#     sum_weights_A = weights_A.sum(dim=0)
-#     sum_weights_B = weights_B.sum(dim=0)
-
-#     if (sum_weights_A == 0).any() or (sum_weights_B == 0).any():
-#         raise ValueError("Sum of weights in one of the half-sets is zero.")
-
-#     # Compute weighted averages
-#     avg_A = (
-#         (torch.sum(imgs_A * weights_A, dim=0) / sum_weights_A).detach().cpu().numpy()
-#     )
-#     avg_B = (
-#         (torch.sum(imgs_B * weights_B, dim=0) / sum_weights_B).detach().cpu().numpy()
-#     )
-
-#     # Calculate FRC and resolution
-#     frc_data = compute_frc(avg_A, avg_B, pixel_size)
-#     resolution_val = get_resolution_from_frc(frc_data, threshold)
-
-#     return resolution_val, frc_data
-
-
 ### All reconstruction metrics
 
 
@@ -211,7 +166,7 @@ def compute_reconstruction_metrics(
         reconstruction_B = images_B[Space.REAL].mean(dim=0)
     reconstruction_A = reconstruction_A.detach().cpu().numpy()
     reconstruction_B = reconstruction_B.detach().cpu().numpy()
-    
+
     # Calculate FRC and resolution by comparing both reconstructions
     half_set_frc_data = compute_frc(
         reconstruction_A, reconstruction_B, pixel_size=pixel_size

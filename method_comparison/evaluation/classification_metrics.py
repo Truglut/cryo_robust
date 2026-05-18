@@ -2,7 +2,6 @@ import warnings
 from typing import Iterable
 
 import numpy as np
-import torch
 from sklearn.metrics import average_precision_score
 
 from method_comparison.domain.enums import Space, AggregationStrategy

@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
 import warnings
-from typing import Literal
 
 import numpy as np
 from scipy import integrate, interpolate
