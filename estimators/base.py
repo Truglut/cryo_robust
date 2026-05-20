@@ -26,6 +26,9 @@ class Estimator:
         if isinstance(images, np.ndarray):
             images = torch.from_numpy(images)
 
+        if torch.is_complex(images):
+            return images.to(dtype=torch.complex64, device=device)
+        
         return images.to(dtype=torch.float32, device=device)
 
     def fit(
