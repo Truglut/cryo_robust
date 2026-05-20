@@ -67,12 +67,6 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
 
         images *= (global_image_std + 1.0e-8)
         ground_truth *= (global_image_std + 1.0e-8)
-        tensor_images *= (global_image_std + 1.0e-8)
-
-        # Re-sync the Fourier dictionaries to the unstandardized scale
-        fourier_unstandardized = torch.fft.rfft2(tensor_images, norm="ortho")
-        images_dict[Space.FOURIER_REAL] = fourier_unstandardized.real
-        images_dict[Space.FOURIER_IMAG] = fourier_unstandardized.imag
 
     # Identify and save requested subsets
     image_path = Path(cfg["data"]["reference_image_path"])
@@ -93,7 +87,16 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
         real_agg_strategies=(AggregationStrategy.MEAN,),
         fourier_agg_strategies=(AggregationStrategy.MEAN,),
         energy_reference="ground_truth",
+        independent_half_sets=args.independent_half_sets
     )
+
+    if args.standardize:
+        tensor_images *= (global_image_std + 1.0e-8)
+
+        # Re-sync the Fourier dictionaries to the unstandardized scale
+        fourier_unstandardized = torch.fft.rfft2(tensor_images, norm="ortho")
+        images_dict[Space.FOURIER_REAL] = fourier_unstandardized.real
+        images_dict[Space.FOURIER_IMAG] = fourier_unstandardized.imag
 
     # Print report to terminal
     if args.print:

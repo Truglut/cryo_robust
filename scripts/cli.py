@@ -17,6 +17,7 @@ def build_base_parser() -> tuple[
     visualization_group = parser.add_argument_group("Visualization")
     subset_group = parser.add_argument_group("Subset selection")
     saving_group = parser.add_argument_group("Saving")
+    evaluation_group = parser.add_argument_group("Evaluation")
 
     # Global arguments
     parser.add_argument(
@@ -104,27 +105,6 @@ def build_base_parser() -> tuple[
         action="store_true",
         help="Save final weights for every estimation method as a .npy file",
     )
-    return parser, visualization_group, subset_group, saving_group
-
-
-def build_simulation_parser() -> argparse.ArgumentParser:
-    parser, _, _, saving_group = build_base_parser()
-
-    # Add reports to saving group
-    saving_group.add_argument(
-        "--report", type=Path, help="Generate a LaTeX report at the provided path"
-    )
-
-    simulation_group = parser.add_argument_group("Simulation")
-    evaluation_group = parser.add_argument_group("Evaluation")
-
-    # Simulation
-    simulation_group.add_argument(
-        "--snr",
-        nargs="+",
-        type=float,
-        help="Target signal to noise ratio in image generation",
-    )
 
     # Evaluation
     evaluation_group.add_argument(
@@ -133,11 +113,37 @@ def build_simulation_parser() -> argparse.ArgumentParser:
         default=True,
         help="Reapply the mask to estimations before evaluation"
     )
+    evaluation_group.add_argument(
+        "--independent-half-sets",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Independently re-fit estimators on half sets for half-set FRC calculations"
+    )
+    return parser, visualization_group, subset_group, saving_group, evaluation_group
+
+
+def build_simulation_parser() -> argparse.ArgumentParser:
+    parser, _, _, saving_group, _ = build_base_parser()
+
+    # Add reports to saving group
+    saving_group.add_argument(
+        "--report", type=Path, help="Generate a LaTeX report at the provided path"
+    )
+
+    simulation_group = parser.add_argument_group("Simulation")
+
+    # Simulation
+    simulation_group.add_argument(
+        "--snr",
+        nargs="+",
+        type=float,
+        help="Target signal to noise ratio in image generation",
+    )
     return parser
 
 
 def build_experimental_parser() -> argparse.ArgumentParser:
-    parser, _, _, _ = build_base_parser()
+    parser, _, _, _, _ = build_base_parser()
     return parser
 
 

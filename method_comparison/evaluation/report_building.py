@@ -21,7 +21,6 @@ from method_comparison.evaluation.reconstruction_metrics import (
 )
 
 
-
 def compute_report_labeled(
     results: dict[str, Any],
     images_dict: dict[Space, torch.Tensor],
@@ -35,13 +34,14 @@ def compute_report_labeled(
     fourier_agg_strategies: Iterable[AggregationStrategy] = ("mean", "energy"),
     energy_reference: str = "ground_truth",
     pixel_size: float = 1.0,
+    independent_half_sets: bool = False,
 ) -> EvaluationReport:
     """
     Compute all quantitative metrics for a set of estimation results.
     """
     if frc_thresholds is None:
         frc_thresholds = [FRCThreshold.ONE_OVER_SEVEN]
-        
+
     ref_real, ref_fourier = setup_energy_reference(
         ground_truth_img, images_dict, energy_reference
     )
@@ -63,7 +63,6 @@ def compute_report_labeled(
             comparison_ground_truth = ground_truth_img * mask
         else:
             comparison_ground_truth = ground_truth_img
-        
 
         # Reconstruction quality metrics
         reconstruction_metrics, gt_frc_data, hs_frc_data = (
@@ -77,7 +76,8 @@ def compute_report_labeled(
                 split_indices=split_indices,
                 pixel_size=pixel_size,
                 reapply_mask=reapply_mask,
-                mask=mask
+                mask=mask,
+                independent_half_sets=independent_half_sets,
             )
         )
 

@@ -2,8 +2,10 @@ import numpy as np
 import torch
 from sklearn.metrics import root_mean_squared_error
 from scipy.stats import pearsonr
+import matplotlib.pyplot as plt
 
 from estimators.base import Estimator
+from estimators.gmm import RecursiveGMMEstimator
 
 from method_comparison.domain.enums import Space
 from method_comparison.domain.metrics import ReconstructionMetrics
@@ -56,7 +58,8 @@ def compute_reconstruction_metrics(
     split_indices: tuple[torch.Tensor, torch.Tensor],
     pixel_size: float = 1.0,
     reapply_mask: bool = True,
-    mask: np.ndarray = np.ndarray([1])
+    mask: np.ndarray = np.ndarray([1]),
+    independent_half_sets: bool = True,
 ) -> tuple[ReconstructionMetrics, FRCData, FRCData]:
 
     ## Half-set reconstruction resolution (always available)
@@ -64,22 +67,34 @@ def compute_reconstruction_metrics(
     idx_A, idx_B = split_indices
     images_A = {space: images_dict[space][idx_A] for space in Space}
     images_B = {space: images_dict[space][idx_B] for space in Space}
-    weights_A = {
-        space: weights[space][idx_A] if weights[space] is not None else None
-        for space in Space
-    }
-    weights_B = {
-        space: weights[space][idx_B] if weights[space] is not None else None
-        for space in Space
-    }
 
     # Reconstruct image estimation for both half sets
-    if estimator is not None:
-        reconstruction_A = estimator.reconstruct_from_weights(images_A, weights_A)
-        reconstruction_B = estimator.reconstruct_from_weights(images_B, weights_B)
-    else:
+    if estimator is None:
         reconstruction_A = images_A[Space.REAL].mean(dim=0)
         reconstruction_B = images_B[Space.REAL].mean(dim=0)
+    elif independent_half_sets:
+        if isinstance(estimator, RecursiveGMMEstimator):
+            estimator.fit(images_A, plot_fits=True)
+            reconstruction_A = estimator.avg
+            estimator.fit(images_B, plot_fits=True)
+            reconstruction_B = estimator.avg
+        else:
+            estimator.fit(images_A)
+            reconstruction_A = estimator.avg
+            estimator.fit(images_B)
+            reconstruction_B = estimator.avg
+    else:
+        weights_A = {
+            space: weights[space][idx_A] if weights[space] is not None else None
+            for space in Space
+        }
+        weights_B = {
+            space: weights[space][idx_B] if weights[space] is not None else None
+            for space in Space
+        }
+        reconstruction_A = estimator.reconstruct_from_weights(images_A, weights_A)
+        reconstruction_B = estimator.reconstruct_from_weights(images_B, weights_B)
+
     reconstruction_A = reconstruction_A.detach().cpu().numpy()
     reconstruction_B = reconstruction_B.detach().cpu().numpy()
     if reapply_mask:
