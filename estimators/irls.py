@@ -296,3 +296,118 @@ class IRLSFourier(Estimator):
             torch.complex(reconstructed_fourier_real, reconstructed_fourier_imag),
             norm="ortho",
         )
+
+
+class JointIRLSFourier(Estimator):
+    def __init__(self, solver: IRLSSolver, device=None):
+        super().__init__(device)
+
+        if not solver.space == Space.REAL:
+            raise ValueError(
+                "By convention, JointIRLSFourier solver space must be Space.REAL"
+            )
+        self.solver = solver
+
+    @torch.inference_mode()
+    def step(
+        self,
+        images: torch.Tensor,
+        image_variance: torch.Tensor,
+        image_std: torch.Tensor,
+        precomp_ctf_images: torch.Tensor,
+        precomp_ctf_squared: torch.Tensor,
+        reference: torch.Tensor,
+        prior_mean: torch.Tensor | None = None,
+        prior_variance: torch.Tensor | float | None = None,
+    ):
+        return self.solver.step(
+            images=images,
+            image_variance=image_variance,
+            image_std=image_std,
+            precomp_ctf_images=precomp_ctf_images,
+            precomp_ctf_squared=precomp_ctf_squared,
+            reference=reference,
+            prior_mean=prior_mean,
+            prior_variance=prior_variance,
+        )
+
+    @torch.inference_mode()
+    def fit(
+        self,
+        images: dict[Space, torch.Tensor] | torch.Tensor,
+        image_variance: dict[Space, torch.Tensor] | torch.Tensor | float | None = None,
+        ctf: torch.Tensor | float | None = None,
+        reference: torch.Tensor | None = None,
+        prior_mean: dict[Space, torch.Tensor] | torch.Tensor | None = None,
+        prior_variance: torch.Tensor | float | None = None,
+        precomp_ctf_images: dict[Space, torch.Tensor] | None = None,
+        precomp_ctf_squared: torch.Tensor | float | None = None,
+    ):
+        # Get fourier space representation of images
+        if isinstance(images, torch.Tensor):
+            fourier_images = torch.fft.rfft2(images, norm="ortho")
+        else:
+            fourier_images = torch.complex(
+                images[Space.FOURIER_REAL], images[Space.FOURIER_IMAG]
+            )
+
+        # Get per-frequency image variance if given as space dict or None
+        if not isinstance(image_variance, (torch.Tensor, float)):
+            power_spectrum = torch.abs(fourier_images)
+            image_variance = torch.var(power_spectrum, dim=0)
+            del power_spectrum
+        image_std = torch.sqrt(image_variance)
+
+        # ctf
+        if ctf is None:
+            ctf = 1.0
+        # Precompute ctf * images and ctf**2 for efficiency
+        if precomp_ctf_images is None:
+            precomp_ctf_images = ctf * fourier_images
+        if precomp_ctf_squared is None:
+            if isinstance(ctf, torch.Tensor):
+                precomp_ctf_squared = torch.square(ctf)
+            else:
+                precomp_ctf_squared = ctf**2
+
+        if reference is None:
+            reference = torch.mean(fourier_images, dim=0)
+
+        if isinstance(prior_mean, dict):
+            prior_mean = torch.complex(
+                prior_mean[Space.FOURIER_REAL], prior_mean[Space.FOURIER_IMAG]
+            )
+
+        fourier_estimate, weights = self.solver.fit(
+            images=fourier_images,
+            image_variance=image_variance,
+            image_std=image_std,
+            ctf=ctf,
+            reference=reference,
+            prior_mean=prior_mean,
+            prior_variance=prior_variance,
+            precomp_ctf_images=precomp_ctf_images,
+            precomp_ctf_squared=precomp_ctf_squared,
+        )
+
+        w = weights[Space.REAL]
+
+        weights = {Space.REAL: None, Space.FOURIER_REAL: w, Space.FOURIER_IMAG: w}
+
+        self.final_weights = weights
+        self.avg = torch.fft.irfft2(fourier_estimate, norm="ortho")
+
+        return self.avg, self.final_weights
+
+    @torch.inference_mode()
+    def reconstruct_from_weights(
+        self, images: dict[Space, torch.Tensor], weights: dict[Space, torch.Tensor]
+    ):
+        fourier_real = weighted_average(
+            images[Space.FOURIER_REAL], weights[Space.FOURIER_REAL]
+        )
+        fourier_imag = weighted_average(
+            images[Space.FOURIER_IMAG], weights[Space.FOURIER_IMAG]
+        )
+
+        return torch.fft.irfft2(torch.complex(fourier_real, fourier_imag), norm="ortho")
