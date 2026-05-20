@@ -124,6 +124,9 @@ def compute_frc(
         )
     if image1.ndim != 2:
         raise ValueError("compute_frc expects 2-D images.")
+    
+    if image1.shape[0] != image1.shape[1]:
+        raise ValueError("compute_frc requires square images to ensure isotropic frequency mapping.")
 
     img1 = image1.astype(np.float64)
     img2 = image2.astype(np.float64)
@@ -151,7 +154,6 @@ def compute_frc(
     # Max usable radius (inscribed circle — avoids corners where rings are incomplete)
     max_r_full = int(min(cy, cx))
     max_r = int(np.floor(max_r_full * nyquist_fraction))
-    box_size = 2 * max_r_full  # for frequency axis
 
     # Bin index per pixel (integer ring label)
     r_int = np.round(r).astype(np.int32)
@@ -185,6 +187,8 @@ def compute_frc(
 
     # frequency axis
     # k_i = i / (box_size * pixel_size)   [units: 1/Å]
+    # Use the exact image dimension to define the frequency step
+    box_size = image1.shape[0] 
     freqs = np.arange(n_rings) / (box_size * pixel_size)
 
     return FRCData(
@@ -303,7 +307,7 @@ def get_resolution(
             f_lo, f_hi = freqs_window[0], freqs_window[-1]
             if interp_fn(f_lo) * interp_fn(f_hi) > 0:
                 raise ValueError("No sign change in interpolation window.")
-            freq_cross = brentq(interp_fn, f_lo, f_hi)
+            freq_cross = brentq(interp_fn, freqs[idx], freqs[idx + 1])
         except Exception:
             # Fall back to linear interpolation between idx and idx+1
             f1, f2 = diff[idx], diff[idx + 1]
