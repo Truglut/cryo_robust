@@ -163,6 +163,7 @@ def _plot_frc_curves(
     data_items: list[tuple[str, FRCData]],
     frc_thresholds: list[FRCThreshold] = [],
     title: str = "Resolution Estimates (FRC)",
+    x_axis_freqs: bool = True,
 ) -> plt.Figure | None:
     """
     Plot Fourier Ring Correlation (FRC) curves.
@@ -175,6 +176,8 @@ def _plot_frc_curves(
         A threshold value to draw as a horizontal dashed line. Default is None.
     title : str, optional
         The title of the axes. Default is "Resolution Estimates (FRC)".
+    x_axis_freqs: bool, optional.
+        Plot spatial frequencies instead of resolutions on the x-axis. Default is True.
 
     Returns
     -------
@@ -189,23 +192,27 @@ def _plot_frc_curves(
 
     # Plot each curve with its corresponding method name as the legend label
     for name, frc_data in data_items:
-        ax.plot(frc_data.spatial_resolutions, frc_data.frc, label=name)
+        x = frc_data.freqs if x_axis_freqs else frc_data.spatial_resolutions
+        ax.plot(x, frc_data.frc, label=name)
 
     frc_data = data_items[0][1]
+    x_thresh = frc_data.freqs if x_axis_freqs else frc_data.spatial_resolutions
 
     # Optionally draw threshold lines
     for threshold in frc_thresholds:
         thr = get_threshold(frc_data, threshold)
 
         ax.plot(
-            frc_data.spatial_resolutions,
+            x_thresh,
             thr,
             linestyle="--",
             label=threshold,
             color=THRESHOLD_COLORS.get(threshold, "gray"),
         )
 
-    ax.set_xlabel("Spatial Resolution")
+    xlabel = "Spatial Frequency (1/Å)" if x_axis_freqs else "Spatial Resolution"
+    ax.set_xlabel(xlabel)
+
     ax.set_ylabel("Fourier Shell Correlation")
     ax.set_title(title)
     ax.set_ylim(-0.1, 1.1)
@@ -217,7 +224,7 @@ def _plot_frc_curves(
 
 
 def plot_report_frc_curves(
-    report: EvaluationReport,
+    report: EvaluationReport, x_axis_freqs: bool = True
 ) -> tuple[plt.Figure | None, plt.Figure | None]:
     """
     Generate FRC curve figures for ground truth and half-set data from a report.
@@ -226,6 +233,8 @@ def plot_report_frc_curves(
     ----------
     report : EvaluationReport
         The evaluation report containing the method results and FRC data.
+    x_axis_freqs: bool, optional.
+        Plot spatial frequencies instead of resolutions on the x-axis. Default is True.
 
     Returns
     -------
@@ -252,11 +261,13 @@ def plot_report_frc_curves(
         gt_frc_items,
         frc_thresholds=report.frc_thresholds,
         title="Ground Truth Resolution Estimates (FRC)",
+        x_axis_freqs=x_axis_freqs,
     )
     hs_fig = _plot_frc_curves(
         hs_frc_items,
         frc_thresholds=report.frc_thresholds,
         title="Half-set Resolution Estimates (FRC)",
+        x_axis_freqs=x_axis_freqs,
     )
 
     # Return the figures
@@ -312,6 +323,7 @@ def save_report_figures(
     max_subplots: int,
     density: bool = False,
     dpi: int = 150,
+    frc_x_axis_freqs: bool = True,
 ) -> dict[str, list[Path]]:
     """
     Save all report figures to disk and return their paths.
@@ -328,6 +340,8 @@ def save_report_figures(
         Whether to normalise histograms to probability density.
     dpi : int, optional
         Output resolution in dots per inch. Default is 150.
+    frc_x_axis_freqs: bool, optional
+        Plot frequencies instead of spatial resolution on the x-axis in FRC plots.
 
     Returns
     -------
@@ -348,7 +362,9 @@ def save_report_figures(
         saved["weight_distributions"].append(path)
 
     # FRC curves
-    gt_frc_fig, hs_frc_fig = plot_report_frc_curves(report)
+    gt_frc_fig, hs_frc_fig = plot_report_frc_curves(
+        report, x_axis_freqs=frc_x_axis_freqs
+    )
     if gt_frc_fig is not None:
         path = output_path / "gt_frc_curves.pdf"
         gt_frc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
@@ -370,6 +386,7 @@ def save_snr_reports_figures(
     max_subplots: int,
     density: bool = False,
     dpi: int = 150,
+    frc_x_axis_freqs: bool = True,
 ) -> dict[float, dict[str, list[Path]]]:
     """
     Save all report figures to disk and return their paths.
@@ -386,6 +403,8 @@ def save_snr_reports_figures(
         Whether to normalise histograms to probability density.
     dpi : int, optional
         Output resolution in dots per inch. Default is 150.
+    frc_x_axis_freqs: bool, optional
+        Plot frequencies instead of spatial resolution on the x-axis in FRC plots.
 
     Returns
     -------
@@ -406,6 +425,7 @@ def save_snr_reports_figures(
             max_subplots=max_subplots,
             density=density,
             dpi=dpi,
+            frc_x_axis_freqs=frc_x_axis_freqs,
         )
 
     return saved

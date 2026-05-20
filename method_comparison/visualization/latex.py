@@ -772,6 +772,7 @@ def generate_plots_section(
     output_path: Path,
     figures_path: Path,
     plot_options: dict[str, Any],
+    frc_x_axis_freqs: bool = True
 ) -> str:
     """
     Generates the LaTeX text for the plots section.
@@ -789,6 +790,8 @@ def generate_plots_section(
             - max_subplots: int
             - density: bool
             - dpi: int
+    frc_x_axis_freqs: bool, optional
+        Plot frequencies instead of spatial resolution on the x-axis in FRC plots.
 
     Returns
     -------
@@ -799,7 +802,7 @@ def generate_plots_section(
             - One plot representing the FRC curves for all methods.
     """
     plots = save_snr_reports_figures(
-        snr_reports, output_path=output_path, figures_path=figures_path, **plot_options
+        snr_reports, output_path=output_path, figures_path=figures_path, frc_x_axis_freqs=frc_x_axis_freqs, **plot_options
     )
 
     text = "\n\\section{Diagnostic plots}\n"
