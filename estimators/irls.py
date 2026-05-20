@@ -353,9 +353,7 @@ class JointIRLSFourier(Estimator):
 
         # Get per-frequency image variance if given as space dict or None
         if not isinstance(image_variance, (torch.Tensor, float)):
-            power_spectrum = torch.abs(fourier_images)
-            image_variance = torch.var(power_spectrum, dim=0)
-            del power_spectrum
+            image_variance = torch.var(fourier_images, dim=0)
         image_std = torch.sqrt(image_variance)
 
         # ctf
