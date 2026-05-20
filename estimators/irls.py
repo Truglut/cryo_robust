@@ -390,14 +390,14 @@ class JointIRLSFourier(Estimator):
             precomp_ctf_squared=precomp_ctf_squared,
         )
 
-        w = weights[Space.REAL]
-
-        weights = {Space.REAL: None, Space.FOURIER_REAL: w, Space.FOURIER_IMAG: w}
+        weights = {
+            Space.REAL: None,
+            Space.FOURIER_REAL: weights,
+            Space.FOURIER_IMAG: weights,
+        }
 
         self.final_weights = weights
         self.avg = torch.fft.irfft2(fourier_estimate, norm="ortho")
-
-        return self.avg, self.final_weights
 
     @torch.inference_mode()
     def reconstruct_from_weights(
