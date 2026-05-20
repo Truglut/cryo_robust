@@ -2,7 +2,7 @@ import warnings
 from typing import Iterable
 
 import numpy as np
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, roc_auc_score
 
 from method_comparison.domain.enums import Space, AggregationStrategy
 from method_comparison.domain.metrics import SpaceMetrics
@@ -50,6 +50,7 @@ def compute_soft_metrics(
     norm_scores = scores / max_score if max_score > 0 else scores
 
     ap = average_precision_score(idx_good, norm_scores)
+    roc_auc = roc_auc_score(idx_good, norm_scores)
     soft_precision = get_precision(scores, idx_good)
     soft_recall = {
         method: get_recall(scores, idx_good, method)
@@ -58,6 +59,7 @@ def compute_soft_metrics(
 
     return SpaceMetrics(
         ap=ap,
+        roc_auc=roc_auc,
         soft_precision=soft_precision,
         soft_recall=soft_recall
     )

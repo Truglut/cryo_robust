@@ -40,6 +40,7 @@ def print_report(report: EvaluationReport) -> None:
             for strategy, metrics in strategy_metrics.items():
                 print(f"  Space: {space.name}  |  Aggregation: {strategy}")
                 print(f"    Avg Precision:   {metrics.ap:.4f}")
+                print(f"    ROC-AUC:         {metrics.roc_auc:.4f}")
                 print(f"    Soft Precision:  {metrics.soft_precision:.4f}")
                 for recall_method, value in metrics.soft_recall.items():
                     print(f"    Soft Recall ({recall_method}): {value:.4f}")

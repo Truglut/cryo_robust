@@ -19,6 +19,7 @@ LATEX_PACKAGES = ["booktabs", "float", "caption", "graphicx", "subcaption"]
 # Human-readable names for classification metrics.
 CLASSIFICATION_METRIC_NAMES = {
     "ap": "AP",
+    "roc_auc": "AUC-ROC",
     "soft_precision": "SP",
     "soft_recall_huang_tagare": "SR (HT)",
     "soft_recall_inlier_avg": "SR (IA)",
@@ -583,18 +584,18 @@ def generate_classification_section(
                 caption=f"Soft precision and soft recall vs. SNR ({space.label} - {strategy.label})",
             )
 
-            average_precision_curves = plot_vs_snr(
+            average_precision_auc_curves = plot_vs_snr(
                 df,
-                metrics="ap",
+                metrics=["ap", "roc_auc"],
                 save_path=figures_path / f"snr_vs_ap_{space_strategy_identifier}.pdf",
-                metric_labels="Average precision",
+                metric_labels=["Average precision", "AUC-ROC"],
                 dpi=dpi,
-                title="Average precision vs. SNR",
-                ylabel="Average precision",
+                title="Average precision and AUC vs. SNR",
+                ylabel="Score",
             ).relative_to(output_path)
             text += create_figure_block(
-                average_precision_curves,
-                caption=f"Average precision vs. SNR ({space.label} - {strategy.label})",
+                average_precision_auc_curves,
+                caption=f"Average precision and AUC vs. SNR ({space.label} - {strategy.label})",
             )
 
     return text

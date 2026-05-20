@@ -91,6 +91,8 @@ class SpaceMetrics:
     ----------
     ap : float
         Average Precision of the estimated weights/scores.
+    roc_auc: float
+        ROC-AUC of the estimated weights/scores.
     soft_precision : float
         Soft precision metric evaluating the correctness of assigned weights.
     soft_recall : dict of {str: float}
@@ -99,6 +101,7 @@ class SpaceMetrics:
     """
 
     ap: float
+    roc_auc: float
     soft_precision: float
     soft_recall: dict[str, float]
 
@@ -109,6 +112,7 @@ class SpaceMetrics:
         """
         record = {
             "ap": self.ap,
+            "roc_auc": self.roc_auc,
             "soft_precision": self.soft_precision,
         }
         for method, value in self.soft_recall.items():
