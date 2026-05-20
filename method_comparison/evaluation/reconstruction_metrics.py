@@ -55,6 +55,8 @@ def compute_reconstruction_metrics(
     weights: torch.Tensor,
     split_indices: tuple[torch.Tensor, torch.Tensor],
     pixel_size: float = 1.0,
+    reapply_mask: bool = True,
+    mask: np.ndarray = np.ndarray([1])
 ) -> tuple[ReconstructionMetrics, FRCData, FRCData]:
 
     ## Half-set reconstruction resolution (always available)
@@ -80,6 +82,9 @@ def compute_reconstruction_metrics(
         reconstruction_B = images_B[Space.REAL].mean(dim=0)
     reconstruction_A = reconstruction_A.detach().cpu().numpy()
     reconstruction_B = reconstruction_B.detach().cpu().numpy()
+    if reapply_mask:
+        reconstruction_A *= mask
+        reconstruction_B *= mask
 
     # Calculate FRC and resolution by comparing both reconstructions
     half_set_frc_data = compute_frc(

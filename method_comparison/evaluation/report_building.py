@@ -27,7 +27,7 @@ def compute_report_labeled(
     images_dict: dict[Space, torch.Tensor],
     ground_truth_img: np.ndarray | None = None,
     labels: np.ndarray | None = None,
-    reapply_mask: bool = False,
+    reapply_mask: bool = True,
     mask: np.ndarray = np.array([1]),
     frc_thresholds: list[FRCThreshold] | None = None,
     recall_methods: Iterable[str] = ALL_RECALL_METHODS,
@@ -60,11 +60,15 @@ def compute_report_labeled(
         estimated_img = data["avg"].detach().cpu().numpy()
         if reapply_mask:
             estimated_img *= mask
+            comparison_ground_truth = ground_truth_img * mask
+        else:
+            comparison_ground_truth = ground_truth_img
+        
 
         # Reconstruction quality metrics
         reconstruction_metrics, gt_frc_data, hs_frc_data = (
             compute_reconstruction_metrics(
-                ground_truth_img,
+                comparison_ground_truth,
                 estimated_img,
                 frc_thresholds=frc_thresholds,
                 images_dict=images_dict,
@@ -72,6 +76,8 @@ def compute_report_labeled(
                 weights=weights,
                 split_indices=split_indices,
                 pixel_size=pixel_size,
+                reapply_mask=reapply_mask,
+                mask=mask
             )
         )
 
