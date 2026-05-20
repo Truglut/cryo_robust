@@ -5,9 +5,12 @@ import torch
 
 @torch.no_grad()
 def weighted_average(
-    y: torch.Tensor, weights: torch.Tensor, dim: int = 0, eps: float = 1.0e-8
+    y: torch.Tensor, weights: torch.Tensor, dim: int = 0, eps: float = 1.0e-6
 ) -> torch.Tensor:
-    return (weights * y).sum(dim=dim) / (weights.sum(dim=0) + eps)
+    weight_sum = weights.sum(dim=0)
+    if weight_sum.max() < 1e-8:
+        raise ValueError("All weights are effectively zero — distances likely degenerate")
+    return (weights * y).sum(dim=dim) / (weight_sum + eps)
 
 
 @torch.no_grad()

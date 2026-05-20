@@ -122,6 +122,13 @@ class RecursiveGMMEstimator(Estimator):
         plot_fits: bool = False,
         plot_title: str = "GMM Distances & Fit",
     ) -> tuple[torch.Tensor, dict[Space, torch.Tensor]]:
+        # Reset the GMM to avoid carrying over state from previous fit() calls
+        self.model = GaussianMixture(
+            n_components=2,
+            random_state=self.model.random_state,
+            warm_start=False,
+        )
+
         # Ensure images are a pytorch tensor on the correct device
         if isinstance(images, dict):
             images = images[self.space]
@@ -161,6 +168,11 @@ class RecursiveGMMEstimator(Estimator):
             if self.standardize_distances:
                 avg_distance = torch.mean(distances_to_ref)
                 std_distance = torch.std(distances_to_ref)
+                if std_distance < 1e-8:
+                    print(
+                        "Warning: near-zero std in distances, skipping standardization"
+                    )
+                    std_distance = torch.tensor(1.0, device=images.device)
                 distances_to_ref = (distances_to_ref - avg_distance) / (std_distance)
 
             # Prepare distances for GMM (numpy array of shape (n_samples, n_features))
