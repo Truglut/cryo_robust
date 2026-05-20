@@ -2,11 +2,13 @@ from functools import partial
 
 import torch
 
+
 @torch.no_grad()
 def weighted_average(
-    y: torch.Tensor, weights: torch.Tensor, dim: int = 0, eps: float = 0.0
+    y: torch.Tensor, weights: torch.Tensor, dim: int = 0, eps: float = 1.0e-8
 ) -> torch.Tensor:
     return (weights * y).sum(dim=dim) / (weights.sum(dim=0) + eps)
+
 
 @torch.no_grad()
 def huber_weights(
@@ -15,14 +17,14 @@ def huber_weights(
     std: torch.Tensor | float,
     delta: float,
     sigma_f: float = 1.0,
+    eps: float = 1.0e-8,
 ):
-    residuals = sigma_f * (images - reference) / std
-    abs_res = residuals.abs()
+    abs_residuals = torch.abs(sigma_f * (images - reference) / (std + eps))
 
-    weights = torch.ones_like(residuals, dtype=torch.float32)
-    mask = abs_res > delta
+    weights = torch.ones_like(abs_residuals, dtype=torch.float32)
+    mask = abs_residuals > delta
 
-    weights[mask] = delta / abs_res[mask]
+    weights[mask] = delta / abs_residuals[mask]
 
     return weights
 
@@ -35,11 +37,12 @@ def smooth_redescending_weights(
     delta: float,
     sigma_f: float = 1.0,
     normalise: bool = True,
+    eps: float = 1.0e-8,
 ):
-    residuals = sigma_f * (images - reference) / (std + 1e-8)
+    abs_residuals = torch.abs(sigma_f * (images - reference) / (std + eps))
     if not normalise:
-        return (2 / (delta**2)) * torch.exp(-torch.square(residuals) / (delta**2))
-    return torch.exp(-torch.square(residuals) / (delta**2))
+        return (2 / (delta**2)) * torch.exp(-torch.square(abs_residuals) / (delta**2))
+    return torch.exp(-torch.square(abs_residuals) / (delta**2))
 
 
 @torch.no_grad()
@@ -48,7 +51,7 @@ def tagare_weights(
     reference: torch.Tensor,
     std: torch.Tensor | float = 1.0,
     beta: float = 1.0e-6,
-    eps: float = 1.0e-6,
+    eps: float = 1.0e-8,
 ) -> torch.Tensor:
     y_flat = images.flatten(1)
     ref_image_flat = reference.flatten()
@@ -97,7 +100,7 @@ def cc_tagare_weights(
     reference: torch.Tensor,
     std: torch.Tensor | float = 1.0,
     beta: float = 1.0e-6,
-    eps: float = 1.0e-6,
+    eps: float = 1.0e-8,
 ) -> torch.Tensor:
     y_flat = images.flatten(1)
 
@@ -119,9 +122,14 @@ def cc_tagare_weights(
 
 @torch.no_grad()
 def cauchy_weights(
-    images: torch.Tensor, reference: torch.Tensor, std: torch.Tensor | float, c: float
+    images: torch.Tensor,
+    reference: torch.Tensor,
+    std: torch.Tensor | float,
+    c: float,
+    eps: float = 1.0e-8,
 ):
-    return 1 / (1 + ((images - reference) / (c * std)).square())
+    abs_residuals = torch.abs((images - reference) / (c * std + eps))
+    return 1 / (1 + abs_residuals.square())
 
 
 @torch.no_grad()
@@ -131,8 +139,10 @@ def student_weights(
     std: torch.Tensor | float,
     df: float,
     sigma_f: float = 1.0,
+    eps: float = 1.0e-8,
 ):
-    return (df + 1) / (df + (sigma_f * (images - reference) / std).square())
+    abs_residuals = torch.abs(sigma_f * (images - reference) / (std + eps))
+    return (df + 1) / (df + abs_residuals.square())
 
 
 @torch.no_grad()
@@ -142,8 +152,10 @@ def q_norm_weights(
     std: torch.Tensor | float,
     q: float,
     sigma_f: float = 1.0,
+    eps: float = 1.0e-8,
 ):
-    return (sigma_f * (images - reference) / std).abs().clamp(min=1).pow(q - 2)
+    abs_residuals = torch.abs(sigma_f * (images - reference) / (std + eps))
+    return abs_residuals.clamp(min=1).pow(q - 2)
 
 
 FUNCTION_REGISTRY = {
