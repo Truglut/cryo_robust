@@ -8,7 +8,7 @@ import torch
 from estimators import build_estimator
 from estimators.base import Estimator
 from estimators.admm import ADMMSolver
-from estimators.irls import IRLSFourier
+from estimators.irls import IRLSFourier, JointIRLSFourier
 from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
 
 from method_comparison.domain.enums import Space, AggregationStrategy
@@ -109,6 +109,8 @@ def get_weights(estimator: Estimator, final_weights: dict[Space, torch.Tensor]):
         weights = 0.5 * (
             final_weights[Space.FOURIER_REAL] + final_weights[Space.FOURIER_IMAG]
         )
+    elif isinstance(estimator, JointIRLSFourier):
+        weights = final_weights[Space.FOURIER_REAL]
     else:
         weights = final_weights[estimator.space]
 
