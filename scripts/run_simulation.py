@@ -67,6 +67,7 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
 
         images *= (global_image_std + 1.0e-8)
         ground_truth *= (global_image_std + 1.0e-8)
+        tensor_images *= (global_image_std + 1.0e-8)
 
     # Identify and save requested subsets
     image_path = Path(cfg["data"]["reference_image_path"])
