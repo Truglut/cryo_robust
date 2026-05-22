@@ -142,7 +142,7 @@ class RecursiveGMMEstimator(Estimator):
             print("Using image average as reference")
             reference = images.mean(dim=0)
 
-        # Initiliazation of GMM params
+        # Initilization of GMM params
         self.model.warm_start = True
         if initialize_params:
             n_features = 1

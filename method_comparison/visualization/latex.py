@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -184,7 +185,9 @@ def format_dataframe(
     return latex
 
 
-def write_experiment_info(cfg: dict[str, Any], snr_list: Iterable[float]) -> str:
+def write_experiment_info(
+    cfg: dict[str, Any], snr_list: Iterable[float], args: argparse.Namespace
+) -> str:
     """
     Generate a LaTeX summary of the experiment configuration.
 
@@ -200,6 +203,9 @@ def write_experiment_info(cfg: dict[str, Any], snr_list: Iterable[float]) -> str
         ``min_rotation_very_rotated``, and ``max_rotation_very_rotated``.
     snr_list : Iterable[float]
         SNR values tested in the experiment.
+    args: argaparse.Namespace
+        Command-line arguments passed to the run_simulation script. Used to extract
+        the standardization strategy.
 
     Returns
     -------
@@ -224,6 +230,8 @@ def write_experiment_info(cfg: dict[str, Any], snr_list: Iterable[float]) -> str
     text += "\n\\textbf{Signal-to-noise ratios tested:} "
     text += ", ".join([f"{snr:.3f}" for snr in snr_list])
     text += "\n"
+
+    text += f"\n\\textbf{{Standardization stragety:}} {args.standardize}\n"
 
     return text
 
@@ -773,7 +781,7 @@ def generate_plots_section(
     output_path: Path,
     figures_path: Path,
     plot_options: dict[str, Any],
-    frc_x_axis_freqs: bool = True
+    frc_x_axis_freqs: bool = True,
 ) -> str:
     """
     Generates the LaTeX text for the plots section.
@@ -803,7 +811,11 @@ def generate_plots_section(
             - One plot representing the FRC curves for all methods.
     """
     plots = save_snr_reports_figures(
-        snr_reports, output_path=output_path, figures_path=figures_path, frc_x_axis_freqs=frc_x_axis_freqs, **plot_options
+        snr_reports,
+        output_path=output_path,
+        figures_path=figures_path,
+        frc_x_axis_freqs=frc_x_axis_freqs,
+        **plot_options,
     )
 
     text = "\n\\section{Diagnostic plots}\n"
@@ -907,7 +919,7 @@ def generate_latex_report(
     output_path: Path,
     cfg: dict[str, Any],
     ground_truth_image: np.ndarray,
-    plot_options: dict[str, Any],
+    args: argparse.Namespace,
 ) -> None:
     """
     Generate a complete LaTeX report document.
@@ -932,12 +944,18 @@ def generate_latex_report(
     ground_truth_image: np.ndarray
         2-dimensional array holding the ground truth image used
         for generating the dataset.
-    plot_options: dict[str, Any]
-        Dict containing the following keyword arguments for figure generation:
-            - max_subplots: int
-            - density: bool
-            - dpi: int
+    args: argaparse.Namespace
+        Command-line arguments passed to the run_simulation script. Used to extract
+        the standardization strategy and plot options.
+
+        args.plot_options: dict[str, Any]
+            Dict containing the following keyword arguments for figure generation:
+                - max_subplots: int
+                - density: bool
+                - dpi: int
     """
+    plot_options = args.plot_options
+
     output_path.mkdir(parents=True, exist_ok=True)
 
     report_path = output_path / "report.tex"
@@ -986,7 +1004,7 @@ def generate_latex_report(
 
         f.write("\n\\begin{document}\n")
 
-        f.write(write_experiment_info(cfg, snr_list=snr_reports.keys()))
+        f.write(write_experiment_info(cfg=cfg, snr_list=snr_reports.keys(), args=args))
 
         f.write(class_section)
 

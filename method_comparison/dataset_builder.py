@@ -31,9 +31,7 @@ def add_noise(
         raise ValueError("Must provide either 'snr' or 'noise_std' in the config.")
 
     print("Adding noise to images:")
-    print(
-        f"\t- Signal std:  {np.sqrt(signal_var):.4f}\tVariance:  {signal_var:6f}"
-    )
+    print(f"\t- Signal std:  {np.sqrt(signal_var):.4f}\tVariance:  {signal_var:6f}")
     print(f"\t- Noise std:          {noise_std:.4f}\tVariance:  {noise_std**2:.6f}")
     print(f"\t- SNR:                {snr:.4f}\n")
 
@@ -90,7 +88,10 @@ def load_misclassified_images(
 
 
 def create_evaluation_dataset(
-    cfg: dict, rng: np.random.Generator, snr: float | None = None
+    cfg: dict,
+    rng: np.random.Generator,
+    snr: float | None = None,
+    standardize_before_noise: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Generates an evaluation dataset with rotated inliers, rotated outliers,
@@ -102,7 +103,6 @@ def create_evaluation_dataset(
     # Load Reference
     ref_image = mrcfile.read(data_cfg["reference_image_path"])
     h, w = ref_image.shape
-    true_signal_var = ref_image.var()
 
     n_good = gen_cfg["n_copies"]
     n_rot_bad = gen_cfg.get("n_copies_rotated", 0)
@@ -156,11 +156,28 @@ def create_evaluation_dataset(
         labels[current_idx : current_idx + n_noise] = 3
         current_idx += n_noise
 
+    # Standardize images before adding noise
+    if standardize_before_noise:
+        # Standardize ground truth
+        ref_image = (ref_image - ref_image.mean()) / ref_image.std()
+        
+        # Standardize generated images (only those with signal)
+        signal_mask = labels != 3
+        if np.any(signal_mask):
+            sub_dataset = dataset[signal_mask]
+            means = sub_dataset.mean(axis=(1,2), keepdims=True)
+            stds = sub_dataset.std(axis=(1,2), keepdims=True)
+
+            # Guard against zero-variance images
+            stds[stds == 0.0] = 1.0
+            dataset[signal_mask] = (sub_dataset - means) / stds
+        
+
     # Add noise to the array
     final_dataset = add_noise(
         dataset,
         rng=rng,
-        signal_var=true_signal_var,
+        signal_var=ref_image.var(),
         snr=snr,
     )
 

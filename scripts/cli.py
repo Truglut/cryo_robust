@@ -26,12 +26,6 @@ def build_base_parser() -> tuple[
     parser.add_argument(
         "--device", type=str, default="cpu", help="Compute device for PyTorch"
     )
-    parser.add_argument(
-        "--standardize",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Enable or disable global standardization",
-    )
 
     # Visualization
     visualization_group.add_argument(
@@ -139,11 +133,24 @@ def build_simulation_parser() -> argparse.ArgumentParser:
         type=float,
         help="Target signal to noise ratio in image generation",
     )
+
+    simulation_group.add_argument(
+        "--standardize",
+        choices=["before", "after", "none"],
+        default="after",
+        help="When to standardize generated images. (default: %(default)s)"
+    )
     return parser
 
 
 def build_experimental_parser() -> argparse.ArgumentParser:
     parser, _, _, _, _ = build_base_parser()
+    parser.add_argument(
+        "--standardize",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable or disable global standardization",
+    )
     return parser
 
 

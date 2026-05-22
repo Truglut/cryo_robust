@@ -32,12 +32,19 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
     rng = np.random.default_rng(seed=seed)
 
     # Generate the data
-    images, ground_truth, labels = create_evaluation_dataset(cfg, rng, snr)
+    images, ground_truth, labels = create_evaluation_dataset(
+        cfg, rng, snr, standardize_before_noise=args.standardize == "before"
+    )
 
-    if args.standardize:
-        global_image_std = images.std()
-        images = images / (global_image_std + 1.0e-8)
-        ground_truth = ground_truth / (global_image_std + 1.0e-8)
+    if args.standardize == "after":
+        images = (images - images.mean(axis=(1, 2), keepdims=True)) / images.std(
+            axis=(1, 2), keepdims=True
+        )
+        ground_truth = (ground_truth - ground_truth.mean()) / ground_truth.std()
+
+        # global_image_std = images.std()
+        # images = images / (global_image_std + 1.0e-8)
+        # ground_truth = ground_truth / (global_image_std + 1.0e-8)
 
     # Move images to torch
     tensor_images = torch.from_numpy(images).to(dtype=torch.float32, device=args.device)
@@ -60,13 +67,13 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
     # Run the Estimation Methods
     results = run_estimators(cfg, images_dict, args, add_avg=True)
 
-    # Undo standardization
-    if args.standardize:
-        for _, data in results.items():
-            data["avg"] = data["avg"] * (global_image_std + 1.0e-8)
+    # # Undo standardization
+    # if args.standardize:
+    #     for _, data in results.items():
+    #         data["avg"] = data["avg"] * (global_image_std + 1.0e-8)
 
-        images *= (global_image_std + 1.0e-8)
-        ground_truth *= (global_image_std + 1.0e-8)
+    #     images *= global_image_std + 1.0e-8
+    #     ground_truth *= global_image_std + 1.0e-8
 
     # Identify and save requested subsets
     image_path = Path(cfg["data"]["reference_image_path"])
@@ -87,16 +94,16 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
         real_agg_strategies=(AggregationStrategy.MEAN,),
         fourier_agg_strategies=(AggregationStrategy.MEAN,),
         energy_reference="ground_truth",
-        independent_half_sets=args.independent_half_sets
+        independent_half_sets=args.independent_half_sets,
     )
 
-    if args.standardize:
-        tensor_images *= (global_image_std + 1.0e-8)
+    # if args.standardize:
+    #     tensor_images *= global_image_std + 1.0e-8
 
-        # Re-sync the Fourier dictionaries to the unstandardized scale
-        fourier_unstandardized = torch.fft.rfft2(tensor_images, norm="ortho")
-        images_dict[Space.FOURIER_REAL] = fourier_unstandardized.real
-        images_dict[Space.FOURIER_IMAG] = fourier_unstandardized.imag
+    #     # Re-sync the Fourier dictionaries to the unstandardized scale
+    #     fourier_unstandardized = torch.fft.rfft2(tensor_images, norm="ortho")
+    #     images_dict[Space.FOURIER_REAL] = fourier_unstandardized.real
+    #     images_dict[Space.FOURIER_IMAG] = fourier_unstandardized.imag
 
     # Print report to terminal
     if args.print:
@@ -137,11 +144,11 @@ def main():
     # Optionally save the report
     if args.report is not None:
         generate_latex_report(
-            reports,
-            args.report,
+            snr_reports=reports,
+            output_path=args.report,
             cfg=cfg,
             ground_truth_image=ground_truth_image,
-            plot_options=args.plot_options,
+            args=args
         )
 
 
