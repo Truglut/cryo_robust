@@ -229,9 +229,11 @@ def write_experiment_info(
 
     text += "\n\\textbf{Signal-to-noise ratios tested:} "
     text += ", ".join([f"{snr:.3f}" for snr in snr_list])
-    text += "\n"
+    text += ".\n"
 
-    text += f"\n\\textbf{{Standardization stragety:}} {args.standardize}\n"
+    text += f"\n\\textbf{{Per-image noise std: }} {args.per_image_noise_std}.\n"
+
+    text += f"\n\\textbf{{Standardization stragety:}} {args.standardize}.\n"
 
     return text
 
@@ -946,7 +948,7 @@ def generate_latex_report(
         for generating the dataset.
     args: argaparse.Namespace
         Command-line arguments passed to the run_simulation script. Used to extract
-        the standardization strategy and plot options.
+        the standardization and noise std strategies, and plot options.
 
         args.plot_options: dict[str, Any]
             Dict containing the following keyword arguments for figure generation:

@@ -138,7 +138,13 @@ def build_simulation_parser() -> argparse.ArgumentParser:
         "--standardize",
         choices=["before", "after", "none"],
         default="after",
-        help="When to standardize generated images. (default: %(default)s)"
+        help="When to standardize generated images. Default is %(default)s"
+    )
+    simulation_group.add_argument(
+        "--per-image-noise-std",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Add a different noise std to each image to achieve a uniform SNR. Default is False"
     )
     return parser
 

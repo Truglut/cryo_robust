@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import mrcfile
 import scipy
@@ -15,26 +17,42 @@ STANDARDIZE_TYPES = ["global", "per_particle"]
 def add_noise(
     images: np.ndarray,
     rng: np.random.Generator,
-    signal_var: float,
-    snr: float | None = None,
-    noise_std: float | None = None,
+    snr: float,
+    signal_var: float | None = None,
+    per_image_noise_std: bool = False,
 ) -> np.ndarray:
     """Adds Gaussian noise to a batch of images based on target SNR or explicit noise_std."""
-    if noise_std is not None:
-        # Calculate signal-to-noise ratio
-        snr = signal_var / noise_std**2
-    elif snr is not None:
-        # Calculate noise standard deviation
+    if per_image_noise_std:
+        if signal_var is not None:
+            warnings.warn(
+                "signal_var was provided when requesting per image noise std. Ignoring signal_var"
+            )
+
+        image_stds = images.std(axis=(1, 2))
+        noise_std = image_stds / np.sqrt(snr)
+    elif signal_var is not None:
+        # Calculate noise standard deviation from signal var if present
         noise_var = signal_var / snr
         noise_std = np.sqrt(noise_var)
     else:
-        raise ValueError("Must provide either 'snr' or 'noise_std' in the config.")
+        # Otherwise estimate signal var from images
+        global_image_std = images.std(axis=(1, 2)).mean()
+        noise_std = global_image_std / np.sqrt(snr)
 
     print("Adding noise to images:")
-    print(f"\t- Signal std:  {np.sqrt(signal_var):.4f}\tVariance:  {signal_var:6f}")
-    print(f"\t- Noise std:          {noise_std:.4f}\tVariance:  {noise_std**2:.6f}")
+    print(
+        f"\t- Signal std:         {np.sqrt(signal_var):.4f}\tVariance:  {signal_var:6f}"
+    )
+    if per_image_noise_std:
+        print(
+            f"\t- Average noise std:  {noise_std.mean():.4f}\tVariance: {np.square(noise_std).mean():.4f}.\n"
+        )
+    else:
+        print(f"\t- Noise std:          {noise_std:.4f}\tVariance:  {noise_std**2:.6f}")
     print(f"\t- SNR:                {snr:.4f}\n")
 
+    if per_image_noise_std:
+        noise_std = np.broadcast_to(noise_std[:, None, None], shape=images.shape)
     return images + rng.normal(0, noise_std, size=images.shape)
 
 
@@ -92,6 +110,7 @@ def create_evaluation_dataset(
     rng: np.random.Generator,
     snr: float | None = None,
     standardize_before_noise: bool = False,
+    per_image_noise_std: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Generates an evaluation dataset with rotated inliers, rotated outliers,
@@ -160,18 +179,17 @@ def create_evaluation_dataset(
     if standardize_before_noise:
         # Standardize ground truth
         ref_image = (ref_image - ref_image.mean()) / ref_image.std()
-        
+
         # Standardize generated images (only those with signal)
         signal_mask = labels != 3
         if np.any(signal_mask):
             sub_dataset = dataset[signal_mask]
-            means = sub_dataset.mean(axis=(1,2), keepdims=True)
-            stds = sub_dataset.std(axis=(1,2), keepdims=True)
+            means = sub_dataset.mean(axis=(1, 2), keepdims=True)
+            stds = sub_dataset.std(axis=(1, 2), keepdims=True)
 
             # Guard against zero-variance images
             stds[stds == 0.0] = 1.0
             dataset[signal_mask] = (sub_dataset - means) / stds
-        
 
     # Add noise to the array
     final_dataset = add_noise(
@@ -179,6 +197,7 @@ def create_evaluation_dataset(
         rng=rng,
         signal_var=ref_image.var(),
         snr=snr,
+        per_image_noise_std=per_image_noise_std,
     )
 
     return final_dataset, ref_image, labels

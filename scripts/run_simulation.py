@@ -33,7 +33,11 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
 
     # Generate the data
     images, ground_truth, labels = create_evaluation_dataset(
-        cfg, rng, snr, standardize_before_noise=args.standardize == "before"
+        cfg=cfg,
+        rng=rng,
+        snr=snr,
+        standardize_before_noise=args.standardize == "before",
+        per_image_noise_std=args.per_image_noise_std,
     )
 
     if args.standardize == "after":
@@ -148,7 +152,7 @@ def main():
             output_path=args.report,
             cfg=cfg,
             ground_truth_image=ground_truth_image,
-            args=args
+            args=args,
         )
 
 
