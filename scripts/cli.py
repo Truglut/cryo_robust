@@ -136,7 +136,7 @@ def build_simulation_parser() -> argparse.ArgumentParser:
 
     simulation_group.add_argument(
         "--standardize",
-        choices=["before", "after", "none"],
+        choices=["before", "after", "both", "none"],
         default="after",
         help="When to standardize generated images. Default is %(default)s"
     )

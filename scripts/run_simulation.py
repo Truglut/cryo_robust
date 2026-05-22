@@ -36,11 +36,11 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
         cfg=cfg,
         rng=rng,
         snr=snr,
-        standardize_before_noise=args.standardize == "before",
+        standardize_before_noise=args.standardize in ["before", "both"],
         per_image_noise_std=args.per_image_noise_std,
     )
 
-    if args.standardize == "after":
+    if args.standardize in ["after", "both"]:
         images = (images - images.mean(axis=(1, 2), keepdims=True)) / images.std(
             axis=(1, 2), keepdims=True
         )
