@@ -1,10 +1,11 @@
 from pathlib import Path
 
+import numpy as np
 import torch
 import mrcfile
 
 from method_comparison.domain.enums import Space, AggregationStrategy
-from method_comparison.evaluation.report_building import compute_report_labeled
+from method_comparison.evaluation.report_building import compute_report
 from method_comparison.visualization.printing import print_report
 from method_comparison.visualization.plotting import plot_report
 
@@ -16,11 +17,10 @@ from scripts.common import (
     process_and_save_subsets,
 )
 from scripts.napari_visualization import visualize_results
+from scripts.run_simulation import FRC_THRESHOLDS
 
-FRC_THRESHOLD = 0.5
 
-
-def load_and_preprocess(cfg: dict, args) -> tuple:
+def load_and_preprocess(cfg: dict, args) -> tuple[torch.Tensor, np.ndarray, Path]:
     """Loads images on the target device"""
     data_cfg = cfg["data"]
     image_path = Path(data_cfg["image_path"])
@@ -45,10 +45,6 @@ def load_and_preprocess(cfg: dict, args) -> tuple:
         dtype=torch.float32, device=args.device
     )
 
-    if args.standardize:
-        global_image_std = tensor_images.std()
-        tensor_images /= global_image_std
-
     return tensor_images, images_save, image_path
 
 
@@ -60,6 +56,10 @@ def main():
 
     # Read images from file path
     tensor_images, images_save, image_path = load_and_preprocess(cfg, args)
+
+    if args.standardize:
+        tensor_images -= tensor_images.mean(dim=(1, 2), keepdim=True)
+        tensor_images /= tensor_images.std(dim=(1, 2), keepdim=True)
 
     # Apply mask to images
     mask_radius = cfg["mask"]["params"]["radius"]
@@ -80,13 +80,13 @@ def main():
     )
 
     # Show report of results (currently just plots weight distributions)
-    report = compute_report_labeled(
+    report = compute_report(
         results,
         images_dict,
         real_agg_strategies=(AggregationStrategy.MEAN,),
         fourier_agg_strategies=(AggregationStrategy.MEAN,),
         energy_reference="global_avg",
-        frc_threshold=FRC_THRESHOLD,
+        frc_thresholds=FRC_THRESHOLDS,
     )
     plot_report(
         report,

@@ -155,7 +155,7 @@ def build_experimental_parser() -> argparse.ArgumentParser:
         "--standardize",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Enable or disable global standardization",
+        help="Enable or disable per-image standardization",
     )
     return parser
 

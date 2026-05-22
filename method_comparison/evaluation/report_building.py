@@ -21,7 +21,7 @@ from method_comparison.evaluation.reconstruction_metrics import (
 )
 
 
-def compute_report_labeled(
+def compute_report(
     results: dict[str, Any],
     images_dict: dict[Space, torch.Tensor],
     ground_truth_img: np.ndarray | None = None,
@@ -60,7 +60,9 @@ def compute_report_labeled(
         estimated_img = data["avg"].detach().cpu().numpy()
         if reapply_mask:
             estimated_img *= mask
-            comparison_ground_truth = ground_truth_img * mask
+            comparison_ground_truth = (
+                ground_truth_img * mask if ground_truth_img is not None else None
+            )
         else:
             comparison_ground_truth = ground_truth_img
 

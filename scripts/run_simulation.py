@@ -8,7 +8,7 @@ from method_comparison.domain.enums import Space, AggregationStrategy
 from method_comparison.domain.reports import EvaluationReport
 from method_comparison.dataset_builder import create_evaluation_dataset
 from method_comparison.evaluation.frc import FRCThreshold
-from method_comparison.evaluation.report_building import compute_report_labeled
+from method_comparison.evaluation.report_building import compute_report
 from method_comparison.visualization.printing import print_report
 from method_comparison.visualization.plotting import plot_report
 from method_comparison.visualization.latex import generate_latex_report
@@ -86,7 +86,7 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
     )
 
     # Calculate complete report with classification and reconstruction metrics
-    report = compute_report_labeled(
+    report = compute_report(
         results=results,
         images_dict=images_dict,
         ground_truth_img=ground_truth,
