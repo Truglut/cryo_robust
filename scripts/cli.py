@@ -113,6 +113,12 @@ def build_base_parser() -> tuple[
         default=False,
         help="Independently re-fit estimators on half sets for half-set FRC calculations"
     )
+    evaluation_group.add_argument(
+        "--fourier-weight-mask",
+        choices=["low-pass", "band-pass", "high-pass", "none"],
+        help="Type of mask to be used when evaluating weights in Fourier Space",
+        default="none"
+    )
     return parser, visualization_group, subset_group, saving_group, evaluation_group
 
 

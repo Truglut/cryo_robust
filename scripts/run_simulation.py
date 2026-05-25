@@ -22,6 +22,8 @@ from scripts.common import (
 )
 from scripts.napari_visualization import visualize_results
 
+from utils.masks import create_fourier_mask
+
 FRC_THRESHOLDS = [FRCThreshold.ONE_HALF, FRCThreshold.HALF_BIT]
 RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
 
@@ -85,6 +87,18 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
         results, image_path, images_save=images, args=args, snr=snr
     )
 
+    # Calculate fourier weight mask
+    fourier_weight_mask = None
+    if args.fourier_weight_mask != "none":
+        fourier_weight_mask = create_fourier_mask(
+            image_shape=ground_truth.shape, mask_type=args.fourier_weight_mask
+        )
+    weights_masks_dict = {
+        Space.REAL: mask,
+        Space.FOURIER_REAL: fourier_weight_mask,
+        Space.FOURIER_IMAG: fourier_weight_mask
+    }
+
     # Calculate complete report with classification and reconstruction metrics
     report = compute_report(
         results=results,
@@ -99,6 +113,7 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
         fourier_agg_strategies=(AggregationStrategy.MEAN,),
         energy_reference="ground_truth",
         independent_half_sets=args.independent_half_sets,
+        masks_dict=weights_masks_dict
     )
 
     # if args.standardize:

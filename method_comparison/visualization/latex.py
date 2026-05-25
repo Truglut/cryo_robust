@@ -207,7 +207,7 @@ def write_experiment_info(
         SNR values tested in the experiment.
     args: argaparse.Namespace
         Command-line arguments passed to the run_simulation script. Used to extract
-        the standardization strategy.
+        the standardization strategy and the Fourier weight mask.
 
     Returns
     -------
@@ -236,6 +236,8 @@ def write_experiment_info(
     text += f"\n\\textbf{{Per-image noise std: }} {args.per_image_noise_std}.\n"
 
     text += f"\n\\textbf{{Standardization stragety:}} {args.standardize}.\n"
+
+    text += f"\n\\textbf{{Fourier weight mask:}} {args.fourier_weight_mask}"
 
     return text
 
