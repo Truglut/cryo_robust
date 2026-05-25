@@ -58,8 +58,7 @@ class ReconstructionMetrics:
         if self.hs_aufrc is not None:
             record["AUFRC (HS)"] = self.hs_aufrc
         return record
-        
-    
+
     def print_text(self) -> str:
         s = ""
         if self.rmse is not None:
@@ -82,7 +81,7 @@ class ReconstructionMetrics:
 
 
 @dataclass
-class SpaceMetrics:
+class ClassificationMetrics:
     """
     Metrics evaluating the per-image weight estimation or classification for a
     specific space and aggregation strategy.
@@ -131,7 +130,7 @@ class MethodMetrics:
     ----------
     reconstruction_metrics : ReconstructionMetrics
         Metrics evaluating the final reconstructed map (e.g. RMSE, FRC resolution).
-        Only contains `hs_frc_resolution` for data where no ground truth is 
+        Only contains `hs_frc_resolution` for data where no ground truth is
         available.
     space_metrics : dict of {Space: dict of {AggregationStrategy: SpaceMetrics}}
         Nested mapping `space -> aggregation_strategy -> SpaceMetrics` containing
@@ -140,7 +139,7 @@ class MethodMetrics:
     """
 
     reconstruction_metrics: ReconstructionMetrics
-    space_metrics: dict[Space, dict[AggregationStrategy, SpaceMetrics]] | None
+    space_metrics: dict[Space, dict[AggregationStrategy, ClassificationMetrics]] | None
 
     def reconstruction_record(self) -> dict:
         """Serialize the global reconstruction metrics to a dictionary."""
@@ -153,7 +152,7 @@ class MethodMetrics:
         """
         if self.space_metrics is None:
             return None
-        
+
         records = []
         for space, agg_dict in self.space_metrics.items():
             for agg_strategy, metrics in agg_dict.items():

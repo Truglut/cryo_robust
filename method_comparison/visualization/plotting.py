@@ -5,7 +5,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from method_comparison.domain.reports import EvaluationReport
+from method_comparison.domain.enums import Space
+from method_comparison.domain.metrics import ClassificationMetrics
+from method_comparison.domain.reports import EvaluationReport, MethodResults
 from method_comparison.evaluation.frc import FRCData, FRCThreshold, get_threshold
 
 # Helper for consistent coloring
@@ -29,6 +31,11 @@ BASE_PLOT_OPTIONS = {
     "density": False,
     "dpi": 150,
 }
+
+
+### ====================
+### Weight distributions
+### ====================
 
 
 def _plot_weight_histogram(
@@ -159,6 +166,11 @@ def _plot_weight_distributions(
     return figures
 
 
+### ==========
+### FRC curves
+### ==========
+
+
 def _plot_frc_curves(
     data_items: list[tuple[str, FRCData]],
     frc_thresholds: list[FRCThreshold] = [],
@@ -274,6 +286,226 @@ def plot_report_frc_curves(
     return gt_fig, hs_fig
 
 
+### ===================================
+### Fourier ring classification metrics
+### ===================================
+
+
+def _extract_ring_data(
+    ring_metrics_dict: dict[int, ClassificationMetrics], pixel_size: float = 1.0
+) -> tuple[list[float], dict[str, list[float]]]:
+    """
+    Extract spatial frequencies and associated classification metrics from ring-based data.
+
+    This helper sorts the ring indices, converts them into spatial frequencies using
+    the inferred Fourier box size and pixel size, and collects selected metric values
+    into parallel lists for downstream analysis or plotting.
+
+    Parameters
+    ----------
+    ring_metrics_dict : dict[int, ClassificationMetrics]
+        Mapping of ring (spatial frequency index) to its corresponding
+        ``ClassificationMetrics`` object.
+    pixel_size : float, optional
+        Physical pixel size used to scale ring indices into spatial frequencies.
+        Frequencies are computed as::
+
+            frequency = ring / (box_size * pixel_size)
+
+        where ``box_size = 2 * max(ring_metrics_dict.keys())``. Defaults to 1.0.
+
+    Returns
+    -------
+    tuple[list[float], dict[str, list[float]]]
+        A tuple containing:
+
+        - ``freqs`` : list[float]
+            Spatial frequencies corresponding to the sorted ring indices.
+        - ``extracted`` : dict[str, list[float]]
+            Dictionary of metric values aligned with ``freqs``. Keys include:
+
+            - ``"ap"`` : Average precision values.
+            - ``"roc_auc"`` : ROC AUC values.
+            - ``"soft_precision"`` : Soft precision values.
+            - ``"soft_recall_ht"`` : Soft recall values for the
+              ``"huang_tagare"`` thresholding method.
+
+        Missing attributes or metric values default to ``0.0``.
+
+    Notes
+    -----
+    If ``ring_metrics_dict`` is empty, a fallback ``box_size`` of 1 is used and
+    both returned collections will be empty.
+    """
+    sorted_rings = sorted(ring_metrics_dict.keys())
+    box_size = 2 * max(sorted_rings) if sorted_rings else 1
+    freqs = [ring / (box_size * pixel_size) for ring in sorted_rings]
+
+    extracted = {"ap": [], "roc_auc": [], "soft_precision": [], "soft_recall_ht": []}
+    for r in sorted_rings:
+        m = ring_metrics_dict[r]
+        extracted["ap"].append(getattr(m, "ap", 0.0))
+        extracted["roc_auc"].append(getattr(m, "roc_auc", 0.0))
+        extracted["soft_precision"].append(getattr(m, "soft_precision", 0.0))
+        extracted["soft_recall_ht"].append(m.soft_recall.get("huang_tagare", 0.0))
+
+    return freqs, extracted
+
+
+def plot_method_fourier_ring_curves(
+    method_results: MethodResults,
+    space: Space = Space.FOURIER_REAL,
+    pixel_size: float = 1.0,
+    figsize: tuple[int, int] = (11, 4.5),
+) -> plt.Figure | None:
+    """
+    Generates one classification metrics vs. Fourier frequency for one estimation method.
+    Returns ``None`` if the estimator does not have valid weights in the requested space.
+
+    Parameters
+    ----------
+    method_results : MethodResults
+        MethodResults object containing the information about the requested method
+    space : Space, optional
+        Space to extract the weights from, by default Space.FOURIER_REAL
+    pixel_size : float, optional
+        Image pixel size, by default 1.0
+    figsize : tuple[int, int], optional
+        Figure size, by default (11, 4.5)
+
+    Returns
+    -------
+    plt.Figure | None
+        plt.Figure object containing the plot, or ``None`` if the estimation method
+        did not have valid weights for the requested space
+    """
+    ring_metrics_dict = getattr(method_results, "fourier_ring_metrics", {}).get(space)
+    if not ring_metrics_dict:
+        return None
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+
+    freqs, data = _extract_ring_data(ring_metrics_dict, pixel_size=pixel_size)
+
+    # Left subplot: Precision & Recall
+    ax1.plot(freqs, data["soft_precision"], label="Soft Precision", color="teal", lw=2)
+    ax1.plot(
+        freqs,
+        data["soft_recall_ht"],
+        label="Soft Recall (Huang-Tagare)",
+        color="darkorange",
+        lw=2,
+        linestyle="--",
+    )
+    ax1.set_title(
+        f"Detection Metrics vs Frequency\n({method_results.name} - {space.label})"
+    )
+    ax1.set_xlabel(r"Spatial Frequency ($1/\mathrm{\AA}$)")
+    ax1.set_ylabel("Metric Score")
+    ax1.set_ylim(-0.05, 1.05)
+    ax1.grid(True, linestyle="--", alpha=0.5)
+    ax1.legend(loc="lower left")
+
+    # Right subplot: AP & ROC-AUC
+    ax2.plot(freqs, data["ap"], label="Average Precision (AP)", color="crimson", lw=2)
+    ax2.plot(
+        freqs, data["roc_auc"], label="ROC-AUC", color="royalblue", lw=2, linestyle="-."
+    )
+    ax2.set_title(f"Classification Capacity vs Frequency\n({method_results.name})")
+    ax2.set_xlabel(r"Spatial Frequency ($1/\mathrm{\AA}$)")
+    ax2.set_ylabel("Metric Score")
+    ax2.set_ylim(-0.05, 1.05)
+    ax2.grid(True, linestyle="--", alpha=0.5)
+    ax2.legend(loc="lower left")
+
+    plt.tight_layout()
+    return fig
+
+
+def plot_fourier_ring_summary(
+    all_method_results: Iterable[MethodResults],
+    space: Space = Space.FOURIER_REAL,
+    pixel_size: float = 1.0,
+    figsize: tuple[int, int] = (8, 5),
+) -> plt.Figure | None:
+    """
+    Generates a single summary plot comparing all models across the spectrum.
+    Solid line = Soft Precision, Dashed line = Soft Recall (Huang-Tagare).
+
+    Parameters
+    ----------
+    all_method_results : Iterable[MethodResults]
+        Iterable containing the MethodResults object for each of the estimation methods
+    space : Space, optional
+        Space from which weights will be extracted to calculate the metrics,
+        by default Space.FOURIER_REAL
+    pixel_size : float, optional
+        Image pixel size, by default 1.0
+    figsize : tuple[int, int], optional
+        Figure size, by default (8, 5)
+
+    Returns
+    -------
+    plt.Figure | None
+        The plt.Figure object containing the plot, or
+        ``None`` if no methods with valid weights for the requested space were provided.
+    """
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # One color per method, same cmap as in plot_vs_snr
+    cmap = plt.get_cmap("tab10")
+
+    any_plots = False
+    for idx, method_results in enumerate(all_method_results):
+        ring_metrics_dict = getattr(method_results, "fourier_ring_metrics", {}).get(
+            space
+        )
+        if not ring_metrics_dict:
+            continue
+
+        any_plots = True
+
+        color = cmap(idx % cmap.N)
+        freqs, data = _extract_ring_data(ring_metrics_dict, pixel_size=pixel_size)
+
+        # Plot soft precision as solid line and soft recall as dashed line
+        ax.plot(
+            freqs,
+            data["soft_precision"],
+            label=f"{method_results.name}",
+            color=color,
+        )
+        ax.plot(freqs, data["soft_recall_ht"], color=color, linestyle="--")
+
+    if not any_plots:
+        return None
+
+    ax.set_title(f"Frequency evaluation comparison - {space.label}")
+    ax.set_xlabel(r"Spatial Frequency ($1 / \mathrm{\AA}$)")
+    ax.set_ylabel("Score")
+    ax.set_ylim(-0.05, 1.05)
+    ax.grid(True, linestyle="--", alpha=0.5)
+
+    # Add a custom helper legend text specifying line styles
+    ax.text(
+        0.02,
+        0.05,
+        "Solid = Precision\nDashed = Recall",
+        transform=ax.transAxes,
+        bbox=dict(facecolor="white", alpha=0.8, boxstyle="round,pad=0.3"),
+        fontsize=9,
+    )
+    ax.legend(loc="upper right", framealpha=0.9)
+
+    plt.tight_layout()
+    return fig
+
+
+### ========================
+### Complete report plotting
+### ========================
+
+
 def plot_report(
     report: EvaluationReport,
     max_subplots: int,
@@ -317,13 +549,19 @@ def plot_report(
             plt.show()
 
 
+### ===============================
+### Figure saving for LaTeX reports
+### ===============================
+
+
 def save_report_figures(
     report: EvaluationReport,
-    output_path: Path,
+    report_figure_path: Path,
     max_subplots: int,
     density: bool = False,
     dpi: int = 150,
     frc_x_axis_freqs: bool = True,
+    pixel_size: float = 1.0,
 ) -> dict[str, list[Path]]:
     """
     Save all report figures to disk and return their paths.
@@ -332,7 +570,7 @@ def save_report_figures(
     ----------
     report : EvaluationReport
         Populated evaluation report.
-    output_path : Path
+    report_figure_path : Path
         Directory in which figures are saved. Created if absent.
     max_subplots : int
         Maximum subplots per weight-distribution figure.
@@ -342,21 +580,40 @@ def save_report_figures(
         Output resolution in dots per inch. Default is 150.
     frc_x_axis_freqs: bool, optional
         Plot frequencies instead of spatial resolution on the x-axis in FRC plots.
+    pixel_size: float, optional
+        Image pixel size. Default is 1.0.
 
     Returns
     -------
     dict[str, list[Path]]
-        Keys are ``"weight_distributions"`` and ``"frc_curves"``.
-        Values are lists of saved file paths (FRC list has 0, 1 or 2 entries).
+        Keys are
+        - ``"weight_distributions"``,
+        - ``"frc_curves"``,
+        - ``"fourier_ring_classification"``, and
+        - ``"fourier_ring_summary"``.
+
+        Values are lists of saved file paths.
+
+        - Weight distributions list has one entry per valid space, method and aggregation
+        strategy combination.
+        - FRC list has 0, 1 or 2 entries (ground truth FRC and/or half-set FRC or none)
+        - Fourier ring classification list has one entry per valid fourier-space (real or
+        imaginary) and method combination.
+        - Fourier ring summary has 0, 1 or 2 entries (real and/or imaginary or none)
     """
-    output_path.mkdir(parents=True, exist_ok=True)
-    saved: dict[str, list[Path]] = {"weight_distributions": [], "frc_curves": []}
+    report_figure_path.mkdir(parents=True, exist_ok=True)
+    saved: dict[str, list[Path]] = {
+        "weight_distributions": [],
+        "frc_curves": [],
+        "fourier_ring_classification": [],
+        "fourier_ring_summary": [],
+    }
 
     all_scores = _collect_weight_scores(report)
     for i, fig in enumerate(
         _plot_weight_distributions(all_scores, report.labels, max_subplots, density)
     ):
-        path = output_path / f"weight_distribution_{i}.pdf"
+        path = report_figure_path / f"weight_distribution_{i}.pdf"
         fig.savefig(path, dpi=dpi, bbox_inches="tight")
         plt.close(fig)
         saved["weight_distributions"].append(path)
@@ -366,15 +623,53 @@ def save_report_figures(
         report, x_axis_freqs=frc_x_axis_freqs
     )
     if gt_frc_fig is not None:
-        path = output_path / "gt_frc_curves.pdf"
+        path = report_figure_path / "gt_frc_curves.pdf"
         gt_frc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
         plt.close(gt_frc_fig)
         saved["frc_curves"].append(path)
     if hs_frc_fig is not None:
-        path = output_path / "hs_frc_curves.pdf"
+        path = report_figure_path / "hs_frc_curves.pdf"
         hs_frc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
         plt.close(hs_frc_fig)
         saved["frc_curves"].append(path)
+
+    ## Fourier ring classification metrics
+    for space in [Space.FOURIER_REAL, Space.FOURIER_IMAG]:
+        space_str = "real" if space == Space.FOURIER_REAL else "imag"
+
+        # 1. Output individual method subplot figures
+        for res in report.method_results:
+            fig = plot_method_fourier_ring_curves(
+                res, space=space, pixel_size=pixel_size
+            )
+
+            if fig is None:
+                continue
+
+            clean_name = res.name.lower().replace(" ", "_")
+            fig_filename = f"fourier_{space_str}_rings_{clean_name}.pdf"
+            fig_save_path = report_figure_path / fig_filename
+
+            fig.savefig(fig_save_path, dpi=dpi, bbox_inches="tight")
+            plt.close(fig)
+
+            saved["fourier_ring_classification"].append(fig_save_path)
+
+        # 2. Output global multi-method summary
+        summary_fig = plot_fourier_ring_summary(
+            report.method_results, space=space, pixel_size=pixel_size
+        )
+
+        if summary_fig is None:
+            continue
+
+        summary_filename = f"fourier_{space_str}_rings_summary.pdf"
+        summary_save_path = report_figure_path / summary_filename
+
+        summary_fig.savefig(summary_save_path, dpi=dpi, bbox_inches="tight")
+        plt.close(summary_fig)
+
+        saved["fourier_ring_summary"].append(summary_save_path)
 
     return saved
 
@@ -387,6 +682,7 @@ def save_snr_reports_figures(
     density: bool = False,
     dpi: int = 150,
     frc_x_axis_freqs: bool = True,
+    pixel_size: float = 1.0,
 ) -> dict[float, dict[str, list[Path]]]:
     """
     Save all report figures to disk and return their paths.
@@ -405,6 +701,8 @@ def save_snr_reports_figures(
         Output resolution in dots per inch. Default is 150.
     frc_x_axis_freqs: bool, optional
         Plot frequencies instead of spatial resolution on the x-axis in FRC plots.
+    pixel_size: float, optional
+        Image pixel size. Default is 1.0.
 
     Returns
     -------
@@ -420,16 +718,20 @@ def save_snr_reports_figures(
         snr_figures_output.mkdir(parents=True, exist_ok=True)
 
         saved[snr] = save_report_figures(
-            report,
-            snr_figures_output,
+            report=report,
+            report_figure_path=snr_figures_output,
             max_subplots=max_subplots,
             density=density,
             dpi=dpi,
             frc_x_axis_freqs=frc_x_axis_freqs,
+            pixel_size=pixel_size,
         )
 
     return saved
 
+### ===============================
+### Plotting metrics vs. SNR levels
+### ===============================
 
 def plot_vs_snr(
     df: pd.DataFrame,
@@ -572,6 +874,10 @@ def plot_vs_snr(
 
     return save_path
 
+
+### =================================================================
+### Image generation and saving (for ground truth/estimated averages)
+### =================================================================
 
 def generate_image_plots(
     images: Iterable[np.ndarray],

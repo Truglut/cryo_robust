@@ -12,6 +12,8 @@ from method_comparison.visualization.plotting import (
     save_snr_reports_figures,
     plot_vs_snr,
     generate_image_plots,
+    plot_method_fourier_ring_curves,
+    plot_fourier_ring_summary,
 )
 
 # Required LaTeX packages for rendering tables and formatting the document.
@@ -827,6 +829,31 @@ def generate_plots_section(
         text += weights_and_frc_plots_latex(
             saved_figures=plots[snr], output_path=output_path
         )
+
+        fourier_ring_classification_figpaths = [
+            p.relative_to(output_path)
+            for p in plots[snr].get("fourier_ring_classification", [])
+        ]
+        fourier_ring_summary_figpaths = [
+            p.relative_to(output_path) for p in plots[snr].get("fourier_ring_summary", [])
+        ]
+
+        if fourier_ring_classification_figpaths or fourier_ring_summary_figpaths:
+            text += "\n\\subsubsection{Fourier Ring Classification Metrics}\n"
+
+            text += "\n\\textbf{Per-method metrics vs frequency}\n"
+            text += generate_figures_section(
+                fourier_ring_classification_figpaths,
+                caption_prefix="Classification metrics in each Fourier ring",
+                width="0.85\\textwidth",
+            )
+
+            text += "\n\\textbf{Classification metrics vs. Frequency: summary}\n"
+            text += generate_figures_section(
+                fourier_ring_summary_figpaths,
+                caption_prefix="Classification metrics vs. Frequency summary",
+                width = "0.65\\textwidth"
+            )
 
     return text
 

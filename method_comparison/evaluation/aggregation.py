@@ -6,19 +6,37 @@ import torch
 from method_comparison.domain.enums import AggregationStrategy, Space
 
 
-def mean_aggregate(weights: torch.Tensor, reference: torch.Tensor | None) -> np.ndarray:
-    return weights.mean(dim=(1, 2)).detach().cpu().numpy()
+def mean_aggregate(
+    weights: torch.Tensor,
+    reference: torch.Tensor | None = None,
+    mask: torch.Tensor | None = None,
+) -> np.ndarray:
+    if mask is not None:
+        mask = mask.to(dtype=weights.dtype, device=weights.device)
+        # Apply mask and normalize over the total valid mask area
+        numerator = torch.sum(weights * mask, dim=(-2, -1))
+        denominator = mask.sum(dim=(-2, -1)) + 1.0e-12
+        return (numerator / denominator).detach().cpu().numpy()
+
+    return weights.mean(dim=(-2, -1)).detach().cpu().numpy()
 
 
 def energy_aggregate(
-    weights: torch.Tensor, reference: torch.Tensor | None
+    weights: torch.Tensor,
+    reference: torch.Tensor | None,
+    mask: torch.Tensor | None = None,
 ) -> np.ndarray:
     if reference is None:
         raise ValueError("Energy aggregation requires a reference image.")
 
     # Calculate signal energy from reference (normalized)
     energy = torch.abs(reference) ** 2
-    energy = energy / (energy.sum() + 1e-12)
+
+    if mask is not None:
+        mask = mask.to(dtype=energy.dtype, device=energy.device)
+        energy = energy * mask
+
+    energy = energy / (energy.sum() + 1.0e-12)
 
     # Energy-weighted average
     scores = torch.sum(weights * energy, dim=(1, 2))
@@ -37,6 +55,7 @@ def aggregate_weights(
     weights: torch.Tensor,
     strategy: AggregationStrategy = AggregationStrategy.MEAN,
     reference: torch.Tensor | None = None,
+    mask: torch.Tensor | None = None,
 ) -> np.ndarray:
     """
     Aggregates per-pixel weights into a single score per image.
@@ -48,7 +67,7 @@ def aggregate_weights(
     if weights.ndim == 1 or (weights.ndim == 3 and weights.shape[1:] == (1, 1)):
         return weights.cpu().numpy().flatten()
 
-    return AGGREGATORS[strategy](weights, reference)
+    return AGGREGATORS[strategy](weights, reference, mask)
 
 
 def setup_energy_reference(
@@ -145,6 +164,7 @@ def compute_aggregated_weights(
     fourier_agg_strategies: Iterable[AggregationStrategy],
     ref_real: torch.Tensor | None = None,
     ref_fourier: torch.Tensor | None = None,
+    masks_dict: dict[Space, torch.Tensor | None] | None = None,
 ) -> dict[Space, dict[AggregationStrategy, np.ndarray]]:
     """Aggregate per-image weights into scalar scores for all spaces and strategies.
 
@@ -162,6 +182,9 @@ def compute_aggregated_weights(
     ref_fourier : torch.Tensor or None, optional
         Complex Fourier reference tensor, required if `"energy"` is among
         `fourier_agg_strategies`. Default is `None`.
+    masks_dict : dict[Space, torch.Tensor | None] or None, optional
+        Dict mapping each Space to the mask that should be used for weight
+        aggregation.
 
     Returns
     -------
@@ -179,8 +202,13 @@ def compute_aggregated_weights(
             real_agg_strategies if space == Space.REAL else fourier_agg_strategies
         )
 
+        # Extract space-specific mask if it exists
+        mask = masks_dict.get(space) if masks_dict is not None else None
+
         scores[space] = {
-            strategy: aggregate_weights(weights, strategy=strategy, reference=ref)
+            strategy: aggregate_weights(
+                weights, strategy=strategy, reference=ref, mask=mask
+            )
             for strategy in strategies
             if not (
                 ref is None and strategy == "energy"

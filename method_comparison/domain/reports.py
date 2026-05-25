@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from method_comparison.domain.enums import Space
-from method_comparison.domain.metrics import MethodMetrics
+from method_comparison.domain.metrics import MethodMetrics, ClassificationMetrics
 from method_comparison.evaluation.frc import FRCData, FRCThreshold
 
 
@@ -34,6 +34,10 @@ class MethodResults:
         Returned by `compute_frc`.
     estimated_img : np.ndarray
         The reconstructed average image produced by this method.
+    fourier_ring_metrics: dict[Space, dict[int, ClassificationMetrics]]
+        Dict mapping Space.FOURIER_REAL and Space.FOURIER_IMAG to a dict that maps
+        each integer key to the classification metrics obtained using the weights
+        in the corresponding Fourier ring.
     """
 
     name: str
@@ -42,6 +46,7 @@ class MethodResults:
     ground_truth_frc_data: FRCData | None
     half_set_frc_data: FRCData
     estimated_img: np.ndarray
+    fourier_ring_metrics: dict[Space, dict[int, ClassificationMetrics]]
 
     def reconstruction_metrics_record(self) -> dict:
         if self.metrics is None:
