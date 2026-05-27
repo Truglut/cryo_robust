@@ -19,6 +19,7 @@ from scripts.common import (
 from scripts.napari_visualization import visualize_results
 from scripts.run_simulation import FRC_THRESHOLDS
 
+from utils.masks import create_fourier_mask
 
 def load_and_preprocess(cfg: dict, args) -> tuple[torch.Tensor, np.ndarray, Path]:
     """Loads images on the target device"""
@@ -63,7 +64,8 @@ def main():
 
     # Apply mask to images
     mask_radius = cfg["mask"]["params"]["radius"]
-    tensor_images, _ = apply_mask(tensor_images, mask_radius, inplace=True)
+    tensor_images, mask_tensor = apply_mask(tensor_images, mask_radius, inplace=True)
+    mask_np = mask_tensor.detach().cpu().numpy()
 
     # Compute fourier transform and save images in dict
     fourier_images = torch.fft.rfft2(tensor_images, norm="ortho")
@@ -79,6 +81,18 @@ def main():
         results, image_path=image_path, images_save=images_save, args=args
     )
 
+    # Calculate fourier weight mask
+    fourier_weight_mask = None
+    if args.fourier_weight_mask != "none":
+        fourier_weight_mask = create_fourier_mask(
+            image_shape=tuple(tensor_images[0].shape), mask_type=args.fourier_weight_mask
+        )
+    weights_masks_dict = {
+        Space.REAL: mask_np,
+        Space.FOURIER_REAL: fourier_weight_mask,
+        Space.FOURIER_IMAG: fourier_weight_mask
+    }
+
     # Show report of results (currently just plots weight distributions)
     report = compute_report(
         results,
@@ -87,6 +101,8 @@ def main():
         fourier_agg_strategies=(AggregationStrategy.MEAN,),
         energy_reference="global_avg",
         frc_thresholds=FRC_THRESHOLDS,
+        pixel_size=1.0,
+        masks_dict=weights_masks_dict
     )
     plot_report(
         report,
