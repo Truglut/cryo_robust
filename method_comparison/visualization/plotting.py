@@ -24,7 +24,7 @@ THRESHOLD_COLORS = {
     FRCThreshold.HALF_BIT: "seagreen",
 }
 
-AVERAGE_NAME = "Average"
+AVERAGE_NAME = "Media muestral"
 
 BASE_PLOT_OPTIONS = {
     "max_subplots": 3,
@@ -823,7 +823,7 @@ def plot_vs_snr(
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    methods = sorted(df[method_column].unique())
+    methods: list[str] = sorted(df[method_column].unique())
 
     # One color per method
     cmap = plt.get_cmap("tab10")
@@ -842,10 +842,11 @@ def plot_vs_snr(
         for metric_idx, (metric, metric_label) in enumerate(
             zip(metrics, metric_labels)
         ):
+            label = f"{method} — {metric_label}" if metric_label else method
             ax.plot(
                 method_df[snr_column],
                 method_df[metric],
-                label=f"{method} — {metric_label}",
+                label=label,
                 color=color,
                 linestyle=linestyles[metric_idx % len(linestyles)],
                 marker=markers[metric_idx % len(markers)],

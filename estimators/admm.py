@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from estimators.base import Estimator
-from estimators.irls import IRLSSolver
+from estimators.irls import IRLSSolver, JointIRLSFourier
 from estimators.weights import weighted_average
 
 from method_comparison.domain.enums import Space

@@ -243,7 +243,7 @@ def write_experiment_info(
 
 
 def create_reconstruction_table(
-    report: EvaluationReport, caption: str = "Reconstruction metrics for each method"
+    report: EvaluationReport, caption: str = "Métricas de reconstrucción para cada método"
 ) -> str:
     """
     Generate the reconstruction metrics section of the report.
@@ -325,7 +325,7 @@ def generate_reconstruction_section(
         save_path=figures_path / "snr_vs_rmse.pdf",
         metric_labels=["RMSE"],
         dpi=dpi,
-        title="RMSE vs SNR",
+        title="RMSE de reconstrucción frente a SNR",
         ylabel="RMSE",
     ).relative_to(output_path)
 
@@ -338,10 +338,10 @@ def generate_reconstruction_section(
         df=overall_rec_df,
         metrics=["pearson_corr"],
         save_path=figures_path / "snr_vs_corr.pdf",
-        metric_labels=["Correlation"],
+        metric_labels=["Correlación"],
         dpi=dpi,
-        title="Reconstruction correlation vs SNR",
-        ylabel="Correlation",
+        title="Correlación de la reconstrucción con original frente a SNR",
+        ylabel="Correlación",
     ).relative_to(output_path)
 
     text += "\n\\textbf{Correlation}\n"
@@ -584,6 +584,34 @@ def generate_classification_section(
 
             space_strategy_identifier = f"{space.name.lower()}_{strategy.value.lower()}"
 
+            precision_curve = plot_vs_snr(
+                df,
+                metrics=["soft_precision"],
+                save_path=figures_path / f"snr_vs_softprec_{space_strategy_identifier}.pdf",
+                metric_labels=[""],
+                dpi=dpi,
+                title="Precisión ($\\hat{P}$) frente a SNR",
+                ylabel="Precisión",
+            ).relative_to(output_path)
+            text += create_figure_block(
+                precision_curve,
+                caption=f"Soft precision vs. SNR ({space.label} - {strategy.label})",
+            )
+
+            recall_curve = plot_vs_snr(
+                df,
+                metrics=["soft_recall_huang_tagare"],
+                save_path=figures_path / f"snr_vs_softrec_{space_strategy_identifier}.pdf",
+                metric_labels=[""],
+                dpi=dpi,
+                title="Sensibilidad ($\\hat{R}$) frente a SNR",
+                ylabel="Sensibilidad",
+            ).relative_to(output_path)
+            text += create_figure_block(
+                recall_curve,
+                caption=f"Soft precision vs. SNR ({space.label} - {strategy.label})",
+            )
+
             precision_and_recall_curves = plot_vs_snr(
                 df,
                 metrics=["soft_precision", "soft_recall_huang_tagare"],
@@ -598,10 +626,38 @@ def generate_classification_section(
                 caption=f"Soft precision and soft recall vs. SNR ({space.label} - {strategy.label})",
             )
 
+            average_precision_curve = plot_vs_snr(
+                df,
+                metrics=["ap"],
+                save_path=figures_path / f"snr_vs_ap_{space_strategy_identifier}.pdf",
+                metric_labels=[""],
+                dpi=dpi,
+                title="Average precision frente a SNR",
+                ylabel="AP",
+            ).relative_to(output_path)
+            text += create_figure_block(
+                average_precision_curve,
+                caption=f"Average precision and AUC vs. SNR ({space.label} - {strategy.label})",
+            )
+
+            roc_auc_curve = plot_vs_snr(
+                df,
+                metrics=["roc_auc"],
+                save_path=figures_path / f"snr_vs_roc_auc_{space_strategy_identifier}.pdf",
+                metric_labels=[""],
+                dpi=dpi,
+                title="ROC-AUC frente a SNR",
+                ylabel="AUC",
+            ).relative_to(output_path)
+            text += create_figure_block(
+                roc_auc_curve,
+                caption=f"Average precision and AUC vs. SNR ({space.label} - {strategy.label})",
+            )
+
             average_precision_auc_curves = plot_vs_snr(
                 df,
                 metrics=["ap", "roc_auc"],
-                save_path=figures_path / f"snr_vs_ap_{space_strategy_identifier}.pdf",
+                save_path=figures_path / f"snr_vs_ap_and_auc_{space_strategy_identifier}.pdf",
                 metric_labels=["Average precision", "AUC-ROC"],
                 dpi=dpi,
                 title="Average precision and AUC vs. SNR",

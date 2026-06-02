@@ -397,6 +397,8 @@ class JointIRLSFourier(Estimator):
         self.final_weights = weights
         self.avg = torch.fft.irfft2(fourier_estimate, norm="ortho")
 
+        return fourier_estimate, weights
+
     @torch.inference_mode()
     def reconstruct_from_weights(
         self, images: dict[Space, torch.Tensor], weights: dict[Space, torch.Tensor]
