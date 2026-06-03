@@ -146,7 +146,7 @@ def compute_report(
                 ground_truth_frc_data=gt_frc_data,
                 half_set_frc_data=hs_frc_data,
                 estimated_img=estimated_img,
-                fourier_ring_metrics=fourier_ring_metrics
+                fourier_ring_metrics=fourier_ring_metrics,
             )
         )
 

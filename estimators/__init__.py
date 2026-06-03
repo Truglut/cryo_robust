@@ -1,6 +1,11 @@
 import torch
 
-from estimators.irls import IRLSSolver, IRLSFourier, JointIRLSFourier
+from estimators.irls import (
+    IRLSSolver,
+    IRLSFourier,
+    JointIRLSFourier,
+    FlatteningIRLSFourier,
+)
 from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
 from estimators.admm import ADMMSolver
 from estimators.weights import get_weight_function
@@ -63,6 +68,19 @@ def build_estimator(
         )
 
         return JointIRLSFourier(solver, device)
+
+    elif est_type == "flattening_fourier":
+        params["space"] = Space.REAL
+        solver = build_estimator(
+            {
+                "type": "m_estimator",
+                "params": params,
+            },
+            images=images,
+            device=device,
+        )
+
+        return FlatteningIRLSFourier(solver, device)
 
     elif est_type == "gmm":
         distance_func = get_distance_function(
