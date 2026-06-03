@@ -114,7 +114,10 @@ def build_estimator(
             params["fourier_estimator"], images, device=device
         )
         return ADMMSolver(
-            irls_real, irls_fourier, device=device, **params.get("solver_params", {})
+            irls_real=irls_real,
+            irls_fourier=irls_fourier,
+            device=device,
+            **params.get("solver_params", {}),
         )
 
     else:

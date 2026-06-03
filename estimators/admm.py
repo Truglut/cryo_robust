@@ -2,17 +2,29 @@ import numpy as np
 import torch
 
 from estimators.base import Estimator
-from estimators.irls import IRLSSolver, JointIRLSFourier
+from estimators.irls import (
+    IRLSSolver,
+    JointIRLSFourier,
+    FlatteningIRLSFourier,
+    IRLSFourier,
+)
 from estimators.weights import weighted_average
 
 from method_comparison.domain.enums import Space
+
+ACCEPTED_FOURIER_SOLVERS = [
+    IRLSSolver,
+    JointIRLSFourier,
+    FlatteningIRLSFourier,
+    IRLSFourier,
+]
 
 
 class ADMMSolver(Estimator):
     def __init__(
         self,
         irls_real: IRLSSolver,
-        irls_fourier: IRLSSolver,
+        irls_fourier: Estimator,
         max_iter: int,
         initial_mu: float,
         fourier_multiplier: float,
@@ -36,6 +48,12 @@ class ADMMSolver(Estimator):
         if initialization not in ["mean", "zeros"]:
             raise ValueError(
                 f"Unrecognized ADMM initialization strategy: {initialization}"
+            )
+
+        if not isinstance(self.irls_fourier, tuple(ACCEPTED_FOURIER_SOLVERS)):
+            raise ValueError(
+                f"Fourier IRLS solver must be one of {ACCEPTED_FOURIER_SOLVERS},"
+                f" got {type(self.irls_fourier) = }"
             )
 
         self.initialization = initialization
@@ -78,33 +96,64 @@ class ADMMSolver(Estimator):
         next_real_transformed = torch.fft.rfft2(next_real, norm="ortho")
         prior_mean_fourier = next_real_transformed - dual_vars / mu
 
-        # Real part
-        next_fourier_real, final_weights_fourier_real = self.irls_fourier.fit(
-            images=images[Space.FOURIER_REAL],
-            image_variance=image_variance[Space.FOURIER_REAL],
-            image_std=image_std[Space.FOURIER_REAL],
-            ctf=ctf,
-            precomp_ctf_images=precomp_ctf_images[Space.FOURIER_REAL],
-            precomp_ctf_squared=precomp_ctf_squared[Space.FOURIER_REAL],
-            reference=ref_fourier.real,
-            prior_mean=prior_mean_fourier.real,
-            prior_variance=prior_variance * self.fourier_multiplier,
-            max_iter_override=fourier_irls_max_iter,
-        )
-        # Imaginary part
-        next_fourier_imag, final_weights_fourier_imag = self.irls_fourier.fit(
-            images=images[Space.FOURIER_IMAG],
-            image_variance=image_variance[Space.FOURIER_IMAG],
-            image_std=image_std[Space.FOURIER_IMAG],
-            ctf=ctf,
-            precomp_ctf_images=precomp_ctf_images[Space.FOURIER_IMAG],
-            precomp_ctf_squared=precomp_ctf_squared[Space.FOURIER_IMAG],
-            reference=ref_fourier.imag,
-            prior_mean=prior_mean_fourier.imag,
-            prior_variance=prior_variance * self.fourier_multiplier,
-            max_iter_override=fourier_irls_max_iter,
-        )
-        next_fourier = torch.complex(next_fourier_real, next_fourier_imag)
+        if isinstance(self.irls_fourier, IRLSSolver):
+            # Real part
+            next_fourier_real, final_weights_fourier_real = self.irls_fourier.fit(
+                images=images[Space.FOURIER_REAL],
+                image_variance=image_variance[Space.FOURIER_REAL],
+                image_std=image_std[Space.FOURIER_REAL],
+                ctf=ctf,
+                precomp_ctf_images=precomp_ctf_images[Space.FOURIER_REAL],
+                precomp_ctf_squared=precomp_ctf_squared[Space.FOURIER_REAL],
+                reference=ref_fourier.real,
+                prior_mean=prior_mean_fourier.real,
+                prior_variance=prior_variance * self.fourier_multiplier,
+                max_iter_override=fourier_irls_max_iter,
+            )
+            # Imaginary part
+            next_fourier_imag, final_weights_fourier_imag = self.irls_fourier.fit(
+                images=images[Space.FOURIER_IMAG],
+                image_variance=image_variance[Space.FOURIER_IMAG],
+                image_std=image_std[Space.FOURIER_IMAG],
+                ctf=ctf,
+                precomp_ctf_images=precomp_ctf_images[Space.FOURIER_IMAG],
+                precomp_ctf_squared=precomp_ctf_squared[Space.FOURIER_IMAG],
+                reference=ref_fourier.imag,
+                prior_mean=prior_mean_fourier.imag,
+                prior_variance=prior_variance * self.fourier_multiplier,
+                max_iter_override=fourier_irls_max_iter,
+            )
+            next_fourier = torch.complex(next_fourier_real, next_fourier_imag)
+        elif isinstance(self.irls_fourier, IRLSFourier):
+            next_fourier, final_weights_fourier_real, final_weights_fourier_imag = (
+                self.irls_fourier.fit(
+                    images=images,
+                    image_variance=image_variance,
+                    image_std=image_std,
+                    ctf=ctf,
+                    precomp_ctf_images=precomp_ctf_images,
+                    precomp_ctf_squared=precomp_ctf_squared,
+                    reference=ref_fourier,
+                    prior_mean=prior_mean_fourier,
+                    prior_variance=prior_variance * self.fourier_multiplier,
+                    max_iter_override=fourier_irls_max_iter,
+                )
+            )
+        else:
+            next_fourier, final_weights_fourier = self.irls_fourier.fit(
+                images=images,
+                image_variance=image_variance,
+                image_std=image_std,
+                ctf=ctf,
+                precomp_ctf_images=precomp_ctf_images,
+                precomp_ctf_squared=precomp_ctf_squared,
+                reference=ref_fourier,
+                prior_mean=prior_mean_fourier,
+                prior_variance=prior_variance * self.fourier_multiplier,
+                max_iter_override=fourier_irls_max_iter,
+            )
+            final_weights_fourier_real = final_weights_fourier
+            final_weights_fourier_imag = final_weights_fourier
 
         return (
             next_real,
