@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import mrcfile
+from sklearn.metrics import root_mean_squared_error
 
 from method_comparison.domain.enums import Space, AggregationStrategy
 from method_comparison.evaluation.report_building import compute_report
@@ -119,6 +120,12 @@ def main():
     if args.show_images:
         visualize_results(results, tensor_images, args)
 
+    print("RMSE with original average:")
+    original_average = tensor_images.mean(dim=0).detach().cpu().numpy()
+    for method in report.method_results:
+        print(method.name + ":", end="")
+        rmse = root_mean_squared_error(method.estimated_img, original_average)
+        print(f"{rmse:.4f}")
 
 if __name__ == "__main__":
     main()
