@@ -11,7 +11,7 @@ from method_comparison.evaluation.frc import FRCThreshold
 from method_comparison.evaluation.report_building import compute_report
 from method_comparison.visualization.printing import print_report
 from method_comparison.visualization.plotting import plot_report
-from method_comparison.visualization.latex import generate_latex_report
+from method_comparison.latex import generate_latex_report
 
 from scripts.cli import build_simulation_parser, parse_arguments
 from scripts.common import (
