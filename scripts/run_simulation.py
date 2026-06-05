@@ -71,7 +71,7 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
     del fourier_images
 
     # Run the Estimation Methods
-    results = run_estimators(cfg, images_dict, args, add_avg=True)
+    results = run_estimators(cfg, images_dict, args, add_avg=True, add_median=True)
 
     # # Undo standardization
     # if args.standardize:

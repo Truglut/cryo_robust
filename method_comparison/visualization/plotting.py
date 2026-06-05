@@ -25,6 +25,7 @@ THRESHOLD_COLORS = {
 }
 
 AVERAGE_NAME = "Media muestral"
+MEDIAN_NAME = "Mediana"
 
 BASE_PLOT_OPTIONS = {
     "max_subplots": 3,

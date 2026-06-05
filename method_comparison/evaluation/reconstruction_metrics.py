@@ -2,7 +2,6 @@ import numpy as np
 import torch
 from sklearn.metrics import root_mean_squared_error
 from scipy.stats import pearsonr
-import matplotlib.pyplot as plt
 
 from estimators.base import Estimator
 from estimators.gmm import RecursiveGMMEstimator
@@ -16,6 +15,7 @@ from method_comparison.evaluation.frc import (
     get_resolution,
     area_under_frc,
 )
+from method_comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
 
 
 def get_half_set_indices(
@@ -69,9 +69,12 @@ def compute_reconstruction_metrics(
     images_B = {space: images_dict[space][idx_B] for space in Space}
 
     # Reconstruct image estimation for both half sets
-    if estimator is None:
+    if estimator == AVERAGE_NAME:
         reconstruction_A = images_A[Space.REAL].mean(dim=0)
         reconstruction_B = images_B[Space.REAL].mean(dim=0)
+    elif estimator == MEDIAN_NAME:
+        reconstruction_A = images_A[Space.REAL].median(dim=0).values
+        reconstruction_B = images_B[Space.REAL].median(dim=0).values
     elif independent_half_sets:
         if isinstance(estimator, RecursiveGMMEstimator):
             estimator.fit(images_A, plot_fits=True)

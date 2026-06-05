@@ -111,7 +111,7 @@ def visualize_results(
     # Adjust contrast limits
     global_min = float(min(layer.data.min() for layer in viewer.layers))
     global_max = float(max(layer.data.max() for layer in viewer.layers))
-    viewer.layers.link_layers(viewer.layers, attributes=["contrast_limits"])
+    viewer.layers.link_layers(viewer.layers[1:], attributes=["contrast_limits"])
     viewer.layers[0].contrast_limits = (global_min, global_max)
 
     # Show examples of all image types (good, very rotated, misclassified)

@@ -13,7 +13,7 @@ from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
 
 from method_comparison.domain.enums import Space, AggregationStrategy
 from method_comparison.evaluation.aggregation import aggregate_weights
-from method_comparison.visualization.plotting import AVERAGE_NAME
+from method_comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
 
 from utils.masks import create_circular_mask
 
@@ -42,7 +42,11 @@ def apply_mask(images_tensor: torch.Tensor, mask_radius: float, inplace: bool = 
 
 
 def run_estimators(
-    cfg: dict, images_dict: dict[Space, torch.Tensor], args, add_avg: bool = False
+    cfg: dict,
+    images_dict: dict[Space, torch.Tensor],
+    args,
+    add_avg: bool = False,
+    add_median: bool = False,
 ) -> dict:
     device = args.device
 
@@ -97,8 +101,17 @@ def run_estimators(
                 for space in Space
             },
             "reference": None,
-            "estimator": None,
+            "estimator": AVERAGE_NAME,
         }
+
+    if add_median:
+        results[MEDIAN_NAME] = {
+            "avg": images_dict[Space.REAL].median(dim=0).values,
+            "weights": {space: None for space in Space},
+            "reference": None,
+            "estimator": MEDIAN_NAME,
+        }
+
     return results
 
 
@@ -138,8 +151,8 @@ def process_and_save_subsets(
 
     # Iterate over methods to identify subsets and save if requested
     for method_name, data in results.items():
-        # Skip the average if it is included in `results`
-        if data["estimator"] is None:
+        # Skip the average or the median if they are included in `results`
+        if data["estimator"] in [AVERAGE_NAME, MEDIAN_NAME]:
             continue
         # Get aggregated weights according to estimator type
         weights = get_weights(data["estimator"], data["weights"])
