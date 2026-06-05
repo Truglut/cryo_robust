@@ -1,4 +1,5 @@
 from typing import Callable, Iterable
+import warnings
 
 import numpy as np
 import torch
@@ -12,11 +13,15 @@ def mean_aggregate(
     mask: torch.Tensor | None = None,
 ) -> np.ndarray:
     if mask is not None:
-        mask = mask.to(dtype=weights.dtype, device=weights.device)
-        # Apply mask and normalize over the total valid mask area
-        numerator = torch.sum(weights * mask, dim=(-2, -1))
-        denominator = mask.sum(dim=(-2, -1)) + 1.0e-12
-        return (numerator / denominator).detach().cpu().numpy()
+        try:
+            mask = mask.to(dtype=weights.dtype, device=weights.device)
+            # Apply mask and normalize over the total valid mask area
+            numerator = torch.sum(weights * mask, dim=(-2, -1))
+            denominator = mask.sum(dim=(-2, -1)) + 1.0e-12
+            return (numerator / denominator).detach().cpu().numpy()
+        except:
+            warnings.warn("Weight masking failed, proceeding with unmasked mean aggregation.")
+            pass
 
     return weights.mean(dim=(-2, -1)).detach().cpu().numpy()
 
