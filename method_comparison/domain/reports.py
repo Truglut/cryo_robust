@@ -7,6 +7,8 @@ from method_comparison.domain.enums import Space
 from method_comparison.domain.metrics import MethodMetrics, ClassificationMetrics
 from method_comparison.evaluation.frc import FRCData, FRCThreshold
 
+ID_COLS = ["method", "space", "aggregation_strategy", "run"]
+
 
 @dataclass
 class MethodResults:
@@ -103,3 +105,78 @@ class EvaluationReport:
             all_records.extend(mr.classification_metrics_records())
 
         return pd.DataFrame(all_records)
+
+
+@dataclass
+class EvaluationStudy:
+    reports: list[EvaluationReport]
+
+    def reconstruction_metrics_dataframe(self) -> pd.DataFrame:
+        if not self.reports:
+            return pd.DataFrame()
+        
+        # Iterate over reports and build overall dataframe by concatenating
+        dfs = []
+        for run_idx, report in enumerate(self.reports):
+            df = report.reconstruction_metrics_dataframe()
+            df["run"] = run_idx
+            dfs.append(df)
+
+        return pd.concat(dfs, ignore_index=True)
+
+    def classification_metrics_dataframe(self) -> pd.DataFrame:
+        if not self.reports:
+            return pd.DataFrame()
+        
+        # Iterate over reports and build overall dataframe by concatenating
+        dfs = []
+        for run_idx, report in enumerate(self.reports):
+            df = report.classification_metrics_dataframe()
+            df["run"] = run_idx
+            dfs.append(df)
+
+        return pd.concat(dfs, ignore_index=True)
+
+    @staticmethod
+    def _metric_columns(df: pd.DataFrame) -> pd.Index:
+        """Selects the columns that contain metrics from a dataframe"""
+        numeric_cols = df.select_dtypes(include="number").columns
+        return pd.Index([c for c in numeric_cols if c not in ID_COLS])
+
+    @staticmethod
+    def _aggregate(
+        df: pd.DataFrame,
+        groupby: str | list[str],
+    ) -> pd.DataFrame:
+        """
+        Aggregates a dataframe grouping by certain columns, calculating mean
+        and std for each metric.
+        """
+        metric_cols = EvaluationStudy._metric_columns(df)
+
+        summary = (
+            df.groupby(groupby)[metric_cols].agg(["mean", "std"]).reset_index()
+        )
+
+        summary.columns = [
+            "_".join(col).rstrip("_") if isinstance(col, tuple) else col
+            for col in summary.columns
+        ]
+
+        n = df.groupby(groupby).size().rename("n")
+
+        summary = summary.join(n)
+
+        return summary
+
+    def aggregate_reconstruction_metrics(self) -> pd.DataFrame:
+        df = self.reconstruction_metrics_dataframe()
+
+        return EvaluationStudy._aggregate(df, groupby="method")
+
+    def aggregate_classification_metrics(self) -> pd.DataFrame:
+        df = self.classification_metrics_dataframe()
+
+        return EvaluationStudy._aggregate(
+            df, groupby=["method", "space", "aggregation_strategy"]
+        )
