@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 
-from method_comparison.domain.reports import EvaluationReport
+from method_comparison.domain.reports import EvaluationReport, EvaluationStudy
 from method_comparison.latex.figures import create_figure_section
 from method_comparison.visualization.plotting import save_snr_reports_figures
 
@@ -45,7 +45,7 @@ def weights_and_frc_plots_latex(
 
 
 def generate_weight_and_frc_plots_section(
-    snr_reports: dict[float, EvaluationReport],
+    results: dict[float, EvaluationReport] | dict[float, EvaluationStudy],
     output_path: Path,
     figures_path: Path,
     plot_options: dict[str, Any],
@@ -56,8 +56,10 @@ def generate_weight_and_frc_plots_section(
 
     Parameters
     ----------
-    snr_reports : dict[float, EvaluationReport]
-        Dict mapping every SNR level to its evaluation report
+    results : dict[float, EvaluationReport]
+        Dict mapping every SNR level to its evaluation report or dict mapping
+        each SNR level to its evaluation study containing one report per simulation
+        run.
     output_path : Path
         Path to the directory where the `report.tex` will be generated.
     figures_path : Path
@@ -78,8 +80,13 @@ def generate_weight_and_frc_plots_section(
             - Weight distribution histograms, for each method, space and aggregation strategy.
             - One plot representing the FRC curves for all methods.
     """
+    # If results are EvaluationStudy, take the first report for each snr
+    report = list(results.values())[0]
+    if isinstance(report, EvaluationStudy):
+        results = {snr: study.reports[0] for snr, study in results.items()}
+
     plots = save_snr_reports_figures(
-        snr_reports,
+        results,
         output_path=output_path,
         figures_path=figures_path,
         frc_x_axis_freqs=frc_x_axis_freqs,
@@ -88,7 +95,7 @@ def generate_weight_and_frc_plots_section(
 
     text = "\n\\section{Diagnostic plots}\n"
 
-    for snr in snr_reports:
+    for snr in results:
         text += f"\n\\subsection{{SNR {snr:.3f}}}\n"
         text += weights_and_frc_plots_latex(
             saved_figures=plots[snr], output_path=output_path

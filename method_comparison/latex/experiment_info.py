@@ -49,10 +49,11 @@ def write_experiment_info(
         *(f"\t\\item {label}: ${gen[key]}$." for key, label in PARAMETERS),
         r"\end{itemize}",
         "",
-        rf"\textbf{{Signal-to-noise ratios tested:}} {snr_text}",
-        rf"\textbf{{Per-image noise std:}} {args.per_image_noise_std}",
-        rf"\textbf{{Standardization strategy:}} {args.standardize}",
-        rf"\textbf{{Fourier weight mask:}} {args.fourier_weight_mask}",
+        rf"\noindent\textbf{{Signal-to-noise ratios tested:}} {snr_text}\\",
+        rf"\textbf{{Per-image noise std:}} {args.per_image_noise_std}\\",
+        rf"\textbf{{Standardization strategy:}} {args.standardize}\\",
+        rf"\textbf{{Fourier weight mask:}} {args.fourier_weight_mask}\\",
+        "",
     ]
 
     return "\n".join(lines)

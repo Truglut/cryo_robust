@@ -5,7 +5,7 @@ import mrcfile
 import torch
 
 from method_comparison.domain.enums import Space, AggregationStrategy
-from method_comparison.domain.reports import EvaluationReport
+from method_comparison.domain.reports import EvaluationReport, EvaluationStudy
 from method_comparison.dataset_builder import create_evaluation_dataset
 from method_comparison.evaluation.frc import FRCThreshold
 from method_comparison.evaluation.report_building import compute_report
@@ -28,11 +28,7 @@ FRC_THRESHOLDS = [FRCThreshold.ONE_HALF, FRCThreshold.HALF_BIT]
 RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
 
 
-def run_experiment(cfg, args, snr) -> EvaluationReport:
-    # rng seed for reproducibilty
-    seed = cfg.get("seed", None)
-    rng = np.random.default_rng(seed=seed)
-
+def run_experiment(cfg, args, snr, rng) -> EvaluationReport:
     # Generate the data
     images, ground_truth, labels = create_evaluation_dataset(
         cfg=cfg,
@@ -96,7 +92,7 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
     weights_masks_dict = {
         Space.REAL: mask,
         Space.FOURIER_REAL: fourier_weight_mask,
-        Space.FOURIER_IMAG: fourier_weight_mask
+        Space.FOURIER_IMAG: fourier_weight_mask,
     }
 
     # Calculate complete report with classification and reconstruction metrics
@@ -113,7 +109,7 @@ def run_experiment(cfg, args, snr) -> EvaluationReport:
         fourier_agg_strategies=(AggregationStrategy.MEAN,),
         energy_reference="ground_truth",
         independent_half_sets=args.independent_half_sets,
-        masks_dict=weights_masks_dict
+        masks_dict=weights_masks_dict,
     )
 
     # if args.standardize:
@@ -151,19 +147,32 @@ def main():
     cfg = load_config(args.config, args.snr)
     ground_truth_image: np.ndarray = mrcfile.read(cfg["data"]["reference_image_path"])
 
-    reports = dict()
+    # rng seed for reproducibilty
+    seed = cfg.get("seed", None)
+    rng = np.random.default_rng(seed=seed)
+
+    snr_results = dict()
 
     # Run simulations with every specified snr
     for snr in args.snr:
-        print(f"Running experiment with SNR {snr:.3f}")
+        if args.n_runs <= 1:
+            print(f"Running experiment with SNR {snr:.3f}")
 
-        snr_report = run_experiment(cfg, args, snr=snr)
-        reports[snr] = snr_report
+            snr_report = run_experiment(cfg, args, snr=snr, rng=rng)
+            snr_results[snr] = snr_report
+        else:
+            reports_list = []
+
+            for i in range(args.n_runs):
+                print(f"Running experiment {i + 1} with SNR {snr:.3f}")
+
+                reports_list.append(run_experiment(cfg, args, snr=snr, rng=rng))
+            snr_results[snr] = EvaluationStudy(reports_list)
 
     # Optionally save the report
     if args.report is not None:
         generate_latex_report(
-            snr_reports=reports,
+            results=snr_results,
             output_path=args.report,
             cfg=cfg,
             ground_truth_image=ground_truth_image,

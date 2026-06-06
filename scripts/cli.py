@@ -152,6 +152,12 @@ def build_simulation_parser() -> argparse.ArgumentParser:
         action=argparse.BooleanOptionalAction,
         help="Add a different noise std to each image to achieve a uniform SNR. Default is False"
     )
+    simulation_group.add_argument(
+        "--n-runs",
+        type=int,
+        default=1,
+        help="Number of simulations to run with the specified configuration."
+    )
     return parser
 
 

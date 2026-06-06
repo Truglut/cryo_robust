@@ -154,18 +154,18 @@ class EvaluationStudy:
         """
         metric_cols = EvaluationStudy._metric_columns(df)
 
-        summary = (
-            df.groupby(groupby)[metric_cols].agg(["mean", "std"]).reset_index()
-        )
+        grouped = df.groupby(groupby)
 
+        summary = grouped[metric_cols].agg(["mean", "std"])
+        summary["n"] = grouped.size()
+
+        summary = summary.reset_index()
+        
+        # Flatten multiindex
         summary.columns = [
             "_".join(col).rstrip("_") if isinstance(col, tuple) else col
             for col in summary.columns
         ]
-
-        n = df.groupby(groupby).size().rename("n")
-
-        summary = summary.join(n)
 
         return summary
 

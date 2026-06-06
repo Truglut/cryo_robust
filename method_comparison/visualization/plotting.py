@@ -730,9 +730,11 @@ def save_snr_reports_figures(
 
     return saved
 
+
 ### ===============================
 ### Plotting metrics vs. SNR levels
 ### ===============================
+
 
 def plot_vs_snr(
     df: pd.DataFrame,
@@ -746,6 +748,7 @@ def plot_vs_snr(
     figsize: tuple[int, int] = (10, 6),
     title: str | None = None,
     ylabel: str = "Score",
+    aggregated_data: bool = False,
 ) -> Path:
     """
     Plot one or more metrics as a function of SNR for each method.
@@ -777,6 +780,10 @@ def plot_vs_snr(
         the selected metrics.
     ylabel : str, optional
         Label of the y-axis. Default is ``"Score"``.
+    aggregated_data: bool, optional
+        Whether the data in the DataFrame is the result of aggregating multiple runs.
+        If True, the requested metrics are plotted with error bars centered at the
+        mean value for that metric, and radius equal to the std for that metric.
 
     Returns
     -------
@@ -808,10 +815,14 @@ def plot_vs_snr(
         raise ValueError("`metrics` and `metric_labels` must have the same length")
 
     # Validate columns
+    if aggregated_data:
+        required_metrics = [metric + "_mean" for metric in metrics]
+    else:
+        required_metrics = metrics
     required_columns = {
         method_column,
         snr_column,
-        *metrics,
+        *required_metrics,
     }
 
     missing = required_columns - set(df.columns)
@@ -844,14 +855,27 @@ def plot_vs_snr(
             zip(metrics, metric_labels)
         ):
             label = f"{method} — {metric_label}" if metric_label else method
-            ax.plot(
-                method_df[snr_column],
-                method_df[metric],
-                label=label,
-                color=color,
-                linestyle=linestyles[metric_idx % len(linestyles)],
-                marker=markers[metric_idx % len(markers)],
-            )
+
+            
+            if aggregated_data:
+                ax.errorbar(
+                    x=method_df[snr_column],
+                    y=method_df[metric + "_mean"],
+                    yerr=method_df[metric + "_std"],
+                    label=label,
+                    color=color,
+                    linestyle=linestyles[metric_idx % len(linestyles)],
+                    marker=markers[metric_idx % len(markers)],
+                )
+            else:
+                ax.plot(
+                    method_df[snr_column],
+                    method_df[metric],
+                    label=label,
+                    color=color,
+                    linestyle=linestyles[metric_idx % len(linestyles)],
+                    marker=markers[metric_idx % len(markers)],
+                )
 
     ax.set_xscale("log")
 
@@ -880,6 +904,7 @@ def plot_vs_snr(
 ### =================================================================
 ### Image generation and saving (for ground truth/estimated averages)
 ### =================================================================
+
 
 def generate_image_plots(
     images: Iterable[np.ndarray],

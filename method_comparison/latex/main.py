@@ -4,7 +4,7 @@ from typing import Any
 
 import numpy as np
 
-from method_comparison.domain.reports import EvaluationReport
+from method_comparison.domain.reports import EvaluationReport, EvaluationStudy
 
 # Report sections
 from method_comparison.latex.preamble import generate_document_preamble
@@ -12,13 +12,17 @@ from method_comparison.latex.experiment_info import write_experiment_info
 from method_comparison.latex.weights_and_frc import (
     generate_weight_and_frc_plots_section,
 )
-from method_comparison.latex.reconstruction import generate_reconstruction_section
-from method_comparison.latex.classification import generate_classification_section
+from method_comparison.latex.reconstruction import (
+    generate_reconstruction_section,
+)
+from method_comparison.latex.classification import (
+    generate_classification_section,
+)
 from method_comparison.latex.images import generate_images_section
 
 
 def generate_latex_report(
-    snr_reports: dict[float, EvaluationReport],
+    results: dict[float, EvaluationReport] | dict[float, EvaluationStudy],
     output_path: Path,
     cfg: dict[str, Any],
     ground_truth_image: np.ndarray,
@@ -39,7 +43,9 @@ def generate_latex_report(
     Parameters
     ----------
     snr_reports : dict[float, EvaluationReport]
-        Dict mapping every SNR level to its EvaluationReport of results.
+        Dict mapping every SNR level to its EvaluationReport of results, or
+        dict mapping every SNR level to its evaluation study containing one
+        report per simulation run.
     output_path : Path
         Directory where the LaTeX report should be written.
     cfg: dict[str, Any]
@@ -70,7 +76,7 @@ def generate_latex_report(
 
     # Classification section: recall, precision, etc.
     class_section = generate_classification_section(
-        snr_reports=snr_reports,
+        results=results,
         output_path=output_path,
         figures_path=figures_path,
         dpi=plot_options["dpi"],
@@ -78,7 +84,7 @@ def generate_latex_report(
 
     # Reconstruction section: rmse, correlation, resolution
     reconstruction_section = generate_reconstruction_section(
-        snr_reports=snr_reports,
+        results=results,
         output_path=output_path,
         figures_path=figures_path,
         dpi=plot_options["dpi"],
@@ -86,7 +92,7 @@ def generate_latex_report(
 
     # Save figures and generate the plots section
     plots_section = generate_weight_and_frc_plots_section(
-        snr_reports=snr_reports,
+        results=results,
         output_path=output_path,
         figures_path=figures_path,
         plot_options=plot_options,
@@ -94,7 +100,7 @@ def generate_latex_report(
 
     # Images section with ground truth and estimation
     images_section = generate_images_section(
-        snr_reports=snr_reports,
+        results=results,
         ground_truth_image=ground_truth_image,
         output_path=output_path,
         figures_path=figures_path,
@@ -107,7 +113,7 @@ def generate_latex_report(
 
         f.write("\n\n\\begin{document}\n\n")
 
-        f.write(write_experiment_info(cfg=cfg, snr_list=snr_reports.keys(), args=args))
+        f.write(write_experiment_info(cfg=cfg, snr_list=results.keys(), args=args))
 
         f.write(class_section)
 

@@ -3,13 +3,13 @@ from typing import Any
 
 import numpy as np
 
-from method_comparison.domain.reports import EvaluationReport
+from method_comparison.domain.reports import EvaluationReport, EvaluationStudy
 from method_comparison.visualization.plotting import generate_image_plots
 from method_comparison.latex.figures import create_figure_block, create_figure_grid
 
 
 def generate_images_section(
-    snr_reports: dict[float, EvaluationReport],
+    results: dict[float, EvaluationReport] | dict[float, EvaluationStudy],
     ground_truth_image: np.ndarray,
     output_path: Path,
     figures_path: Path,
@@ -22,8 +22,10 @@ def generate_images_section(
 
     Parameters
     ----------
-    snr_reports : dict[float, EvaluationReport]
-        Dict mapping each SNR level to its evaluation report
+    results : dict[float, EvaluationReport] or dict[float, EvaluationStudy]
+        Dict mapping each SNR level to its evaluation report or dict mapping each
+        SNR level to its evaluation study that contains one report per simulation
+        run.
     ground_truth_image: np.ndarray
         2-dimensional array holding the ground truth image used
         for generating the dataset.
@@ -47,6 +49,11 @@ def generate_images_section(
             - One subsection per SNR level, which contains the reconstructed averages
             produced by each of the estimation methods at that SNR level.
     """
+    # If results are EvaluationStudy, take the first report for each snr
+    report = list(results.values())[0]
+    if isinstance(report, EvaluationStudy):
+        results = {snr: study.reports[0] for snr, study in results.items()}
+
     text = "\n\\section{Estimated images}\n"
 
     ground_truth_fig_path = figures_path / "ground_truth.png"
@@ -66,7 +73,7 @@ def generate_images_section(
 
     images_dir = figures_path / "estimated_avgs"
 
-    for snr, report in snr_reports.items():
+    for snr, report in results.items():
         text += "\n\\newpage\n"
         text += f"\n\\subsection{{SNR {snr:.3f}}}\n"
 
