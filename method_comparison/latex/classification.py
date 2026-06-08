@@ -241,7 +241,7 @@ def generate_classification_section_from_report(
         text += f"\n\\subsubsection{{{space.label}}}\n"
 
         for strategy in AggregationStrategy:
-            generate_classification_plots(
+            text += generate_classification_plots(
                 overall_df=overall_df,
                 space=space,
                 strategy=strategy,

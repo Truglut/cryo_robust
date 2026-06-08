@@ -276,7 +276,7 @@ def generate_reconstruction_plots(
         save_path=figures_path / "snr_vs_corr.pdf",
         metric_labels=[""],
         dpi=dpi,
-        title="Correlación de la reconstrucción con original frente a SNR",
+        title="Correlación de la reconstrucción con imagen original frente a SNR",
         ylabel="Correlación",
         aggregated_data=aggregated_data,
     ).relative_to(output_path)

@@ -80,7 +80,7 @@ def format_dataframe(
     df: pd.DataFrame,
     caption: str | None = None,
     label: str | None = None,
-    float_precision: int = 3,
+    float_precision: int = 5,
 ) -> str:
     """
     Convert a dataframe into a formatted LaTeX table.

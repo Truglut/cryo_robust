@@ -12,10 +12,10 @@ from method_comparison.evaluation.frc import FRCData, FRCThreshold, get_threshol
 
 # Helper for consistent coloring
 LABEL_MAP = {
-    0: {"name": "Inliers", "color": "blue"},
-    1: {"name": "Rotated Outliers", "color": "orange"},
-    2: {"name": "Misclassified", "color": "red"},
-    3: {"name": "Noise", "color": "darkorange"},
+    0: {"name": "Genuinas", "color": "blue"},
+    1: {"name": "Mal alineadas", "color": "orange"},
+    2: {"name": "Mal clasificadas", "color": "red"},
+    3: {"name": "Ruido", "color": "darkorange"},
 }
 
 THRESHOLD_COLORS = {
