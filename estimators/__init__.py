@@ -17,7 +17,7 @@ TAGARE_CONSTANT = 1.0e-5
 
 
 def build_estimator(
-    method_cfg: dict, images: dict[Space, torch.Tensor], device: str = "cpu"
+    method_cfg: dict, images: dict[Space, torch.Tensor], device: str = "cpu", space: Space = Space.REAL
 ):
     """
     Factory function that reads the YAML config block and returns
@@ -27,8 +27,6 @@ def build_estimator(
     params = method_cfg.get("params", {})
 
     params["solver_params"] = params.get("solver_params", {})
-    space = params["solver_params"].get("space", Space.REAL)
-    params["solver_params"]["space"] = space
 
     if est_type == "m_estimator":
         # Get weight function with given parameters
@@ -44,20 +42,17 @@ def build_estimator(
     elif est_type == "fourier_m_estimator":
         # Build real part estimator
         config_real = params["real_estimator"]
-        config_real["params"]["solver_params"]["space"] = Space.FOURIER_REAL
-        irls_real = build_estimator(config_real, images, device)
+        irls_real = build_estimator(config_real, images, device, space=Space.FOURIER_REAL)
 
         # Build imaginary part estimator
         config_imag = params["imag_estimator"]
-        config_imag["params"]["solver_params"]["space"] = Space.FOURIER_IMAG
-        irls_imag = build_estimator(config_imag, images, device)
+        irls_imag = build_estimator(config_imag, images, device, space=Space.FOURIER_IMAG)
 
         # Build global Fourier estimator
         return IRLSFourier(irls_real, irls_imag, device)
 
     elif est_type == "joint_fourier":
         # Build IRLSSolver estimator
-        params["space"] = Space.REAL
         solver = build_estimator(
             {
                 "type": "m_estimator",
@@ -70,7 +65,6 @@ def build_estimator(
         return JointIRLSFourier(solver, device)
 
     elif est_type == "flattening_fourier":
-        params["space"] = Space.REAL
         solver = build_estimator(
             {
                 "type": "m_estimator",
@@ -78,6 +72,7 @@ def build_estimator(
             },
             images=images,
             device=device,
+            space=Space.FOURIER_REAL
         )
 
         return FlatteningIRLSFourier(solver, device)
@@ -109,9 +104,9 @@ def build_estimator(
         )
 
     elif est_type == "admm":
-        irls_real = build_estimator(params["real_estimator"], images, device=device)
+        irls_real = build_estimator(params["real_estimator"], images, device=device, space=Space.REAL)
         irls_fourier = build_estimator(
-            params["fourier_estimator"], images, device=device
+            params["fourier_estimator"], images, device=device, space=Space.FOURIER_REAL
         )
         return ADMMSolver(
             irls_real=irls_real,

@@ -8,7 +8,12 @@ import torch
 from estimators import build_estimator
 from estimators.base import Estimator
 from estimators.admm import ADMMSolver
-from estimators.irls import IRLSFourier, JointIRLSFourier
+from estimators.irls import (
+    IRLSSolver,
+    IRLSFourier,
+    JointIRLSFourier,
+    FlatteningIRLSFourier,
+)
 from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
 
 from method_comparison.domain.enums import Space, AggregationStrategy
@@ -118,14 +123,20 @@ def run_estimators(
 def get_weights(estimator: Estimator, final_weights: dict[Space, torch.Tensor]):
     if isinstance(estimator, ADMMSolver):
         weights = final_weights[Space.REAL]
+    elif isinstance(estimator, IRLSSolver):
+        weights = final_weights[Space.REAL]
     elif isinstance(estimator, IRLSFourier):
         weights = 0.5 * (
             final_weights[Space.FOURIER_REAL] + final_weights[Space.FOURIER_IMAG]
         )
     elif isinstance(estimator, JointIRLSFourier):
         weights = final_weights[Space.FOURIER_REAL]
+    elif isinstance(estimator, FlatteningIRLSFourier):
+        weights = final_weights[Space.FOURIER_REAL]
+    elif isinstance(estimator, (GMMEstimator, RecursiveGMMEstimator)):
+        weights = final_weights[Space.REAL]
     else:
-        weights = final_weights[estimator.space]
+        raise ValueError(f"Unsupported estimator type: {type(estimator)}")
 
     return aggregate_weights(weights, AggregationStrategy.MEAN)
 
