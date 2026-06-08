@@ -57,6 +57,75 @@ class ADMMSolver(Estimator):
 
         self.initialization = initialization
 
+    def _prepare_data(
+        self,
+        images: dict[Space, torch.Tensor] | torch.Tensor,
+        image_variance: dict[Space, torch.Tensor] | None = None,
+        ctf: torch.Tensor | float | None = None,
+        initial_ref_real: torch.Tensor | None = None,
+        initial_ref_fourier: torch.Tensor | None = None,
+    ) -> tuple[
+        dict[Space, torch.Tensor],  # images
+        dict[Space, torch.Tensor],  # image_variance
+        dict[Space, torch.Tensor],  # image_std
+        torch.Tensor | None,  # ctf
+        torch.Tensor,  # initial_ref_real
+        torch.Tensor,  # inital_ref_fourier
+    ]:
+        # Make sure images come in dict format
+        if isinstance(images, torch.Tensor):
+            images = {Space.REAL: images}
+        # Compute fourier transform if necessary
+        if (
+            images.get(Space.FOURIER_REAL) is None
+            or images.get(Space.FOURIER_IMAG) is None
+        ):
+            fourier_images = torch.fft.rfft2(images[Space.REAL], norm="ortho")
+            images[Space.FOURIER_REAL] = fourier_images.real
+            images[Space.FOURIER_IMAG] = fourier_images.imag
+            del fourier_images
+
+        # Calculate image variance (per-pixel) if not provided
+        if image_variance is None:
+            image_variance = {space: torch.var(images[space], dim=0) for space in Space}
+        image_std = {space: torch.sqrt(image_variance[space]) for space in Space}
+
+        # Initial references
+        if initial_ref_real is None:
+            if self.initialization == "mean":
+                initial_ref_real = torch.mean(images[Space.REAL], dim=0)
+            elif self.initialization == "zeros":
+                initial_ref_real = torch.zeros_like(images[Space.REAL][0])
+            else:
+                raise ValueError(
+                    f"Unrecognized ADMM initialization strategy: {self.initialization}"
+                )
+
+        if initial_ref_fourier is None:
+            if self.initialization == "mean":
+                initial_ref_fourier = torch.complex(
+                    torch.mean(images[Space.FOURIER_REAL], dim=0),
+                    torch.mean(images[Space.FOURIER_IMAG], dim=0),
+                )
+            elif self.initialization == "zeros":
+                initial_ref_fourier = torch.complex(
+                    torch.zeros_like(images[Space.FOURIER_REAL][0]),
+                    torch.zeros_like(images[Space.FOURIER_IMAG][0]),
+                )
+            else:
+                raise ValueError(
+                    f"Unrecognized ADMM initialization strategy: {self.initialization}"
+                )
+
+        return (
+            images,
+            image_variance,
+            image_std,
+            ctf,
+            initial_ref_real,
+            initial_ref_fourier,
+        )
+
     def step(
         self,
         images: dict[Space, torch.Tensor],
@@ -166,79 +235,16 @@ class ADMMSolver(Estimator):
         """
         Executes the Alternating Direction Method of Multipliers (ADMM) optimization.
         """
-        images = self._prepare_data(images)
-
-        # Initialize missing arguments to default values
-
-        # Make sure images come in dict format
-        if isinstance(images, torch.Tensor):
-            images = {Space.REAL: images}
-        # Compute fourier transform if necessary
-        if (
-            images.get(Space.FOURIER_REAL) is None
-            or images.get(Space.FOURIER_IMAG) is None
-        ):
-            fourier_images = torch.fft.rfft2(images[Space.REAL], norm="ortho")
-            images[Space.FOURIER_REAL] = fourier_images.real
-            images[Space.FOURIER_IMAG] = fourier_images.imag
-            del fourier_images
-
-        # Calculate image variance (per-pixel) if not provided
-        if image_variance is None:
-            image_variance = {space: torch.var(images[space], dim=0) for space in Space}
-        image_std = {space: torch.sqrt(image_variance[space]) for space in Space}
-
-        # CTF
-        if ctf is None:
-            ctf = 1.0
-
-        # Precompute ctf * images and ctf**2 for efficiency
-        precomp_ctf_images = {
-            Space.REAL: images[
-                Space.REAL
-            ],  # we are assuming real-space images are ctf-corrected
-            Space.FOURIER_REAL: ctf * images[Space.FOURIER_REAL],
-            Space.FOURIER_IMAG: ctf * images[Space.FOURIER_IMAG],
-        }
-        if isinstance(ctf, torch.Tensor):
-            precomp_ctf_squared = {
-                Space.REAL: 1.0,
-                Space.FOURIER_REAL: torch.square(ctf),
-                Space.FOURIER_IMAG: torch.square(ctf),
-            }
-        else:
-            precomp_ctf_squared = {
-                Space.REAL: 1.0,
-                Space.FOURIER_REAL: ctf**2,
-                Space.FOURIER_IMAG: ctf**2,
-            }
-
-        # Initial references
-        if initial_ref_real is None:
-            if self.initialization == "mean":
-                initial_ref_real = torch.mean(images[Space.REAL], dim=0)
-            elif self.initialization == "zeros":
-                initial_ref_real = torch.zeros_like(images[Space.REAL][0])
-            else:
-                raise ValueError(
-                    f"Unrecognized ADMM initialization strategy: {self.initialization}"
-                )
-
-        if initial_ref_fourier is None:
-            if self.initialization == "mean":
-                initial_ref_fourier = torch.complex(
-                    torch.mean(images[Space.FOURIER_REAL], dim=0),
-                    torch.mean(images[Space.FOURIER_IMAG], dim=0),
-                )
-            elif self.initialization == "zeros":
-                initial_ref_fourier = torch.complex(
-                    torch.zeros_like(images[Space.FOURIER_REAL][0]),
-                    torch.zeros_like(images[Space.FOURIER_IMAG][0]),
-                )
-            else:
-                raise ValueError(
-                    f"Unrecognized ADMM initialization strategy: {self.initialization}"
-                )
+        (
+            images,
+            image_variance,
+            image_std,
+            ctf,
+            initial_ref_real,
+            initial_ref_fourier,
+        ) = self._prepare_data(
+            images, image_variance, ctf, initial_ref_real, initial_ref_fourier
+        )
 
         # Algorithm initialisation
         ref_real = initial_ref_real
@@ -258,8 +264,6 @@ class ADMMSolver(Estimator):
                 image_variance=image_variance,
                 image_std=image_std,
                 ctf=ctf,
-                precomp_ctf_images=precomp_ctf_images,
-                precomp_ctf_squared=precomp_ctf_squared,
                 ref_real=ref_real,
                 ref_fourier=ref_fourier,
                 dual_vars=dual_vars,
