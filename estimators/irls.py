@@ -99,6 +99,9 @@ class IRLSSolver(Estimator):
         torch.Tensor | None,  # prior mean
         torch.Tensor | None,  # prior_variance
     ]:
+        if isinstance(images, dict):
+            images = images[Space.REAL]
+
         if image_variance is None:
             image_variance = torch.var(images, dim=0)
         if image_std is None:
@@ -122,7 +125,7 @@ class IRLSSolver(Estimator):
     @torch.inference_mode()
     def fit(
         self,
-        images: torch.Tensor,
+        images: dict[Space, torch.Tensor] | torch.Tensor,
         image_variance: torch.Tensor | None = None,
         image_std: torch.Tensor | None = None,
         ctf: torch.Tensor | None = None,
@@ -186,11 +189,18 @@ class IRLSSolver(Estimator):
 
     def reconstruct_from_weights(
         self,
-        images: torch.Tensor,
-        weights: torch.Tensor,
+        images: dict[Space, torch.Tensor] | torch.Tensor,
+        weights: dict[Space, torch.Tensor] | torch.Tensor,
     ) -> torch.Tensor:
-        imgs = images
-        weights = weights
+        if isinstance(images, dict):
+            imgs = images[Space.REAL]
+        else:
+            imgs = images
+        
+        if isinstance(weights, dict):
+            weights = weights[Space.REAL]
+        else:
+            weights = weights
 
         return weighted_average(imgs, weights, eps=self.eps)
 
@@ -199,11 +209,7 @@ class IRLSFourier(Estimator):
     def __init__(self, irls_real: IRLSSolver, irls_imag: IRLSSolver, device=None):
         super().__init__(device)
 
-        if irls_real.space != Space.FOURIER_REAL:
-            raise ValueError("irls_real must be IRLSSolver with space FOURIER_REAL")
         self.irls_real = irls_real
-        if irls_imag.space != Space.FOURIER_IMAG:
-            raise ValueError("irls_imag must be IRLSSolver with space FOURIER_IMAG")
         self.irls_imag = irls_imag
 
     def _prepare_data(
@@ -250,7 +256,12 @@ class IRLSFourier(Estimator):
                 Space.FOURIER_IMAG: torch.var(images[Space.FOURIER_IMAG], dim=0),
             }
 
-        if isinstance(prior_mean, torch.Tensor):
+        if prior_mean is None:
+            prior_mean = {
+                Space.FOURIER_REAL: None,
+                Space.FOURIER_IMAG: None,
+            }
+        elif isinstance(prior_mean, torch.Tensor):
             if torch.is_complex(prior_mean):
                 fourier_prior_mean = prior_mean
             else:
@@ -340,10 +351,10 @@ class IRLSFourier(Estimator):
         weights: dict[Space, torch.Tensor | None],
     ) -> torch.Tensor:
         reconstructed_fourier_real = self.irls_real.reconstruct_from_weights(
-            images, weights
+            images[Space.FOURIER_REAL], weights[Space.FOURIER_REAL]
         )
         reconstructed_fourier_imag = self.irls_imag.reconstruct_from_weights(
-            images, weights
+            images[Space.FOURIER_IMAG], weights[Space.FOURIER_IMAG]
         )
 
         return torch.fft.irfft2(
