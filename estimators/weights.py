@@ -75,7 +75,7 @@ def huber_weights(
     torch.Tensor
         Tensor of shape (n, h, w) containing Huber sample weights.
     """
-    abs_residuals = torch.abs_(sigma_f * (images - reference) / (std + eps))
+    abs_residuals = torch.abs(sigma_f * (images - reference) / (std + eps))
     return torch.where(abs_residuals > delta, delta / abs_residuals, 1.0)
 
 
@@ -114,7 +114,7 @@ def smooth_redescending_weights(
     torch.Tensor
         Tensor of shape (n, h, w) containing the smooth redescending weights.
     """
-    abs_residuals = torch.abs_(sigma_f * (images - reference) / (std + eps))
+    abs_residuals = torch.abs(sigma_f * (images - reference) / (std + eps))
     variance_scale = delta**2
 
     sq_residuals = abs_residuals.square_()
@@ -158,7 +158,7 @@ def tagare_weights(
     reference_flat = reference.flatten()
 
     # First term: absolute cosine
-    cos_abs = torch.abs_(
+    cos_abs = torch.abs(
         torch.cosine_similarity(images_flat, reference_flat, dim=1, eps=eps)
     )
 
@@ -277,7 +277,7 @@ def cc_tagare_weights(
     images_flat = images.flatten(1)
 
     # First term: replace cosine similarity with cross correlation
-    corr_abs = torch.abs_(
+    corr_abs = torch.abs(
         cross_correlation(images, reference=reference, std=std, eps=eps)
     ).view(-1)
 
@@ -318,7 +318,7 @@ def cauchy_weights(
     torch.Tensor
         Tensor of shape (n, h, w) containing the computed Cauchy weights.
     """
-    abs_residuals = torch.abs_((images - reference) / (c * std + eps))
+    abs_residuals = torch.abs((images - reference) / (c * std + eps))
     return 1 / (1 + abs_residuals.square())
 
 
@@ -354,7 +354,7 @@ def student_weights(
     torch.Tensor
         Tensor of shape (n, h, w) mapping Student's t distribution calculation outputs.
     """
-    abs_residuals = torch.abs_(sigma_f * (images - reference) / (std + eps))
+    abs_residuals = torch.abs(sigma_f * (images - reference) / (std + eps))
     return (df + 1) / (df + abs_residuals.square())
 
 
@@ -391,7 +391,7 @@ def q_norm_weights(
     torch.Tensor
         Tensor of shape (n, h, w) holding the corresponding L_q weight updates.
     """
-    abs_residuals = torch.abs_(sigma_f * (images - reference) / (std + eps))
+    abs_residuals = torch.abs(sigma_f * (images - reference) / (std + eps))
     return abs_residuals.clamp_min_(min=1).pow_(q - 2)
 
 

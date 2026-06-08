@@ -66,7 +66,7 @@ def l1_norm(
         Tensor of shape (n,) containing the normalized L1 distance (MAE)
         from each image to the reference.
     """
-    return ((reference - images) / std).abs_().mean(dim=(1, 2))
+    return ((reference - images) / std).abs().mean(dim=(1, 2))
 
 
 @torch.no_grad()
@@ -102,7 +102,7 @@ def lp_norm(
     """
     return (
         ((reference - images) / std)
-        .abs_()
+        .abs()
         .float_power_(p)
         .mean(dim=(1, 2))
         .float_power_(1.0 / p)

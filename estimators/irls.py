@@ -15,7 +15,7 @@ class IRLSSolver(Estimator):
             [torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor
         ],
         max_iter: int,
-        tol: float = 1e-5,
+        tol: float = 1.0e-5,
         damping_coef: float = 0.0,
         min_weight: float | None = None,
         max_weight: float | None = None,
