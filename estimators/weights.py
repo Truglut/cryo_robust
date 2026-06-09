@@ -1,10 +1,15 @@
 ## Robust weighting functions for M-estimators
+from __future__ import annotations
+
 from functools import partial
 from typing import Callable
 
 import torch
 
 TAGARE_CONSTANT: float = 1.0e-5
+WeightFunction = Callable[
+    [torch.Tensor, torch.Tensor, torch.Tensor | float], torch.Tensor
+]
 
 
 @torch.no_grad()
@@ -408,10 +413,69 @@ FUNCTION_REGISTRY: dict[str, Callable[..., torch.Tensor]] = {
     "q_norm": q_norm_weights,
 }
 
+# Set of functions that need the beta parameter, including distance functions
+NEED_BETA_PARAMETER = (
+    "global",
+    "cc_tagare",
+    "tagare_weights",
+    "cross_correlation_tagare",
+    "negexp_orthogonal_residual_norm",
+)
+
+
+def configured_function(
+    registry: dict[str, Callable[..., torch.Tensor]],
+    name: str,
+    params: dict | tuple | None,
+    images: torch.Tensor | None = None,
+):
+    """
+    Retrieves function from registry and configures it with the given parameters
+    through partial evaluation
+
+    Parameters
+    ----------
+    registry : dict[str, Callable[..., torch.Tensor]]
+        Function registry mapping names to functions
+    name : str
+        The name of the requested function. Should match a key in `registry`
+    params : dict | tuple | None
+        Specified parameters for the function.
+    images : torch.Tensor | None, optional
+        Images tensor, used to calculate the "auto" beta parameter, by default None
+
+    Returns
+    -------
+    Callable
+        The configured function
+
+    Raises
+    ------
+    ValueError
+        If `name` does not match any of the keys in `registry`
+    ValueError
+        If `beta="auto"` is requested but the images are not provided
+    """
+    try:
+        fn = registry[name]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown function name: {name!r}. Available: {sorted(registry)}"
+        ) from exc
+    params_dict = dict(params or {})
+    if name in NEED_BETA_PARAMETER and params_dict.get("beta", "auto") == "auto":
+        if images is None:
+            raise ValueError(
+                f"Cannot calculate automatic beta for {name!r} without images."
+            )
+        multiplier = params_dict.pop("auto_multiplier", 1.0)
+        params_dict["beta"] = calculate_beta_auto(images, multiplier)
+    return partial(fn, **params_dict)
+
 
 def get_weight_function(
-    name: str, params: dict, imgs: torch.Tensor | None = None
-) -> Callable[..., torch.Tensor]:
+    name: str, params: dict | tuple | None = None, imgs: torch.Tensor | None = None
+) -> WeightFunction:
     """
     Factory configuration utility that builds specialized partial instances of weighting
     functions loaded with target parameter configurations.
@@ -438,27 +502,7 @@ def get_weight_function(
         If the name is missing from the registry, or if automated beta calculations are
         requested without passing an accompanying data dataset context tensor.
     """
-    try:
-        base_function = FUNCTION_REGISTRY[name]
-    except KeyError:
-        raise ValueError(f"Unknown function name: {name}")
-    params_dict = dict(params) if isinstance(params, tuple) else params.copy()
-
-    # Calculate automatic beta parameter for tagare weights
-    if name in ["global", "cc_tagare"] and (params_dict.get("beta", "auto") == "auto"):
-        if imgs is None:
-            raise ValueError("Cannot calculate auto beta without images")
-
-        mult = params_dict.pop("auto_multiplier", 1.0)
-        beta = calculate_beta_auto(imgs, mult)
-
-        # Update params
-        params_dict["beta"] = beta
-
-        # Print calculated parameter
-        print(f"Auto-calculated beta parameter: {beta = }")
-
-    return partial(base_function, **params_dict)
+    return configured_function(FUNCTION_REGISTRY, name, params, imgs)
 
 
 def calculate_beta_auto(imgs: torch.Tensor, mult: float = 1.0) -> float:

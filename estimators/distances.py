@@ -1,16 +1,19 @@
-### Distance functions for GMM
-from functools import partial
+"""Distance/dissimilarity functions used by GMM-based estimators."""
+from __future__ import annotations
+
 from typing import Callable
 
 import torch
 
 from estimators.weights import (
-    calculate_beta_auto,
     tagare_weights,
     cosine_similarity,
     cross_correlation,
     cc_tagare_weights,
+    configured_function,
 )
+
+DistanceFunction = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 
 
 @torch.no_grad()
@@ -382,10 +385,10 @@ def invert_similarity(
     if inv_type in ["negative_exponential", "neg_exp", "negexp"]:
         return similarity.neg_().exp_() if inplace else torch.exp(-similarity)
     
-    raise ValueError(f"Unrecognized inversion type in tagare_distance: {inv_type}")
+    raise ValueError(f"Unknown similarity inversion strategy: {inv_type}")
 
 # Global configuration key mappings
-FUNCTION_REGISTRY: dict[str, Callable[..., torch.Tensor]] = {
+DISTANCE_FUNCTION_REGISTRY: dict[str, Callable[..., torch.Tensor]] = {
     "l2": l2_norm,
     "l1": l1_norm,
     "lp": lp_norm,
@@ -397,16 +400,10 @@ FUNCTION_REGISTRY: dict[str, Callable[..., torch.Tensor]] = {
     "negexp_orthogonal_residual_norm": negexp_orthogonal_residual_norm,
 }
 
-NEED_BETA_PARAMETER = [
-    "tagare_weights",
-    "negexp_orthogonal_residual_norm",
-    "cross_correlation_tagare",
-]
-
 
 def get_distance_function(
     name: str, params: dict | tuple, imgs: torch.Tensor | None = None
-) -> Callable[[torch.Tensor, torch.Tensor], torch.Tensor]:
+) -> DistanceFunction:
     """
     Factory function to retrieve and pre-configure a specific distance function via partial evaluation.
 
@@ -432,24 +429,4 @@ def get_distance_function(
         If the name is not found within `FUNCTION_REGISTRY` or if 'auto' beta scaling
         is requested without passing the backing `imgs` tensor.
     """
-    try:
-        base_function = FUNCTION_REGISTRY[name]
-    except KeyError:
-        raise ValueError(f"Unknown function name: {name}")
-
-    params_dict = dict(params) if isinstance(params, tuple) else params.copy()
-
-    # Calculate automatic beta parameter for tagare distance
-    if name in NEED_BETA_PARAMETER and (params_dict.get("beta", "auto") == "auto"):
-        if imgs is None:
-            raise ValueError("Cannot calculate auto beta without images")
-        mult = params_dict.pop("auto_multiplier", 1.0)
-        beta = calculate_beta_auto(imgs, mult)
-
-        # Update params
-        params_dict["beta"] = beta
-
-        # Print calculated parameter
-        print(f"Auto-calculated beta parameter: {beta = }")
-
-    return partial(base_function, **dict(params_dict))
+    return configured_function(DISTANCE_FUNCTION_REGISTRY, name, params, imgs)
