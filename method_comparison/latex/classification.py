@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from method_comparison.domain.enums import Space, AggregationStrategy
+from method_comparison.domain.enums import ImageSpace, AggregationStrategy
 from method_comparison.domain.reports import EvaluationReport, EvaluationStudy
 from method_comparison.visualization.plotting import AVERAGE_NAME, plot_vs_snr
 from method_comparison.latex.tables import format_dataframe
@@ -86,7 +86,7 @@ def generate_classification_section(
 
 
 def get_classification_table(
-    classification_df: pd.DataFrame, space: Space, strategy: AggregationStrategy
+    classification_df: pd.DataFrame, space: ImageSpace, strategy: AggregationStrategy
 ) -> pd.DataFrame | None:
     """
     Extract a classification metrics sub-table for a given space and strategy.
@@ -154,7 +154,7 @@ def generate_classification_tables(classification_df: pd.DataFrame) -> str:
     """
     text = ""
 
-    for space in Space:
+    for space in ImageSpace:
         # Filter out spaces that have no associated methods or only the baseline average
         space_rows = classification_df["space"] == space.name
         space_df = classification_df[space_rows]
@@ -229,7 +229,7 @@ def generate_classification_section_from_report(
     # For every space and aggregation strategy, plot precision, recall,
     # average precision and roc-auc vs SNR
     text += "\n\\subsection{Classification metrics vs SNR}"
-    for space in Space:
+    for space in ImageSpace:
         space_rows = overall_df["space"] == space.name
         space_df = overall_df[space_rows]
 
@@ -305,7 +305,7 @@ def generate_classification_section_from_study(
     # For every space and aggregation strategy, plot precision, recall,
     # average precision and roc-auc vs SNR
     text += "\n\\subsection{Classification metrics vs SNR}"
-    for space in Space:
+    for space in ImageSpace:
         space_rows = overall_df["space"] == space.name
         space_df = overall_df[space_rows]
 
@@ -332,7 +332,7 @@ def generate_classification_section_from_study(
 
 def generate_classification_plots(
     overall_df: pd.DataFrame,
-    space: Space,
+    space: ImageSpace,
     strategy: AggregationStrategy,
     output_path: Path,
     figures_path: Path,

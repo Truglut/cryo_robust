@@ -4,7 +4,9 @@ import numpy as np
 import mrcfile
 import torch
 
-from method_comparison.domain.enums import Space, AggregationStrategy
+from estimators.data import ImageBatch
+
+from method_comparison.domain.enums import ImageSpace, AggregationStrategy
 from method_comparison.domain.reports import EvaluationReport, EvaluationStudy
 from method_comparison.dataset_builder import create_evaluation_dataset
 from method_comparison.evaluation.frc import FRCThreshold
@@ -44,10 +46,6 @@ def run_experiment(cfg, args, snr, rng) -> EvaluationReport:
         )
         ground_truth = (ground_truth - ground_truth.mean()) / ground_truth.std()
 
-        # global_image_std = images.std()
-        # images = images / (global_image_std + 1.0e-8)
-        # ground_truth = ground_truth / (global_image_std + 1.0e-8)
-
     # Move images to torch
     tensor_images = torch.from_numpy(images).to(dtype=torch.float32, device=args.device)
 
@@ -58,24 +56,10 @@ def run_experiment(cfg, args, snr, rng) -> EvaluationReport:
     ground_truth *= mask
 
     # Prepare image dict for estimation models
-    fourier_images = torch.fft.rfft2(tensor_images, norm="ortho")
-    images_dict = {
-        Space.REAL: tensor_images,
-        Space.FOURIER_REAL: fourier_images.real,
-        Space.FOURIER_IMAG: fourier_images.imag,
-    }
-    del fourier_images
+    image_batch = ImageBatch.from_real(tensor_images)
 
     # Run the Estimation Methods
-    results = run_estimators(cfg, images_dict, args, add_avg=True, add_median=True)
-
-    # # Undo standardization
-    # if args.standardize:
-    #     for _, data in results.items():
-    #         data["avg"] = data["avg"] * (global_image_std + 1.0e-8)
-
-    #     images *= global_image_std + 1.0e-8
-    #     ground_truth *= global_image_std + 1.0e-8
+    results = run_estimators(cfg, image_batch, args, add_avg=True, add_median=True)
 
     # Identify and save requested subsets
     image_path = Path(cfg["data"]["reference_image_path"])
@@ -90,15 +74,15 @@ def run_experiment(cfg, args, snr, rng) -> EvaluationReport:
             image_shape=ground_truth.shape, mask_type=args.fourier_weight_mask
         )
     weights_masks_dict = {
-        Space.REAL: mask,
-        Space.FOURIER_REAL: fourier_weight_mask,
-        Space.FOURIER_IMAG: fourier_weight_mask,
+        ImageSpace.REAL: mask,
+        ImageSpace.FOURIER_REAL: fourier_weight_mask,
+        ImageSpace.FOURIER_IMAG: fourier_weight_mask,
     }
 
     # Calculate complete report with classification and reconstruction metrics
     report = compute_report(
         results=results,
-        images_dict=images_dict,
+        image_batch=image_batch,
         ground_truth_img=ground_truth,
         labels=labels,
         reapply_mask=args.reapply_mask,
@@ -111,14 +95,6 @@ def run_experiment(cfg, args, snr, rng) -> EvaluationReport:
         independent_half_sets=args.independent_half_sets,
         masks_dict=weights_masks_dict,
     )
-
-    # if args.standardize:
-    #     tensor_images *= global_image_std + 1.0e-8
-
-    #     # Re-sync the Fourier dictionaries to the unstandardized scale
-    #     fourier_unstandardized = torch.fft.rfft2(tensor_images, norm="ortho")
-    #     images_dict[Space.FOURIER_REAL] = fourier_unstandardized.real
-    #     images_dict[Space.FOURIER_IMAG] = fourier_unstandardized.imag
 
     # Print report to terminal
     if args.print:

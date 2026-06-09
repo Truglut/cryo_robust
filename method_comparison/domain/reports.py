@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from method_comparison.domain.enums import Space
+from method_comparison.domain.enums import ImageSpace
 from method_comparison.domain.metrics import MethodMetrics, ClassificationMetrics
 from method_comparison.evaluation.frc import FRCData, FRCThreshold
 
@@ -44,11 +44,11 @@ class MethodResults:
 
     name: str
     metrics: MethodMetrics | None
-    scores: dict[Space, np.ndarray]
+    scores: dict[ImageSpace, np.ndarray]
     ground_truth_frc_data: FRCData | None
     half_set_frc_data: FRCData
     estimated_img: np.ndarray
-    fourier_ring_metrics: dict[Space, dict[int, ClassificationMetrics]]
+    fourier_ring_metrics: dict[ImageSpace, dict[int, ClassificationMetrics]]
 
     def reconstruction_metrics_record(self) -> dict:
         if self.metrics is None:
@@ -114,7 +114,7 @@ class EvaluationStudy:
     def reconstruction_metrics_dataframe(self) -> pd.DataFrame:
         if not self.reports:
             return pd.DataFrame()
-        
+
         # Iterate over reports and build overall dataframe by concatenating
         dfs = []
         for run_idx, report in enumerate(self.reports):
@@ -127,7 +127,7 @@ class EvaluationStudy:
     def classification_metrics_dataframe(self) -> pd.DataFrame:
         if not self.reports:
             return pd.DataFrame()
-        
+
         # Iterate over reports and build overall dataframe by concatenating
         dfs = []
         for run_idx, report in enumerate(self.reports):
@@ -160,7 +160,7 @@ class EvaluationStudy:
         summary["n"] = grouped.size()
 
         summary = summary.reset_index()
-        
+
         # Flatten multiindex
         summary.columns = [
             "_".join(col).rstrip("_") if isinstance(col, tuple) else col

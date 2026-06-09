@@ -7,6 +7,7 @@ import mrcfile
 import torch
 
 from estimators import build_estimator
+from estimators.data import ImageBatch
 from estimators.base import Estimator
 from estimators.admm import ADMMSolver
 from estimators.irls import (
@@ -17,7 +18,7 @@ from estimators.irls import (
 )
 from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
 
-from method_comparison.domain.enums import Space, AggregationStrategy
+from method_comparison.domain.enums import ImageSpace, AggregationStrategy
 from method_comparison.evaluation.aggregation import aggregate_weights
 from method_comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
 
@@ -42,31 +43,36 @@ def load_reference(
 
 def fit_estimator(
     estimator: Estimator,
-    images_dict: dict[Space, torch.Tensor],
+    image_batch: ImageBatch,
     reference: torch.Tensor | None = None,
     *,
     plot_gmm: bool = False,
     method_name: str = "GMM",
 ) -> None:
-    if isinstance(estimator, (GMMEstimator, RecursiveGMMEstimator)):
-        estimator.fit(
-            images_dict, reference=reference, plot_fits=plot_gmm, plot_title=method_name
+    if isinstance(estimator, IRLSSolver):
+        estimator.fit(image_batch, reference=reference)
+    elif isinstance(estimator, (GMMEstimator, RecursiveGMMEstimator)):
+        estimator.fit_tensor(
+            image_batch.as_space_dict(),
+            reference=reference,
+            plot_fits=plot_gmm,
+            plot_title=method_name,
         )
     elif isinstance(estimator, ADMMSolver):
-        estimator.fit(
-            images_dict,
+        estimator.fit_tensor(
+            image_batch.as_space_dict(),
             initial_ref_real=reference,
             initial_ref_fourier=(
                 None if reference is None else torch.fft.rfft2(reference, norm="ortho")
             ),
         )
     else:
-        estimator.fit(images_dict, reference=reference)
+        estimator.fit_tensor(image_batch.as_space_dict(), reference=reference)
 
 
 def run_estimators(
     cfg: dict,
-    images_dict: dict[Space, torch.Tensor],
+    image_batch: ImageBatch,
     args: Namespace,
     add_avg: bool = False,
     add_median: bool = False,
@@ -79,11 +85,11 @@ def run_estimators(
         print(f"Running {method_name}...")
 
         # Build and fit the estimator
-        estimator = build_estimator(method_cfg, images_dict, device=args.device)
+        estimator = build_estimator(method_cfg, image_batch, device=args.device)
         reference = load_reference(method_cfg.get("initial_reference"), args.device)
         fit_estimator(
             estimator,
-            images_dict,
+            image_batch,
             reference,
             plot_gmm="gmm" in args.plot,
             method_name=method_name,
@@ -100,20 +106,18 @@ def run_estimators(
     # Add results of sample average and median if requested
     if add_avg:
         results[AVERAGE_NAME] = {
-            "avg": images_dict[Space.REAL].mean(dim=0),
+            "avg": image_batch.ensure_real().mean(dim=0),
             "weights": {
-                space: torch.ones(
-                    (images_dict[space].shape[0], 1, 1), device=args.device
-                )
-                for space in Space
+                space: torch.ones((image_batch.n_images, 1, 1), device=args.device)
+                for space in ImageSpace
             },
             "reference": None,
             "estimator": AVERAGE_NAME,
         }
     if add_median:
         results[MEDIAN_NAME] = {
-            "avg": images_dict[Space.REAL].median(dim=0).values,
-            "weights": {space: None for space in Space},
+            "avg": image_batch.ensure_real().median(dim=0).values,
+            "weights": {space: None for space in ImageSpace},
             "reference": None,
             "estimator": MEDIAN_NAME,
         }
@@ -137,16 +141,17 @@ def apply_mask(images_tensor: torch.Tensor, mask_radius: float, inplace: bool = 
 
 
 def canonical_image_weights(
-    estimator: Estimator, final_weights: dict[Space, torch.Tensor]
+    estimator: Estimator, final_weights: dict[ImageSpace, torch.Tensor]
 ):
     if isinstance(estimator, IRLSFourier):
         weights = 0.5 * (
-            final_weights[Space.FOURIER_REAL] + final_weights[Space.FOURIER_IMAG]
+            final_weights[ImageSpace.FOURIER_REAL]
+            + final_weights[ImageSpace.FOURIER_IMAG]
         )
     elif isinstance(estimator, (JointIRLSFourier, FlatteningIRLSFourier)):
-        weights = final_weights[Space.FOURIER_REAL]
+        weights = final_weights[ImageSpace.FOURIER_REAL]
     else:
-        weights = final_weights[Space.REAL]
+        weights = final_weights[ImageSpace.REAL]
 
     if weights is None:
         raise ValueError(

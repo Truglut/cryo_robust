@@ -3,7 +3,9 @@ from typing import Any, Iterable
 import numpy as np
 import torch
 
-from method_comparison.domain.enums import Space, AggregationStrategy
+from estimators.data import ImageBatch
+
+from method_comparison.domain.enums import ImageSpace, AggregationStrategy
 from method_comparison.domain.metrics import MethodMetrics, ClassificationMetrics
 from method_comparison.domain.reports import MethodResults, EvaluationReport
 from method_comparison.evaluation.aggregation import (
@@ -24,7 +26,7 @@ from method_comparison.evaluation.reconstruction_metrics import (
 
 def compute_report(
     results: dict[str, Any],
-    images_dict: dict[Space, torch.Tensor],
+    image_batch: ImageBatch,
     ground_truth_img: np.ndarray | None = None,
     labels: np.ndarray | None = None,
     reapply_mask: bool = True,
@@ -36,20 +38,22 @@ def compute_report(
     energy_reference: str = "ground_truth",
     pixel_size: float = 1.0,
     independent_half_sets: bool = False,
-    masks_dict: dict[Space, np.ndarray | torch.Tensor | None] | None = None,
+    masks_dict: dict[ImageSpace, np.ndarray | torch.Tensor | None] | None = None,
 ) -> EvaluationReport:
     """
     Compute all quantitative metrics for a set of estimation results.
     """
+    image_dict = image_batch.as_space_dict()
+
     if frc_thresholds is None:
         frc_thresholds = [FRCThreshold.ONE_OVER_SEVEN]
 
     ref_real, ref_fourier = setup_energy_reference(
-        ground_truth_img, images_dict, energy_reference
+        ground_truth_img, image_dict, energy_reference
     )
 
     # Generate split indices for half-set resolution
-    imgs = images_dict[Space.REAL]
+    imgs = image_dict[ImageSpace.REAL]
     split_indices = get_half_set_indices(num_images=imgs.shape[0], device=imgs.device)
 
     # Parse and prepare target torch masks for weight aggregation in real and fourier space
@@ -57,7 +61,7 @@ def compute_report(
     # If a mask has been provided for real space images and no weight mask is provided, use that
     if masks_dict is None:
         if mask is not None and mask.ndim == 2:
-            torch_masks[Space.REAL] = torch.from_numpy(mask).to(imgs.device)
+            torch_masks[ImageSpace.REAL] = torch.from_numpy(mask).to(imgs.device)
     else:
         for space, m in masks_dict.items():
             if m is not None:
@@ -67,9 +71,9 @@ def compute_report(
                     else m.to(imgs.device)
                 )
         # Use real-space image mask as weight mask as fallback
-        if masks_dict.get(Space.REAL, None) is None:
+        if masks_dict.get(ImageSpace.REAL, None) is None:
             if mask is not None and mask.ndim == 2:
-                torch_masks[Space.REAL] = torch.from_numpy(mask).to(imgs.device)
+                torch_masks[ImageSpace.REAL] = torch.from_numpy(mask).to(imgs.device)
 
     all_results = []
     for method_name, data in results.items():
@@ -92,7 +96,7 @@ def compute_report(
                 comparison_ground_truth,
                 estimated_img,
                 frc_thresholds=frc_thresholds,
-                images_dict=images_dict,
+                images_dict=image_dict,
                 estimator=estimator,
                 weights=weights,
                 split_indices=split_indices,
@@ -112,7 +116,7 @@ def compute_report(
             masks_dict=torch_masks,
         )
 
-        fourier_ring_metrics: dict[Space, dict[int, ClassificationMetrics]] = {}
+        fourier_ring_metrics: dict[ImageSpace, dict[int, ClassificationMetrics]] = {}
         if labels is not None:
             # Image classification metrics by space
             space_metrics = compute_classification_metrics(
@@ -122,7 +126,7 @@ def compute_report(
             )
 
             # Classification metrics per ring for Fourier spaces
-            for space in [Space.FOURIER_REAL, Space.FOURIER_IMAG]:
+            for space in [ImageSpace.FOURIER_REAL, ImageSpace.FOURIER_IMAG]:
                 w = weights.get(space)
                 if w is not None and w.shape[-1] > 1:
                     fourier_ring_metrics[space] = (

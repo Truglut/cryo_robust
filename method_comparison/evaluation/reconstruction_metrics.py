@@ -4,9 +4,11 @@ from sklearn.metrics import root_mean_squared_error
 from scipy.stats import pearsonr
 
 from estimators.base import Estimator
+from estimators.irls import IRLSSolver
+from estimators.data import ImageBatch
 from estimators.gmm import RecursiveGMMEstimator
 
-from method_comparison.domain.enums import Space
+from method_comparison.domain.enums import ImageSpace
 from method_comparison.domain.metrics import ReconstructionMetrics
 from method_comparison.evaluation.frc import (
     FRCThreshold,
@@ -52,7 +54,7 @@ def compute_reconstruction_metrics(
     ground_truth_img: np.ndarray | None,
     estimated_img: np.ndarray,
     frc_thresholds: list[FRCThreshold],
-    images_dict: dict[Space, torch.Tensor],
+    images_dict: dict[ImageSpace, torch.Tensor],
     estimator: Estimator,
     weights: torch.Tensor,
     split_indices: tuple[torch.Tensor, torch.Tensor],
@@ -65,36 +67,52 @@ def compute_reconstruction_metrics(
     ## Half-set reconstruction resolution (always available)
     # Separate images and weights into two half-sets
     idx_A, idx_B = split_indices
-    images_A = {space: images_dict[space][idx_A] for space in Space}
-    images_B = {space: images_dict[space][idx_B] for space in Space}
+    images_A = images_dict[ImageSpace.REAL][idx_A]
+    images_B = images_dict[ImageSpace.REAL][idx_B]
+
+    batch_A = ImageBatch.from_real(images_A)
+    batch_B = ImageBatch.from_real(images_B)
+
+    images_A = batch_A.as_space_dict()
+    images_B = batch_B.as_space_dict()
 
     # Reconstruct image estimation for both half sets
     if estimator == AVERAGE_NAME:
-        reconstruction_A = images_A[Space.REAL].mean(dim=0)
-        reconstruction_B = images_B[Space.REAL].mean(dim=0)
+        reconstruction_A = images_A[ImageSpace.REAL].mean(dim=0)
+        reconstruction_B = images_B[ImageSpace.REAL].mean(dim=0)
     elif estimator == MEDIAN_NAME:
-        reconstruction_A = images_A[Space.REAL].median(dim=0).values
-        reconstruction_B = images_B[Space.REAL].median(dim=0).values
+        reconstruction_A = images_A[ImageSpace.REAL].median(dim=0).values
+        reconstruction_B = images_B[ImageSpace.REAL].median(dim=0).values
     elif independent_half_sets:
-        if isinstance(estimator, RecursiveGMMEstimator):
-            estimator.fit(images_A, plot_fits=True)
+        # Handle IRLSSolver first because it is currently the only that takes ImageBatch
+        if isinstance(estimator, IRLSSolver):
+            reconstruction_A = estimator.fit(batch_A)
+            reconstruction_B = estimator.fit(batch_B)
+        elif isinstance(estimator, RecursiveGMMEstimator):
+            estimator.fit_tensor(images_A, plot_fits=True)
             reconstruction_A = estimator.avg
-            estimator.fit(images_B, plot_fits=True)
+            estimator.fit_tensor(images_B, plot_fits=True)
             reconstruction_B = estimator.avg
         else:
-            estimator.fit(images_A)
+            estimator.fit_tensor(images_A)
             reconstruction_A = estimator.avg
-            estimator.fit(images_B)
+            estimator.fit_tensor(images_B)
             reconstruction_B = estimator.avg
     else:
         weights_A = {
-            space: weights[space][idx_A] if weights[space] is not None else None
-            for space in Space
+            space: weights[space][idx_A] if weights.get(space) is not None else None
+            for space in ImageSpace
         }
         weights_B = {
-            space: weights[space][idx_B] if weights[space] is not None else None
-            for space in Space
+            space: weights[space][idx_B] if weights.get(space) is not None else None
+            for space in ImageSpace
         }
+
+        # Handle IRLSSolver first because it is currently the only that takes ImageBatch
+        if isinstance(estimator, IRLSSolver):
+            reconstruction_A = estimator.reconstruct_from_weights(batch_A, weights_A)
+            reconstruction_B = estimator.reconstruct_from_weights(batch_B, weights_B)
+
         reconstruction_A = estimator.reconstruct_from_weights(images_A, weights_A)
         reconstruction_B = estimator.reconstruct_from_weights(images_B, weights_B)
 

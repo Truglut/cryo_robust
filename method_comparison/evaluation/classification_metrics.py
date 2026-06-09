@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.metrics import average_precision_score, roc_auc_score
 import torch
 
-from method_comparison.domain.enums import Space, AggregationStrategy
+from method_comparison.domain.enums import ImageSpace, AggregationStrategy
 from method_comparison.domain.metrics import ClassificationMetrics
 
 # List of all implemented recall methods
@@ -62,12 +62,12 @@ def compute_soft_metrics(
 
 
 def compute_classification_metrics(
-    agg_weights: dict[Space, dict[AggregationStrategy, np.ndarray]],
+    agg_weights: dict[ImageSpace, dict[AggregationStrategy, np.ndarray]],
     labels: np.ndarray,
     recall_methods: Iterable[str],
-) -> dict[Space, dict[AggregationStrategy, dict]]:
+) -> dict[ImageSpace, dict[AggregationStrategy, dict]]:
     classification_metrics: dict[
-        Space, dict[AggregationStrategy, ClassificationMetrics]
+        ImageSpace, dict[AggregationStrategy, ClassificationMetrics]
     ] = {}
 
     for space, data in agg_weights.items():
@@ -87,6 +87,7 @@ def compute_classification_metrics(
 
 # Fourier ring metrics calculation
 
+
 def _get_radial_map(shape: tuple[int, int]) -> tuple[np.ndarray, int]:
     """
     Generates a radial frequency ring map for a given 2D shape.
@@ -97,7 +98,7 @@ def _get_radial_map(shape: tuple[int, int]) -> tuple[np.ndarray, int]:
     if w == h // 2 + 1:
         y_freq = np.fft.fftfreq(h) * h
         x_freq = np.arange(w)
-        yy, xx = np.meshgrid(y_freq, x_freq, indexing='ij')
+        yy, xx = np.meshgrid(y_freq, x_freq, indexing="ij")
         r = np.sqrt(yy**2 + xx**2)
         r_int = np.round(r).astype(np.int32)
         max_r = int(h // 2)
@@ -108,17 +109,17 @@ def _get_radial_map(shape: tuple[int, int]) -> tuple[np.ndarray, int]:
         r = np.sqrt((x_idx - cx) ** 2 + (y_idx - cy) ** 2)
         r_int = np.round(r).astype(np.int32)
         max_r = int(min(cy, cx))
-    
+
     return r_int, max_r
 
 
 def compute_fourier_ring_classification_metrics(
-        fourier_weights: torch.Tensor,
-        labels: np.ndarray,
-        recall_methods: Iterable[str] = ALL_RECALL_METHODS,
+    fourier_weights: torch.Tensor,
+    labels: np.ndarray,
+    recall_methods: Iterable[str] = ALL_RECALL_METHODS,
 ) -> dict[int, ClassificationMetrics]:
     """
-    Calculates soft classification metrics as a function of spatial frequency 
+    Calculates soft classification metrics as a function of spatial frequency
     (per Fourier ring) for a single Fourier space weight tensor.
 
     Parameters
@@ -131,14 +132,14 @@ def compute_fourier_ring_classification_metrics(
     n, h, w = fourier_weights.shape
     r_int, max_r = _get_radial_map((h, w))
 
-    idx_good = (labels == 0)
+    idx_good = labels == 0
     ring_metrics: dict[int, ClassificationMetrics] = {}
 
     # Send radial labels map to the same device as weights for fast masking
     r_int_torch = torch.from_numpy(r_int).to(fourier_weights.device)
 
     for k in range(max_r + 1):
-        mask = (r_int_torch == k)
+        mask = r_int_torch == k
         if not mask.any():
             continue
 
@@ -147,9 +148,7 @@ def compute_fourier_ring_classification_metrics(
 
         # Compute metrics for this specific frequency ring
         ring_metrics[k] = compute_soft_metrics(
-            scores=ring_scores,
-            idx_good=idx_good,
-            recall_methods=recall_methods
+            scores=ring_scores, idx_good=idx_good, recall_methods=recall_methods
         )
-    
+
     return ring_metrics

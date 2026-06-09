@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from estimators.base import Estimator
 from estimators.weights import weighted_average
 
-from method_comparison.domain.enums import Space
+from method_comparison.domain.enums import ImageSpace
 
 
 class GMMEstimator(Estimator):
@@ -18,7 +18,7 @@ class GMMEstimator(Estimator):
         distance_function: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
         random_state: int | None = None,
         standardize_distances: bool = True,
-        space: Space = Space.REAL,
+        space: ImageSpace = ImageSpace.REAL,
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -33,11 +33,11 @@ class GMMEstimator(Estimator):
         # iterative recursive estimation
 
     @torch.inference_mode()
-    def fit(
+    def fit_tensor(
         self,
-        images: dict[Space, torch.Tensor] | torch.Tensor,
+        images: dict[ImageSpace, torch.Tensor] | torch.Tensor,
         reference: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, dict[Space, torch.Tensor]]:
+    ) -> tuple[torch.Tensor, dict[ImageSpace, torch.Tensor]]:
         # Ensure images are a pytorch tensor on the correct device
         if isinstance(images, dict):
             images = images[self.space]
@@ -70,19 +70,19 @@ class GMMEstimator(Estimator):
 
         # Store final weights in the standard format
         self.final_weights = {
-            Space.REAL: weights,
-            Space.FOURIER_REAL: None,
-            Space.FOURIER_IMAG: None,
+            ImageSpace.REAL: weights,
+            ImageSpace.FOURIER_REAL: None,
+            ImageSpace.FOURIER_IMAG: None,
         }
 
         return self.avg, self.final_weights
 
     def reconstruct_from_weights(
         self,
-        images: dict[Space, torch.Tensor],
-        weights: dict[Space, torch.Tensor | None],
+        images: dict[ImageSpace, torch.Tensor],
+        weights: dict[ImageSpace, torch.Tensor | None],
     ) -> torch.Tensor:
-        return weighted_average(images[Space.REAL], weights[Space.REAL])
+        return weighted_average(images[ImageSpace.REAL], weights[ImageSpace.REAL])
 
 
 class RecursiveGMMEstimator(Estimator):
@@ -93,7 +93,7 @@ class RecursiveGMMEstimator(Estimator):
         max_iter: int = 1,
         tol: float = 1.0e-4,
         standardize_distances: bool = True,
-        space: Space = Space.REAL,
+        space: ImageSpace = ImageSpace.REAL,
         pixel_normalize: bool = False,
         device: str = "cpu",
     ):
@@ -114,14 +114,14 @@ class RecursiveGMMEstimator(Estimator):
         # iterative recursive estimation
 
     @torch.inference_mode()
-    def fit(
+    def fit_tensor(
         self,
-        images: dict[Space, torch.Tensor] | torch.Tensor,
+        images: dict[ImageSpace, torch.Tensor] | torch.Tensor,
         reference: torch.Tensor | None = None,
         initialize_params: bool = False,
         plot_fits: bool = False,
         plot_title: str = "GMM Distances & Fit",
-    ) -> tuple[torch.Tensor, dict[Space, torch.Tensor]]:
+    ) -> tuple[torch.Tensor, dict[ImageSpace, torch.Tensor]]:
         # Reset the GMM to avoid carrying over state from previous fit() calls
         self.model = GaussianMixture(
             n_components=2,
@@ -242,9 +242,9 @@ class RecursiveGMMEstimator(Estimator):
         self.avg = reference
         self.n_its = i + 1
         self.final_weights = {
-            Space.REAL: weights,
-            Space.FOURIER_REAL: None,
-            Space.FOURIER_IMAG: None,
+            ImageSpace.REAL: weights,
+            ImageSpace.FOURIER_REAL: None,
+            ImageSpace.FOURIER_IMAG: None,
         }
 
         # Plot final model fit
@@ -266,10 +266,10 @@ class RecursiveGMMEstimator(Estimator):
 
     def reconstruct_from_weights(
         self,
-        images: dict[Space, torch.Tensor],
-        weights: dict[Space, torch.Tensor | None],
+        images: dict[ImageSpace, torch.Tensor],
+        weights: dict[ImageSpace, torch.Tensor | None],
     ) -> torch.Tensor:
-        return weighted_average(images[Space.REAL], weights[Space.REAL])
+        return weighted_average(images[ImageSpace.REAL], weights[ImageSpace.REAL])
 
 
 def plot_gmm_fit(

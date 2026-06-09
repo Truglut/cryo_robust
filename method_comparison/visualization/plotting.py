@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from method_comparison.domain.enums import Space
+from method_comparison.domain.enums import ImageSpace
 from method_comparison.domain.metrics import ClassificationMetrics
 from method_comparison.domain.reports import EvaluationReport, MethodResults
 from method_comparison.evaluation.frc import FRCData, FRCThreshold, get_threshold
@@ -355,7 +355,7 @@ def _extract_ring_data(
 
 def plot_method_fourier_ring_curves(
     method_results: MethodResults,
-    space: Space = Space.FOURIER_REAL,
+    space: ImageSpace = ImageSpace.FOURIER_REAL,
     pixel_size: float = 1.0,
     figsize: tuple[int, int] = (11, 4.5),
 ) -> plt.Figure | None:
@@ -425,7 +425,7 @@ def plot_method_fourier_ring_curves(
 
 def plot_fourier_ring_summary(
     all_method_results: Iterable[MethodResults],
-    space: Space = Space.FOURIER_REAL,
+    space: ImageSpace = ImageSpace.FOURIER_REAL,
     pixel_size: float = 1.0,
     figsize: tuple[int, int] = (8, 5),
 ) -> plt.Figure | None:
@@ -635,8 +635,8 @@ def save_report_figures(
         saved["frc_curves"].append(path)
 
     ## Fourier ring classification metrics
-    for space in [Space.FOURIER_REAL, Space.FOURIER_IMAG]:
-        space_str = "real" if space == Space.FOURIER_REAL else "imag"
+    for space in [ImageSpace.FOURIER_REAL, ImageSpace.FOURIER_IMAG]:
+        space_str = "real" if space == ImageSpace.FOURIER_REAL else "imag"
 
         # 1. Output individual method subplot figures
         for res in report.method_results:
@@ -856,7 +856,6 @@ def plot_vs_snr(
         ):
             label = f"{method} — {metric_label}" if metric_label else method
 
-            
             if aggregated_data:
                 ax.errorbar(
                     x=method_df[snr_column],

@@ -6,9 +6,7 @@ from typing import Mapping
 import numpy as np
 import torch
 
-from estimators.spaces import IRLSSpace
-
-from method_comparison.domain.enums import Space
+from method_comparison.domain.enums import ImageSpace
 
 ArrayLike = torch.Tensor | np.ndarray
 
@@ -186,31 +184,50 @@ class ImageBatch:
     @classmethod
     def from_space_dict(
         cls,
-        images: Mapping[Space, ArrayLike],
+        images: Mapping[ImageSpace, ArrayLike],
         *,
-        variance: Mapping[Space, ArrayLike] | None = None,
+        variance: Mapping[ImageSpace, ArrayLike] | None = None,
         ctf: ArrayLike | None = None,
         device: torch.device | str | None = None,
     ) -> ImageBatch:
         """Create an ImageBatch from the current Space-indexed dictionary format."""
-        real = to_tensor(images.get(Space.REAL), device=device, dtype=torch.float32)
+        real = to_tensor(
+            images.get(ImageSpace.REAL), device=device, dtype=torch.float32
+        )
 
         fourier = None
-        if Space.FOURIER_REAL in images and Space.FOURIER_IMAG in images:
+        if ImageSpace.FOURIER_REAL in images and ImageSpace.FOURIER_IMAG in images:
             fourier = torch.complex(
-                to_tensor(images[Space.FOURIER_REAL], device=device, dtype=torch.float32),
-                to_tensor(images[Space.FOURIER_IMAG], device=device, dtype=torch.float32),
+                to_tensor(
+                    images[ImageSpace.FOURIER_REAL], device=device, dtype=torch.float32
+                ),
+                to_tensor(
+                    images[ImageSpace.FOURIER_IMAG], device=device, dtype=torch.float32
+                ),
             )
 
         real_var = None
         fourier_var = None
         if variance is not None:
-            real_var = to_tensor(variance.get(Space.REAL), device=device, dtype=torch.float32)
+            real_var = to_tensor(
+                variance.get(ImageSpace.REAL), device=device, dtype=torch.float32
+            )
 
-            if Space.FOURIER_REAL in variance and Space.FOURIER_IMAG in variance:
+            if (
+                ImageSpace.FOURIER_REAL in variance
+                and ImageSpace.FOURIER_IMAG in variance
+            ):
                 fourier_var = FourierVariance.from_components(
-                    to_tensor(variance[Space.FOURIER_REAL], device=device, dtype=torch.float32),
-                    to_tensor(variance[Space.FOURIER_IMAG], device=device, dtype=torch.float32),
+                    to_tensor(
+                        variance[ImageSpace.FOURIER_REAL],
+                        device=device,
+                        dtype=torch.float32,
+                    ),
+                    to_tensor(
+                        variance[ImageSpace.FOURIER_IMAG],
+                        device=device,
+                        dtype=torch.float32,
+                    ),
                 )
 
         return cls(
@@ -220,21 +237,31 @@ class ImageBatch:
             real_variance_value=real_var,
             fourier_variance_value=fourier_var,
         )
-    
+
     @property
     def n_images(self) -> int:
         """Number of images in the batch."""
-        return self.ensure_real().shape[0] if self.real is not None else self.ensure_fourier().shape[0]
+        return (
+            self.ensure_real().shape[0]
+            if self.real is not None
+            else self.ensure_fourier().shape[0]
+        )
 
     @property
     def device(self) -> torch.device:
         """Device where the image tensors are stored."""
-        return self.ensure_real().device if self.real is not None else self.ensure_fourier().device
+        return (
+            self.ensure_real().device
+            if self.real is not None
+            else self.ensure_fourier().device
+        )
 
     def ensure_real(self) -> torch.Tensor:
         """Return real-space images, computing them from Fourier images if needed."""
         if self.real is None:
-            self.real = torch.fft.irfft2(self.fourier, s=self.real_shape, norm=self.norm)
+            self.real = torch.fft.irfft2(
+                self.fourier, s=self.real_shape, norm=self.norm
+            )
         return self.real
 
     def ensure_fourier(self) -> torch.Tensor:
@@ -242,7 +269,7 @@ class ImageBatch:
         if self.fourier is None:
             self.fourier = torch.fft.rfft2(self.real, norm=self.norm)
         return self.fourier
-    
+
     def fourier_real(self) -> torch.Tensor:
         """Return real part of Fourier images."""
         return self.ensure_fourier().real
@@ -269,7 +296,7 @@ class ImageBatch:
                 eps=self.eps,
             )
         return self.fourier_variance_value
-    
+
     def fourier_component_variances(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Return Fourier real/imaginary component variances."""
         return self.fourier_variance().components()
@@ -288,37 +315,37 @@ class ImageBatch:
     def fourier_modulus_std(self) -> torch.Tensor:
         """Return Fourier modulus standard deviation."""
         return self.fourier_modulus_variance().sqrt().clamp_min(self.eps)
-    
-    def as_space_dict(self) -> dict[Space, torch.Tensor]:
+
+    def as_space_dict(self) -> dict[ImageSpace, torch.Tensor]:
         """Return images in the current Space-indexed dictionary format."""
         fourier = self.ensure_fourier()
         return {
-            Space.REAL: self.ensure_real(),
-            Space.FOURIER_REAL: fourier.real,
-            Space.FOURIER_IMAG: fourier.imag,
+            ImageSpace.REAL: self.ensure_real(),
+            ImageSpace.FOURIER_REAL: fourier.real,
+            ImageSpace.FOURIER_IMAG: fourier.imag,
         }
 
-    def variance_space_dict(self) -> dict[Space, torch.Tensor]:
+    def variance_space_dict(self) -> dict[ImageSpace, torch.Tensor]:
         """Return variances in the current Space-indexed dictionary format."""
         fourier_real_var, fourier_imag_var = self.fourier_component_variances()
         return {
-            Space.REAL: self.real_variance(),
-            Space.FOURIER_REAL: fourier_real_var,
-            Space.FOURIER_IMAG: fourier_imag_var,
+            ImageSpace.REAL: self.real_variance(),
+            ImageSpace.FOURIER_REAL: fourier_real_var,
+            ImageSpace.FOURIER_IMAG: fourier_imag_var,
         }
 
-    def std_space_dict(self) -> dict[Space, torch.Tensor]:
+    def std_space_dict(self) -> dict[ImageSpace, torch.Tensor]:
         """Return standard deviations in the current Space-indexed dictionary format."""
         fourier_real_std, fourier_imag_std = self.fourier_component_stds()
         return {
-            Space.REAL: self.real_std(),
-            Space.FOURIER_REAL: fourier_real_std,
-            Space.FOURIER_IMAG: fourier_imag_std,
+            ImageSpace.REAL: self.real_std(),
+            ImageSpace.FOURIER_REAL: fourier_real_std,
+            ImageSpace.FOURIER_IMAG: fourier_imag_std,
         }
-    
+
     def select_space_data(
         self,
-        irls_space: IRLSSpace,
+        space: ImageSpace,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor | None]:
         """
         Selects the data from the batch that corresponds to the requested space
@@ -344,7 +371,7 @@ class ImageBatch:
         ValueError
             If ``irls_space`` takes an unknown value.
         """
-        if irls_space == IRLSSpace.REAL:
+        if space == ImageSpace.REAL:
             return (
                 self.ensure_real(),
                 self.real_variance(),
@@ -352,7 +379,7 @@ class ImageBatch:
                 None,
             )
 
-        if irls_space == IRLSSpace.FOURIER_REAL:
+        if space == ImageSpace.FOURIER_REAL:
             var_real, _ = self.fourier_component_variances()
             std_real, _ = self.fourier_component_stds()
             return (
@@ -362,7 +389,7 @@ class ImageBatch:
                 self.ctf,
             )
 
-        if irls_space == IRLSSpace.FOURIER_IMAG:
+        if space == ImageSpace.FOURIER_IMAG:
             _, var_imag = self.fourier_component_variances()
             _, std_imag = self.fourier_component_stds()
             return (
@@ -372,7 +399,7 @@ class ImageBatch:
                 self.ctf,
             )
 
-        if irls_space == IRLSSpace.FOURIER_COMPLEX:
+        if space == ImageSpace.FOURIER_COMPLEX:
             return (
                 self.ensure_fourier(),
                 self.fourier_modulus_variance(),
@@ -380,4 +407,19 @@ class ImageBatch:
                 self.ctf,
             )
 
-        raise ValueError(f"Unsupported IRLS space: {irls_space}")
+        raise ValueError(f"Unsupported IRLS space: {space}")
+
+    def select_space_images(self, space: ImageSpace) -> torch.Tensor:
+        if space == ImageSpace.REAL:
+            return self.ensure_real()
+
+        if space == ImageSpace.FOURIER_REAL:
+            return self.fourier_real()
+
+        if space == ImageSpace.FOURIER_IMAG:
+            return self.fourier_imag()
+
+        if space == ImageSpace.FOURIER_COMPLEX:
+            return self.ensure_fourier()
+
+        raise ValueError(f"Unsupported IRLS space: {space}")
