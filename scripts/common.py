@@ -24,6 +24,14 @@ from method_comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
 
 from utils.masks import create_circular_mask
 
+IMPLEMENTED_FIT = (
+    IRLSSolver,
+    IRLSFourier,
+    JointIRLSFourier,
+    FlatteningIRLSFourier,
+    ADMMSolver,
+)
+
 
 def load_config(config_path: str, snr: float | None = None):
     with open(config_path, "r") as file:
@@ -49,7 +57,15 @@ def fit_estimator(
     plot_gmm: bool = False,
     method_name: str = "GMM",
 ) -> None:
-    if isinstance(estimator, IRLSSolver):
+    if isinstance(estimator, ADMMSolver):
+        estimator.fit(
+            image_batch,
+            initial_reference_real=reference,
+            initial_reference_fourier=(
+                None if reference is None else torch.fft.rfft2(reference, norm="ortho")
+            ),
+        )
+    elif isinstance(estimator, IMPLEMENTED_FIT):
         estimator.fit(image_batch, reference=reference)
     elif isinstance(estimator, (GMMEstimator, RecursiveGMMEstimator)):
         estimator.fit_tensor(
@@ -57,14 +73,6 @@ def fit_estimator(
             reference=reference,
             plot_fits=plot_gmm,
             plot_title=method_name,
-        )
-    elif isinstance(estimator, ADMMSolver):
-        estimator.fit_tensor(
-            image_batch.as_space_dict(),
-            initial_ref_real=reference,
-            initial_ref_fourier=(
-                None if reference is None else torch.fft.rfft2(reference, norm="ortho")
-            ),
         )
     else:
         estimator.fit_tensor(image_batch.as_space_dict(), reference=reference)

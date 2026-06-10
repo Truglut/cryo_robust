@@ -21,7 +21,7 @@ def build_estimator(
     method_cfg: dict,
     image_batch: ImageBatch,
     device: str = "cpu",
-    space: ImageSpace = ImageSpace.REAL,
+    space: ImageSpace = ImageSpace.REAL
 ):
     """
     Factory function that reads the YAML config block and returns
@@ -31,6 +31,7 @@ def build_estimator(
     params = method_cfg.get("params", {})
 
     params["solver_params"] = params.get("solver_params", {})
+    params["solver_params"]["space"] = space
 
     if est_type == "m_estimator":
         # Get weight function with given parameters
@@ -63,6 +64,7 @@ def build_estimator(
 
     elif est_type == "joint_fourier":
         # Build IRLSSolver estimator
+        params["solver_params"]["space"] = ImageSpace.FOURIER_COMPLEX
         solver = build_estimator(
             {
                 "type": "m_estimator",
@@ -70,6 +72,7 @@ def build_estimator(
             },
             image_batch=image_batch,
             device=device,
+            space = ImageSpace.FOURIER_COMPLEX
         )
 
         return JointIRLSFourier(solver, device)
@@ -114,6 +117,7 @@ def build_estimator(
         )
 
     elif est_type == "admm":
+        params["solver_params"].pop("space")
         irls_real = build_estimator(
             params["real_estimator"], image_batch, device=device, space=ImageSpace.REAL
         )
@@ -121,7 +125,7 @@ def build_estimator(
             params["fourier_estimator"],
             image_batch,
             device=device,
-            space=ImageSpace.FOURIER_REAL,
+            space=ImageSpace.FOURIER_COMPLEX,
         )
         return ADMMSolver(
             irls_real=irls_real,

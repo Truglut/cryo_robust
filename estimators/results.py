@@ -58,7 +58,7 @@ class WeightSet:
         cls,
         space: ImageSpace,
         weights: torch.Tensor | None,
-    ) -> "WeightSet":
+    ) -> WeightSet:
         if space == ImageSpace.REAL:
             return cls(real=weights)
         if space == ImageSpace.FOURIER_REAL:
@@ -69,6 +69,19 @@ class WeightSet:
             return cls.shared_fourier(weights)
 
         raise ValueError(f"Unsupported IRLS space: {space}")
+    
+    def select_space_weights(self, space: ImageSpace):
+        if space == ImageSpace.REAL:
+            return self.real
+        if space == ImageSpace.FOURIER_REAL:
+            return self.fourier_real
+        if space == ImageSpace.FOURIER_IMAG:
+            return self.fourier_imag
+        if space == ImageSpace.FOURIER_COMPLEX:
+            # Estimators with space FOURIER_COMPLEX only produce one set of weights
+            # can return either self.fourier_real or self.fourier_imag, since they
+            # should be equal
+            return self.fourier_real
 
 
 @dataclass
