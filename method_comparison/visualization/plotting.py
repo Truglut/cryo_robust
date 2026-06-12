@@ -3,6 +3,7 @@ from typing import Sequence, Iterable
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import pandas as pd
 
 from method_comparison.domain.enums import Space
@@ -745,7 +746,7 @@ def plot_vs_snr(
     method_column: str = "method",
     snr_column: str = "snr",
     dpi: int = 150,
-    figsize: tuple[int, int] = (10, 6),
+    figsize: tuple[int, int] = (5, 4.5),
     title: str | None = None,
     ylabel: str = "Score",
     aggregated_data: bool = False,
@@ -833,9 +834,22 @@ def plot_vs_snr(
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
-    fig, ax = plt.subplots(figsize=figsize)
-
     methods: list[str] = sorted(df[method_column].unique())
+
+    N_COLS = 2
+    
+    # Total items = (number of methods) * (number of metrics)
+    total_legend_items = len(methods) * len(metrics)
+    
+    # Calculate rows (ceiling division)
+    legend_rows = -(-total_legend_items // N_COLS) 
+    
+    # Dynamically adjust height: base height + extra space per row
+    base_width = 5
+    base_height = 3 + (legend_rows * 0.18)
+    
+    # Create the figure with the adjusted dynamic size
+    fig, ax = plt.subplots(figsize=(base_width, base_height))
 
     # One color per method
     cmap = plt.get_cmap("tab10")
@@ -856,7 +870,6 @@ def plot_vs_snr(
         ):
             label = f"{method} — {metric_label}" if metric_label else method
 
-            
             if aggregated_data:
                 ax.errorbar(
                     x=method_df[snr_column],
@@ -866,6 +879,7 @@ def plot_vs_snr(
                     color=color,
                     linestyle=linestyles[metric_idx % len(linestyles)],
                     marker=markers[metric_idx % len(markers)],
+                    linewidth=1.2
                 )
             else:
                 ax.plot(
@@ -875,27 +889,50 @@ def plot_vs_snr(
                     color=color,
                     linestyle=linestyles[metric_idx % len(linestyles)],
                     marker=markers[metric_idx % len(markers)],
+                    linewidth=1.2
                 )
 
+
+    # Set log scale
     ax.set_xscale("log")
 
-    ax.set_xlabel("SNR")
-    ax.set_ylabel(ylabel)
+    # Force more ticks on a log scale
+    # 'subs=(1.0, 2.0, 5.0)' means it will try to place ticks at 1x, 2x, and 5x of every decade
+    ax.xaxis.set_major_locator(ticker.LogLocator(base=10.0, subs=(1.0, 1.5, 2.0, 5.0), numticks=10))
+    
+    # Use standard LogFormatterMathtext to keep the pretty 10^x scientific notation
+    ax.xaxis.set_major_formatter(ticker.LogFormatterMathtext())
 
-    if title is None:
-        if len(metric_labels) == 1:
-            title = f"{metric_labels[0]} vs SNR"
-        else:
-            title = "Metrics vs SNR"
+    # Labels and Font sizes
+    ax.set_xlabel("SNR", fontsize=10)
+    ax.set_ylabel(ylabel, fontsize=10)
 
-    ax.set_title(title)
+    # Increase font size of tick numbers themselves
+    ax.tick_params(axis="both", which="major", labelsize=10)
+    ax.tick_params(axis="x", which="minor", labelsize=8)
 
-    ax.grid(True, which="both", linestyle=":")
-    ax.legend()
+    # Lighten the grid lines
+    ax.grid(True, which="both", linestyle=":", linewidth=0.5, alpha=0.35)
+
+    # Legend
+    ax.legend(
+        fontsize=9,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.22),
+        ncol=N_COLS,
+    )
+
+    # if title is None:
+    #     if len(metric_labels) == 1:
+    #         title = f"{metric_labels[0]} vs SNR"
+    #     else:
+    #         title = "Metrics vs SNR"
+
+    # ax.set_title(title)
 
     fig.tight_layout()
 
-    fig.savefig(save_path, dpi=dpi, bbox_inches="tight")
+    fig.savefig(save_path, dpi=dpi, bbox_inches="tight", pad_inches=0.02)
     plt.close(fig)
 
     return save_path
