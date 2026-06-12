@@ -3,6 +3,7 @@ results/
 my_utils/
 admm/configs/
 method_comparison/configs/
+scratch/
 
 ## .gitignore for Python: from https://github.com/github/gitignore/blob/main/Python.gitignore
 
