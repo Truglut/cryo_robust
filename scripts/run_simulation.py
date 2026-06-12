@@ -59,7 +59,7 @@ def run_experiment(cfg, args, snr, rng) -> EvaluationReport:
     image_batch = ImageBatch.from_real(tensor_images)
 
     # Run the Estimation Methods
-    results = run_estimators(cfg, image_batch, args, add_avg=True, add_median=True)
+    results = run_estimators(cfg, image_batch, args, add_avg=True, add_median=False)
 
     # Identify and save requested subsets
     image_path = Path(cfg["data"]["reference_image_path"])
