@@ -54,6 +54,12 @@ def load_and_preprocess(cfg: dict, args) -> tuple[torch.Tensor, np.ndarray, Path
 
 
 def main():
+    """
+    Runs the estimation methods on the given set of images, and then computes
+    and optionally shows plots or images of the results.
+    For each method, prints the RMSE with the original average to identify
+    the methods that might be producing interesting results.
+    """
     args = parse_arguments(build_experimental_parser())
 
     # Load configurations

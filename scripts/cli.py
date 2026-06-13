@@ -123,6 +123,10 @@ def build_base_parser() -> tuple[
 
 
 def build_simulation_parser() -> argparse.ArgumentParser:
+    """
+    Builds the simulation argument parser by adding the simulation-specific
+    arguments to the base parser.
+    """
     parser, _, _, saving_group, _ = build_base_parser()
 
     # Add reports to saving group
@@ -162,6 +166,10 @@ def build_simulation_parser() -> argparse.ArgumentParser:
 
 
 def build_experimental_parser() -> argparse.ArgumentParser:
+    """
+    Builds the experimental image estimator runs argument parser by adding 
+    its specific arguments to the base parser.
+    """
     parser, _, _, _, _ = build_base_parser()
     parser.add_argument(
         "--standardize",
@@ -173,6 +181,9 @@ def build_experimental_parser() -> argparse.ArgumentParser:
 
 
 def parse_arguments(parser: argparse.ArgumentParser) -> argparse.Namespace:
+    """
+    Parses the command-line arguments, performing some basic input validation
+    """
     args = parser.parse_args()
 
     # Input validation
@@ -199,7 +210,9 @@ def parse_arguments(parser: argparse.ArgumentParser) -> argparse.Namespace:
 
 
 def quantile(value) -> float:
-    """Input validation for quantiles"""
+    """
+    Input validation for quantiles
+    """
     q = float(value)
     if not (0 <= q <= 1):
         raise argparse.ArgumentTypeError("Quantiles must be in [0, 1]")

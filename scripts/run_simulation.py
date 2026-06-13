@@ -1,4 +1,5 @@
 from pathlib import Path
+from argparse import Namespace
 
 import numpy as np
 import mrcfile
@@ -30,7 +31,14 @@ FRC_THRESHOLDS = [FRCThreshold.ONE_HALF, FRCThreshold.HALF_BIT]
 RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
 
 
-def run_experiment(cfg, args, snr, rng) -> EvaluationReport:
+def run_experiment(
+    cfg: dict, args: Namespace, snr: float, rng: np.random.Generator
+) -> EvaluationReport:
+    """
+    Runs one instance of the simulated experiments.
+    Generates the image set, the runs all of the estimation methods specified through
+    the ``cfg`` dict and returns a report with the results.
+    """
     # Generate the data
     images, ground_truth, labels = create_evaluation_dataset(
         cfg=cfg,
@@ -117,6 +125,11 @@ def run_experiment(cfg, args, snr, rng) -> EvaluationReport:
 
 
 def main():
+    """
+    Runs all of the requested simulated experiments.
+    For each SNR level, repeats the same experiment the request number of times
+    (through the ``n-runs`` command-line argument) and stores all of the results.
+    """
     args = parse_arguments(build_simulation_parser())
 
     # Load configurations

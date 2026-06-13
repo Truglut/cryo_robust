@@ -24,7 +24,11 @@ from method_comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
 from utils.masks import create_circular_mask
 
 
-def load_config(config_path: str, snr: float | None = None):
+def load_config(config_path: str | Path, snr: float | None = None):
+    """
+    Loads the config file and overrides the config SNR specification if the ``snr``
+    argument is not ``None``.
+    """
     with open(config_path, "r") as file:
         cfg = yaml.safe_load(file)
     if snr is not None:
@@ -35,6 +39,10 @@ def load_config(config_path: str, snr: float | None = None):
 def load_reference(
     path: str | Path | None, device: str | torch.device
 ) -> torch.Tensor | None:
+    """
+    Loads the starting reference from the given path, or returns None if the path
+    is None.
+    """
     if path is None:
         return None
     return torch.as_tensor(mrcfile.read(path), dtype=torch.float32, device=device)
@@ -48,6 +56,10 @@ def fit_estimator(
     plot_gmm: bool = False,
     method_name: str = "GMM",
 ) -> None:
+    """
+    Fits the estimator on the given image batch, starting from the specified
+    reference
+    """
     if isinstance(estimator, ADMMSolver):
         estimator.fit(
             image_batch,
@@ -76,6 +88,17 @@ def run_estimators(
     add_avg: bool = False,
     add_median: bool = False,
 ) -> dict:
+    """
+    Builds all of the estimators that are specified in ``cfg["experiment"]["methods"]``
+    and runs them on the image batch.
+    Stores and returns their results as a dict with the following keys:
+    - ``"estimator"``. The ``Estimator`` object that implements the estimation method.
+    - ``"reference"``. The initial reference the method used.
+    - ``"avg"``. The final, real-space estimate given by the estimator.
+    - ``"weights"``. A dictionary mapping every ImageSpace to the set of weights the
+        estimator produced in said space, or None if the estimator does not operate
+        in that space.
+    """
     results = {}
 
     # Iterate over methods to run them and save results
@@ -125,7 +148,10 @@ def run_estimators(
 
 
 def apply_mask(images_tensor: torch.Tensor, mask_radius: float, inplace: bool = False):
-    """Applies a circular mask to a batch of images, optionally modifying the input tensor in-place"""
+    """
+    Applies a circular mask to a batch of images, optionally modifying the 
+    input tensor in-place
+    """
     # Create mask on device
     image_shape = tuple(images_tensor.shape[1:])
     mask_np = create_circular_mask(image_shape, mask_radius)
@@ -164,9 +190,15 @@ def process_and_save_subsets(
     results: dict,
     image_path: Path,
     images_save: np.ndarray,
-    args,
+    args: Namespace,
     snr: float | None = None,
 ) -> None:
+    """
+    For each of the provided quantiles and weight thresholds (through the 
+    command-line arguments stored in ``args``), extracts the subsets of images with
+    highest and lowest weights.
+    Saves these subsets to a file if requested.
+    """
     # Initialize quantiles and thresholds arrays from args
     quantiles = np.array(args.quantiles) if args.quantiles else np.array([])
     fixed_thresholds = np.array(args.thresholds) if args.thresholds else np.array([])

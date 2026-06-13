@@ -16,7 +16,7 @@ def visualize_results(
     ground_truth: np.ndarray | None = None,
     labels: np.ndarray | None = None,
 ) -> None:
-    """Sets up and launches the napari viewer"""
+    """Sets up and launches the napari viewer with all of the images"""
     # Initialize viewer
     viewer = napari.Viewer()
 
