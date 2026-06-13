@@ -168,6 +168,10 @@ def apply_mask(images_tensor: torch.Tensor, mask_radius: float, inplace: bool = 
 def canonical_image_weights(
     estimator: Estimator, final_weights: dict[ImageSpace, torch.Tensor]
 ):
+    """
+    Gets a canonical set of image weights for each estimator type, used for 
+    identifying 'good' and 'bad' image subsets
+    """
     if isinstance(estimator, IRLSFourier):
         weights = 0.5 * (
             final_weights[ImageSpace.FOURIER_REAL]
