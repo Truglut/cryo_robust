@@ -1,11 +1,10 @@
 from __future__ import annotations
-from typing import Callable
 
 import torch
 
 from estimators.base import Estimator
 from estimators.results import WeightSet, EstimatorResult
-from estimators.weights import weighted_average
+from estimators.weights import weighted_average, WeightFunction
 from estimators.data import ImageBatch, to_tensor
 
 from method_comparison.domain.enums import ImageSpace
@@ -16,7 +15,7 @@ class IRLSSolver(Estimator):
 
     def __init__(
         self,
-        weight_function: Callable[..., torch.Tensor],
+        weight_function: WeightFunction,
         max_iter: int,
         tol: float = 1.0e-5,
         damping_coef: float = 0.0,

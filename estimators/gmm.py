@@ -1,5 +1,3 @@
-from typing import Callable
-
 import numpy as np
 import torch
 from sklearn.mixture import GaussianMixture
@@ -8,6 +6,7 @@ import matplotlib.pyplot as plt
 
 from estimators.base import Estimator
 from estimators.weights import weighted_average
+from estimators.distances import DistanceFunction
 
 from method_comparison.domain.enums import ImageSpace
 
@@ -15,7 +14,7 @@ from method_comparison.domain.enums import ImageSpace
 class GMMEstimator(Estimator):
     def __init__(
         self,
-        distance_function: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
+        distance_function: DistanceFunction,
         random_state: int | None = None,
         standardize_distances: bool = True,
         space: ImageSpace = ImageSpace.REAL,
@@ -88,7 +87,7 @@ class GMMEstimator(Estimator):
 class RecursiveGMMEstimator(Estimator):
     def __init__(
         self,
-        distance_function: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
+        distance_function: DistanceFunction,
         random_state: int | None = None,
         max_iter: int = 1,
         tol: float = 1.0e-4,
