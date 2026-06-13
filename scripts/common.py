@@ -11,26 +11,17 @@ from estimators.data import ImageBatch
 from estimators.base import Estimator
 from estimators.admm import ADMMSolver
 from estimators.irls import (
-    IRLSSolver,
     IRLSFourier,
     JointIRLSFourier,
     FlatteningIRLSFourier,
 )
-from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
+from estimators.gmm import RecursiveGMMEstimator, GMMEstimator
 
 from method_comparison.domain.enums import ImageSpace, AggregationStrategy
 from method_comparison.evaluation.aggregation import aggregate_weights
 from method_comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
 
 from utils.masks import create_circular_mask
-
-IMPLEMENTED_FIT = (
-    IRLSSolver,
-    IRLSFourier,
-    JointIRLSFourier,
-    FlatteningIRLSFourier,
-    ADMMSolver,
-)
 
 
 def load_config(config_path: str, snr: float | None = None):
@@ -65,17 +56,15 @@ def fit_estimator(
                 None if reference is None else torch.fft.rfft2(reference, norm="ortho")
             ),
         )
-    elif isinstance(estimator, IMPLEMENTED_FIT):
-        estimator.fit(image_batch, reference=reference)
-    elif isinstance(estimator, (GMMEstimator, RecursiveGMMEstimator)):
-        estimator.fit_tensor(
-            image_batch.as_space_dict(),
+    elif isinstance(estimator, (RecursiveGMMEstimator, GMMEstimator)):
+        estimator.fit(
+            image_batch,
             reference=reference,
             plot_fits=plot_gmm,
             plot_title=method_name,
         )
     else:
-        estimator.fit_tensor(image_batch.as_space_dict(), reference=reference)
+        estimator.fit(image_batch, reference=reference)
 
 
 def run_estimators(

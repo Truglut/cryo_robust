@@ -1,5 +1,3 @@
-import torch
-
 from estimators.data import ImageBatch
 from estimators.irls import (
     IRLSSolver,
