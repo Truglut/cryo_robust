@@ -169,7 +169,7 @@ def tagare_weights(
 
     # Second term: norm of the orthogonal component
     image_norm_sq = torch.linalg.vector_norm(images_flat, dim=1).square_()
-    orth_norm_sq = image_norm_sq * (1.0 - cos_abs.square_()).clamp_min_(0.0)
+    orth_norm_sq = image_norm_sq * (1.0 - cos_abs.square()).clamp_min_(0.0)
 
     weights = orth_norm_sq.mul_(-beta).exp_().mul_(cos_abs)
     return weights.view(-1, *([1] * reference.ndim))
@@ -288,7 +288,7 @@ def cc_tagare_weights(
 
     # Second term: norm of the orthogonal component
     image_norm_sq = torch.linalg.vector_norm(images_flat, dim=1).square_()
-    orth_norm_sq = image_norm_sq.mul_(1.0 - corr_abs.square_()).clamp_min_(0.0)
+    orth_norm_sq = image_norm_sq.mul_(1.0 - corr_abs.square()).clamp_min_(0.0)
 
     weights = orth_norm_sq.mul_(-beta).exp_().mul_(corr_abs)
     return weights.view(-1, *([1] * reference.ndim))
