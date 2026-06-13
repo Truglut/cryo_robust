@@ -15,7 +15,7 @@ from estimators.irls import (
     JointIRLSFourier,
     FlatteningIRLSFourier,
 )
-from estimators.gmm import RecursiveGMMEstimator, GMMEstimator
+from estimators.gmm import RecursiveGMMEstimator
 
 from method_comparison.domain.enums import ImageSpace, AggregationStrategy
 from method_comparison.evaluation.aggregation import aggregate_weights
@@ -53,10 +53,12 @@ def fit_estimator(
             image_batch,
             initial_reference_real=reference,
             initial_reference_fourier=(
-                None if reference is None else torch.fft.rfft2(reference, norm="ortho")
+                None
+                if reference is None
+                else torch.fft.rfft2(reference, norm=image_batch.norm)
             ),
         )
-    elif isinstance(estimator, (RecursiveGMMEstimator, GMMEstimator)):
+    elif isinstance(estimator, RecursiveGMMEstimator):
         estimator.fit(
             image_batch,
             reference=reference,

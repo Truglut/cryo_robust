@@ -5,7 +5,7 @@ from estimators.irls import (
     JointIRLSFourier,
     FlatteningIRLSFourier,
 )
-from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
+from estimators.gmm import RecursiveGMMEstimator
 from estimators.admm import ADMMSolver
 from estimators.weights import get_weight_function
 from estimators.distances import get_distance_function
@@ -87,18 +87,6 @@ def build_estimator(
         )
 
         return FlatteningIRLSFourier(solver, device)
-
-    elif est_type == "gmm":
-        distance_func = get_distance_function(
-            params["distance_function"],
-            params.get("distance_params", {}),
-            image_batch.select_space_images(space),
-        )
-        return GMMEstimator(
-            distance_function=distance_func,
-            random_state=params.get("random_state", None),
-            device=device,
-        )
 
     elif est_type == "recursive_gmm":
         distance_func = get_distance_function(
