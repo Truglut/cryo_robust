@@ -4,7 +4,7 @@ import warnings
 import numpy as np
 import torch
 
-from method_comparison.domain.enums import AggregationStrategy, Space
+from method_comparison.domain.enums import AggregationStrategy, ImageSpace
 
 
 def mean_aggregate(
@@ -20,7 +20,9 @@ def mean_aggregate(
             denominator = mask.sum(dim=(-2, -1)) + 1.0e-12
             return (numerator / denominator).detach().cpu().numpy()
         except:
-            warnings.warn("Weight masking failed, proceeding with unmasked mean aggregation.")
+            warnings.warn(
+                "Weight masking failed, proceeding with unmasked mean aggregation."
+            )
             pass
 
     return weights.mean(dim=(-2, -1)).detach().cpu().numpy()
@@ -77,7 +79,7 @@ def aggregate_weights(
 
 def setup_energy_reference(
     ground_truth_img: np.ndarray | None,
-    images_dict: dict[Space, torch.Tensor],
+    images_dict: dict[ImageSpace, torch.Tensor],
     energy_reference: str,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
@@ -111,7 +113,7 @@ def setup_energy_reference(
     """
     if ground_truth_img is not None:
         gt_tensor = torch.from_numpy(ground_truth_img).to(
-            dtype=torch.float32, device=images_dict[Space.REAL].device
+            dtype=torch.float32, device=images_dict[ImageSpace.REAL].device
         )
     elif energy_reference == "ground_truth":
         raise ValueError(
@@ -121,7 +123,7 @@ def setup_energy_reference(
     if energy_reference == "ground_truth":
         ref_real = gt_tensor
     elif energy_reference == "global_avg":
-        ref_real = images_dict[Space.REAL].mean(dim=0)
+        ref_real = images_dict[ImageSpace.REAL].mean(dim=0)
     else:
         raise ValueError(
             "energy_reference must be one of 'ground_truth' or 'global_avg'"
@@ -132,7 +134,7 @@ def setup_energy_reference(
 
 
 def _get_space_reference(
-    space: Space,
+    space: ImageSpace,
     ref_real: torch.Tensor,
     ref_fourier: torch.Tensor,
 ) -> torch.Tensor | None:
@@ -154,23 +156,23 @@ def _get_space_reference(
         The appropriate reference slice, or `None` if the space is not
         handled or no reference is available.
     """
-    if space == Space.REAL:
+    if space == ImageSpace.REAL:
         return ref_real  # may be None for unlabeled
-    elif space == Space.FOURIER_REAL:
+    elif space == ImageSpace.FOURIER_REAL:
         return ref_fourier.real if ref_fourier is not None else None
-    elif space == Space.FOURIER_IMAG:
+    elif space == ImageSpace.FOURIER_IMAG:
         return ref_fourier.imag if ref_fourier is not None else None
     return None
 
 
 def compute_aggregated_weights(
-    weights_dict: dict[Space, torch.Tensor | None],
+    weights_dict: dict[ImageSpace, torch.Tensor | None],
     real_agg_strategies: Iterable[AggregationStrategy],
     fourier_agg_strategies: Iterable[AggregationStrategy],
     ref_real: torch.Tensor | None = None,
     ref_fourier: torch.Tensor | None = None,
-    masks_dict: dict[Space, torch.Tensor | None] | None = None,
-) -> dict[Space, dict[AggregationStrategy, np.ndarray]]:
+    masks_dict: dict[ImageSpace, torch.Tensor | None] | None = None,
+) -> dict[ImageSpace, dict[AggregationStrategy, np.ndarray]]:
     """Aggregate per-image weights into scalar scores for all spaces and strategies.
 
     Parameters
@@ -197,14 +199,14 @@ def compute_aggregated_weights(
         Aggregated scores keyed by space then strategy. Spaces with
         `None` weights or no matching reference are omitted.
     """
-    scores: dict[Space, dict[str, np.ndarray]] = {}
+    scores: dict[ImageSpace, dict[str, np.ndarray]] = {}
 
     for space, weights in weights_dict.items():
         if weights is None:
             continue
         ref = _get_space_reference(space, ref_real, ref_fourier)
         strategies = (
-            real_agg_strategies if space == Space.REAL else fourier_agg_strategies
+            real_agg_strategies if space == ImageSpace.REAL else fourier_agg_strategies
         )
 
         # Extract space-specific mask if it exists

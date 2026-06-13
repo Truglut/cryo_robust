@@ -1,31 +1,32 @@
-from typing import Callable
+from __future__ import annotations
 
 import torch
 
 from estimators.base import Estimator
-from estimators.weights import weighted_average
+from estimators.results import WeightSet, EstimatorResult
+from estimators.weights import weighted_average, WeightFunction
+from estimators.data import ImageBatch, to_tensor
 
-from method_comparison.domain.enums import Space
+from method_comparison.domain.enums import ImageSpace
 
 
 class IRLSSolver(Estimator):
+    """Iteratively reweighted least-squares solver for a single tensor space."""
+
     def __init__(
         self,
-        weight_function: Callable[
-            [torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor
-        ],
+        weight_function: WeightFunction,
         max_iter: int,
-        tol: float = 1e-5,
+        tol: float = 1.0e-5,
         damping_coef: float = 0.0,
         min_weight: float | None = None,
         max_weight: float | None = None,
-        space: Space = Space.REAL,
         device: str | None = None,
         eps: float = 1e-8,
+        space: ImageSpace | str = ImageSpace.REAL,
     ):
         super().__init__(device=device)
         self.weight_function = weight_function
-        self.space = space
         self.max_iter = max_iter
         self.tol = tol
         self.damping_coef = damping_coef
@@ -33,271 +34,310 @@ class IRLSSolver(Estimator):
         self.max_weight = max_weight
         self.converged = False
         self.eps = eps
+        self.space = space
+
+    def _validate_prior(self, prior_mean, prior_variance) -> None:
+        if (prior_mean is None) != (prior_variance is None):
+            raise ValueError("prior_mean and prior_variance must be provided together.")
 
     def step(
         self,
         images: torch.Tensor,
         image_variance: torch.Tensor,
         image_std: torch.Tensor,
-        precomp_ctf_images: torch.Tensor,
-        precomp_ctf_squared: torch.Tensor | float,
         reference: torch.Tensor,
-        prior_mean: torch.Tensor | None,
-        prior_variance: torch.Tensor | float | None,
+        ctf: torch.Tensor | float | None = None,
+        prior_mean: torch.Tensor | None = None,
+        prior_variance: torch.Tensor | float | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Performs a single iteration of the Reweighted Least Squares update."""
+        """
+        Performs a single iteration of the Reweighted Least Squares update.
+        """
 
         weights = self.weight_function(images, reference, image_std)
 
         # Weight capping
         if self.min_weight is not None or self.max_weight is not None:
-            weights = torch.clamp(weights, min=self.min_weight, max=self.max_weight)
+            weights = torch.clamp_(weights, min=self.min_weight, max=self.max_weight)
 
-        s_1 = torch.sum(weights * precomp_ctf_images, dim=0)
-        s_2 = torch.sum(weights * precomp_ctf_squared, dim=0)
+        ctf_images = images if ctf is None else ctf * images
+        s_1 = torch.sum(weights * ctf_images, dim=0)
+        s_2 = (
+            torch.sum(weights, dim=0)
+            if ctf is None
+            else torch.sum(weights * torch.as_tensor(ctf).square(), dim=0)
+        )
 
         # Calculate new point (update)
-        if prior_mean is not None and prior_variance is not None:
-            safe_variance = image_variance + self.eps
-            numer = s_1 / safe_variance + prior_mean / (prior_variance + self.eps)
-            denom = s_2 / safe_variance + 1 / (prior_variance + self.eps)
-            update = numer / (denom + self.eps)
-        else:
+        if prior_mean is None:
             update = s_1 / (s_2 + self.eps)
+        else:
+            safe_image_variance = image_variance + self.eps
+            safe_prior_variance = prior_variance + self.eps
+            numer = s_1 / safe_image_variance + prior_mean / (safe_prior_variance)
+            denom = s_2 / safe_image_variance + 1 / (safe_prior_variance)
+            update = numer / (denom + self.eps)
 
-        # Handle update damping
-        coef = self.damping_coef
-        new_ref = coef * reference + (1.0 - coef) * update
-        return new_ref, weights
+        # Return new reference with update damping and weights
+        return (
+            self.damping_coef * reference + (1.0 - self.damping_coef) * update,
+            weights,
+        )
 
     @torch.inference_mode()
-    def fit(
+    def fit_tensor(
         self,
-        images: dict[Space, torch.Tensor] | torch.Tensor,
-        image_variance: dict[Space, torch.Tensor] | torch.Tensor | None = None,
-        image_std: dict[Space, torch.Tensor] | torch.Tensor | None = None,
-        ctf: torch.Tensor | float | None = None,
+        images: torch.Tensor,
+        *,
+        image_variance: torch.Tensor | None = None,
+        image_std: torch.Tensor | None = None,
+        ctf: torch.Tensor | None = None,
         reference: torch.Tensor | None = None,
-        prior_mean: dict[Space, torch.Tensor] | torch.Tensor | None = None,
-        prior_variance: dict[Space, torch.Tensor] | torch.Tensor | float | None = None,
-        precomp_ctf_images: dict[Space, torch.Tensor] | torch.Tensor | None = None,
-        precomp_ctf_squared: (
-            dict[Space, torch.Tensor] | torch.Tensor | float | None
-        ) = None,
+        prior_mean: torch.Tensor | None = None,
+        prior_variance: torch.Tensor | float | None = None,
         max_iter_override: int | None = None,
-    ):
+    ) -> EstimatorResult:
         """
         Executes the Iteratively Reweighted Least Squares (IRLS) optimization.
         """
+        self._validate_prior(prior_mean, prior_variance)
 
-        # Unpack dictionaries based on space
-        if isinstance(images, dict):
-            images = images[self.space]
-        images = self._prepare_data(images)
-        if isinstance(image_variance, dict):
-            image_variance = image_variance[self.space]
-        if isinstance(prior_mean, dict):
-            prior_mean = prior_mean[self.space]
-        if isinstance(prior_variance, dict):
-            prior_variance = prior_variance[self.space]
-        if isinstance(precomp_ctf_images, dict):
-            precomp_ctf_images = precomp_ctf_images[self.space]
-        if isinstance(precomp_ctf_squared, dict):
-            precomp_ctf_squared = precomp_ctf_squared[self.space]
-
-        # Initialize missing arguments to default values
-
-        # Image initialisation: choose relevant space
-        if isinstance(images, dict):
-            images = images[self.space]
-
-        # Image variance: compute or choose relevant space
         if image_variance is None:
-            image_variance = torch.var(images, dim=0)
-        elif isinstance(image_variance, dict):
-            image_variance = image_variance[self.space]
-        if image_std is None or isinstance(image_std, dict):
-            image_std = torch.sqrt(image_variance)
-        image_std = torch.clamp(image_std, min=self.eps)
+            image_variance = images.var(dim=0)
+        if image_std is None:
+            image_std = image_variance.sqrt()
 
-        # ctf
-        if ctf is None:
-            ctf = 1.0
-        # Precompute ctf * images and ctf**2 for efficiency
-        if precomp_ctf_images is None:
-            precomp_ctf_images = ctf * images
-        if precomp_ctf_squared is None:
-            if isinstance(ctf, torch.Tensor):
-                precomp_ctf_squared = torch.square(ctf)
-            else:
-                precomp_ctf_squared = ctf**2
-
-        # Initial reference
+        # Initialize reference
         if reference is None:
-            reference = torch.mean(images, dim=0)
+            reference = images.mean(dim=0)
         else:
-            reference = reference.clone()
-
-        # Prior mean and variance: choose relevant space
-        if isinstance(prior_mean, dict):
-            prior_mean = prior_mean[self.space]
-        if isinstance(prior_variance, dict):
-            prior_variance = prior_variance[self.space]
-
-        # Configure maximum iterations
-        max_iter = max_iter_override or self.max_iter
+            reference = to_tensor(reference, device=images.device, dtype=images.dtype)
 
         # Algorithm initialization
         weights = None
         self.converged = False
+        max_iter = max_iter_override or self.max_iter
 
-        for _ in range(max_iter):
+        for iteration in range(max_iter):
             next_reference, weights = self.step(
                 images,
                 image_variance=image_variance,
                 image_std=image_std,
-                precomp_ctf_images=precomp_ctf_images,
-                precomp_ctf_squared=precomp_ctf_squared,
                 reference=reference,
+                ctf=ctf,
                 prior_mean=prior_mean,
                 prior_variance=prior_variance,
             )
 
+            rel_diff = torch.linalg.norm(
+                next_reference - reference
+            ) / torch.linalg.norm(reference)
+            reference = next_reference
+
             # Convergence check
-            if torch.linalg.norm(next_reference - reference) < self.tol:
+            if rel_diff < self.tol:
                 reference = next_reference
                 self.converged = True
                 break
 
-            reference = next_reference
-
+        weight_set = WeightSet.for_irls_space(self.space, weights)
+        self.final_weights = weight_set.as_space_dict()
         self.avg = reference
-        self.final_weights = {space: None for space in Space}
-        self.final_weights[self.space] = weights
 
-        return reference, weights
+        if self.space == ImageSpace.REAL:
+            average = reference
+        else:
+            average = None
+
+        return EstimatorResult(
+            average=average,
+            estimate=reference,
+            weights=weight_set,
+            converged=self.converged,
+            n_iter=iteration + 1,
+        )
+
+    @torch.inference_mode()
+    def fit(
+        self,
+        batch: ImageBatch,
+        *,
+        space: ImageSpace | None = None,
+        reference: torch.Tensor | None = None,
+        prior_mean: torch.Tensor | None = None,
+        prior_variance: torch.Tensor | float | None = None,
+        max_iter_override: int | None = None,
+    ):
+        """
+        Fit IRLS to an ImageBatch in the selected space.
+
+        Parameters
+        ----------
+        batch:
+            Canonical image batch.
+        space:
+            Space to operate on. Defaults to ``self.space``.
+        reference:
+            Optional initial reference. For Fourier spaces, this may be either a
+            complex Fourier tensor or an already-selected real/imaginary component.
+        prior_mean:
+            Optional prior mean. Same selection rules as ``reference``.
+        prior_variance:
+            Optional prior variance.
+        max_iter_override:
+            Optional temporary iteration limit.
+        """
+        space = space or self.space
+        self.space = space
+
+        images, image_variance, image_std, ctf = batch.select_space_data(space)
+
+        return self.fit_tensor(
+            images,
+            image_variance=image_variance,
+            image_std=image_std,
+            ctf=ctf,
+            reference=reference,
+            prior_mean=prior_mean,
+            prior_variance=prior_variance,
+            max_iter_override=max_iter_override,
+        )
 
     def reconstruct_from_weights(
         self,
-        images: dict[Space, torch.Tensor],
-        weights: dict[Space, torch.Tensor | None],
+        images: ImageBatch | dict[ImageSpace, torch.Tensor | None] | torch.Tensor,
+        weights: dict[ImageSpace, torch.Tensor | None] | WeightSet | torch.Tensor,
+        space: ImageSpace | None = None,
     ) -> torch.Tensor:
-        imgs = images[self.space]
-        weights = weights[self.space]
+        if weights is None:
+            print("weights son None al entrar")
+        if space is None:
+            space = self.space
 
-        return weighted_average(imgs, weights, eps=self.eps)
+        if isinstance(images, ImageBatch):
+            images = images.select_space_images(space)
+        elif isinstance(images, dict):
+            if space == ImageSpace.FOURIER_COMPLEX:
+                images = torch.complex(
+                    images[ImageSpace.FOURIER_REAL], images[ImageSpace.FOURIER_IMAG]
+                )
+            else:
+                images = images[space]
+
+        if isinstance(weights, dict):
+            if space == ImageSpace.FOURIER_COMPLEX:
+                weights = weights[ImageSpace.FOURIER_REAL]
+            else:
+                weights = weights[space]
+        elif isinstance(weights, WeightSet):
+            weights = weights.select_space_weights(space)
+        if weights is None:
+            print("weights son None después de seleccionar")
+
+        return weighted_average(images, weights, eps=self.eps)
 
 
 class IRLSFourier(Estimator):
     def __init__(self, irls_real: IRLSSolver, irls_imag: IRLSSolver, device=None):
         super().__init__(device)
 
-        if irls_real.space != Space.FOURIER_REAL:
-            raise ValueError("irls_real must be IRLSSolver with space FOURIER_REAL")
         self.irls_real = irls_real
-        if irls_imag.space != Space.FOURIER_IMAG:
-            raise ValueError("irls_imag must be IRLSSolver with space FOURIER_IMAG")
+        assert self.irls_real.space == ImageSpace.FOURIER_REAL
         self.irls_imag = irls_imag
+        assert self.irls_imag.space == ImageSpace.FOURIER_IMAG
+        self.space = ImageSpace.FOURIER_COMPLEX
 
     @torch.inference_mode()
     def fit(
         self,
-        images: dict[Space, torch.Tensor] | torch.Tensor,
-        image_variance: dict[Space, torch.Tensor] | None = None,
-        ctf: torch.Tensor | float | None = None,
+        batch: ImageBatch,
+        *,
+        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,
         reference: torch.Tensor | None = None,
-        prior_mean: dict[Space, torch.Tensor] | torch.Tensor | None = None,
-        prior_variance: dict[Space, torch.Tensor] | float | None = None,
-        precomp_ctf_images: dict[Space, torch.Tensor] | None = None,
-        precomp_ctf_squared: torch.Tensor | float | None = None,
+        prior_mean: torch.Tensor | None = None,
+        prior_variance: torch.Tensor | float | None = None,
+        max_iter_override: int | None = None,
     ):
-        if isinstance(images, torch.Tensor):
-            images = {Space.REAL: images}
-        if (
-            images.get(Space.FOURIER_IMAG) is None
-            or images.get(Space.FOURIER_REAL) is None
-        ):
-            fourier_images = torch.fft.rfft2(images[Space.REAL], norm="ortho")
-            images[Space.FOURIER_REAL] = fourier_images.real
-            images[Space.FOURIER_IMAG] = fourier_images.imag
-            del fourier_images
-        if isinstance(prior_variance, float):
-            prior_variance = {
-                Space.FOURIER_IMAG: prior_variance,
-                Space.FOURIER_REAL: prior_variance,
-            }
-        if isinstance(prior_mean, torch.Tensor):
-            if torch.is_complex(prior_mean):
-                prior_mean = {
-                    Space.FOURIER_REAL: prior_mean.real,
-                    Space.FOURIER_IMAG: prior_mean.imag,
-                }
-            else:
-                prior_mean = {
-                    Space.FOURIER_REAL: prior_mean,
-                    Space.FOURIER_IMAG: prior_mean,
-                }
-        if reference is None:
-            reference = {space: torch.mean(images[space], dim=0) for space in Space}
+        if space != ImageSpace.FOURIER_COMPLEX:
+            raise ValueError(
+                f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
+                f"got {space.name}"
+            )
+        ref_real, ref_imag = self._setup_reference(reference, batch.norm)
+
+        real_results = self.irls_real.fit(
+            batch=batch,
+            space=ImageSpace.FOURIER_REAL,
+            reference=ref_real,
+            prior_mean=None if prior_mean is None else prior_mean.real,
+            prior_variance=prior_variance,
+            max_iter_override=max_iter_override,
+        )
+        imag_results = self.irls_imag.fit(
+            batch=batch,
+            space=ImageSpace.FOURIER_IMAG,
+            reference=ref_imag,
+            prior_mean=None if prior_mean is None else prior_mean.imag,
+            prior_variance=prior_variance,
+            max_iter_override=max_iter_override,
+        )
+
+        fourier_estimate = torch.complex(real_results.estimate, imag_results.estimate)
+        self.avg = torch.fft.irfft2(fourier_estimate, norm=batch.norm)
+        weight_set = WeightSet(
+            real=None,
+            fourier_real=real_results.weights.fourier_real,
+            fourier_imag=imag_results.weights.fourier_imag,
+        )
+        self.final_weights = weight_set.as_space_dict()
+
+        return EstimatorResult(
+            average=self.avg,
+            estimate=fourier_estimate,
+            weights=weight_set,
+            converged=real_results.converged and imag_results.converged,
+            n_iter=max(real_results.n_iter, imag_results.n_iter),
+        )
+
+    def _setup_reference(
+        self, reference: torch.Tensor | None, norm: str = "ortho"
+    ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+        reference_real = None
+        reference_imag = None
         if isinstance(reference, torch.Tensor):
             if torch.is_complex(reference):
-                reference = {
-                    Space.FOURIER_REAL: reference.real,
-                    Space.FOURIER_IMAG: reference.imag,
-                }
+                reference_real = reference.real
+                reference_imag = reference.imag
             else:
-                reference = {
-                    Space.FOURIER_REAL: reference,
-                    Space.FOURIER_IMAG: reference,
-                }
+                fourier_ref = torch.fft.rfft2(reference, norm=norm)
+                reference_real = fourier_ref.real
+                reference_imag = fourier_ref.imag
 
-        ref_real, weights_real = self.irls_real.fit(
-            images,
-            image_variance=image_variance,
-            ctf=ctf,
-            reference=reference[Space.FOURIER_REAL],
-            prior_mean=prior_mean,
-            prior_variance=prior_variance,
-            precomp_ctf_images=precomp_ctf_images,
-            precomp_ctf_squared=precomp_ctf_squared,
-        )
-
-        ref_imag, weights_imag = self.irls_imag.fit(
-            images,
-            image_variance=image_variance,
-            ctf=ctf,
-            reference=reference[Space.FOURIER_IMAG],
-            prior_mean=prior_mean,
-            prior_variance=prior_variance,
-            precomp_ctf_images=precomp_ctf_images,
-            precomp_ctf_squared=precomp_ctf_squared,
-        )
-
-        fourier_estimate = torch.complex(ref_real, ref_imag)
-        self.avg = torch.fft.irfft2(fourier_estimate, norm="ortho")
-        self.final_weights = {
-            Space.REAL: None,
-            Space.FOURIER_REAL: weights_real,
-            Space.FOURIER_IMAG: weights_imag,
-        }
-
-        return fourier_estimate, weights_real, weights_imag
+        return reference_real, reference_imag
 
     def reconstruct_from_weights(
         self,
-        images: dict[Space, torch.Tensor],
-        weights: dict[Space, torch.Tensor | None],
+        images: dict[ImageSpace, torch.Tensor | None] | ImageBatch,
+        weights: dict[ImageSpace, torch.Tensor | None] | WeightSet,
+        space: ImageSpace = ImageSpace.FOURIER_COMPLEX
     ) -> torch.Tensor:
+        if space != ImageSpace.FOURIER_COMPLEX:
+            raise ValueError(
+                f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
+                f"got {space.name}"
+            )
+        
         reconstructed_fourier_real = self.irls_real.reconstruct_from_weights(
-            images, weights
+            images, weights, space=ImageSpace.FOURIER_REAL
         )
         reconstructed_fourier_imag = self.irls_imag.reconstruct_from_weights(
-            images, weights
+            images, weights, space=ImageSpace.FOURIER_IMAG
         )
 
+        norm = images.norm if isinstance(images, ImageBatch) else "ortho"
         return torch.fft.irfft2(
             torch.complex(reconstructed_fourier_real, reconstructed_fourier_imag),
-            norm="ortho",
+            norm=norm,
         )
 
 
@@ -305,12 +345,10 @@ class JointIRLSFourier(Estimator):
     def __init__(self, solver: IRLSSolver, device=None):
         super().__init__(device)
 
-        if not solver.space == Space.REAL:
-            raise ValueError(
-                "By convention, JointIRLSFourier solver space must be Space.REAL"
-            )
         self.solver = solver
+        assert self.solver.space == ImageSpace.FOURIER_COMPLEX
         self.max_iter = self.solver.max_iter
+        self.space = ImageSpace.FOURIER_COMPLEX
 
     @torch.inference_mode()
     def step(
@@ -318,8 +356,6 @@ class JointIRLSFourier(Estimator):
         images: torch.Tensor,
         image_variance: torch.Tensor,
         image_std: torch.Tensor,
-        precomp_ctf_images: torch.Tensor,
-        precomp_ctf_squared: torch.Tensor,
         reference: torch.Tensor,
         prior_mean: torch.Tensor | None = None,
         prior_variance: torch.Tensor | float | None = None,
@@ -328,8 +364,6 @@ class JointIRLSFourier(Estimator):
             images=images,
             image_variance=image_variance,
             image_std=image_std,
-            precomp_ctf_images=precomp_ctf_images,
-            precomp_ctf_squared=precomp_ctf_squared,
             reference=reference,
             prior_mean=prior_mean,
             prior_variance=prior_variance,
@@ -338,111 +372,96 @@ class JointIRLSFourier(Estimator):
     @torch.inference_mode()
     def fit(
         self,
-        images: dict[Space, torch.Tensor] | torch.Tensor,
-        image_variance: dict[Space, torch.Tensor] | torch.Tensor | float | None = None,
-        image_std: dict[Space, torch.Tensor] | torch.Tensor | float | None = None,
-        ctf: torch.Tensor | float | None = None,
+        batch: ImageBatch,
+        *,
+        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,
         reference: torch.Tensor | None = None,
-        prior_mean: dict[Space, torch.Tensor] | torch.Tensor | None = None,
+        prior_mean: torch.Tensor | None = None,
         prior_variance: torch.Tensor | float | None = None,
-        precomp_ctf_images: dict[Space, torch.Tensor] | None = None,
-        precomp_ctf_squared: torch.Tensor | float | None = None,
         max_iter_override: int | None = None,
     ):
-        # Get fourier space representation of images
-        if isinstance(images, torch.Tensor):
-            fourier_images = torch.fft.rfft2(images, norm="ortho")
-        else:
-            fourier_images = torch.complex(
-                images[Space.FOURIER_REAL], images[Space.FOURIER_IMAG]
+        if space != ImageSpace.FOURIER_COMPLEX:
+            raise ValueError(
+                f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
+                f"got {space.name}"
             )
-
-        # Get per-frequency image variance if given as space dict or None
-        if not isinstance(image_variance, (torch.Tensor, float)):
-            image_variance = torch.var(fourier_images, dim=0)
-        image_std = torch.sqrt(image_variance)
-
-        # ctf
-        if ctf is None:
-            ctf = 1.0
-        # Precompute ctf * images and ctf**2 for efficiency
-        if precomp_ctf_images is None:
-            precomp_ctf_images = ctf * fourier_images
-        elif isinstance(precomp_ctf_images, dict):
-            precomp_ctf_images = torch.complex(
-                precomp_ctf_images[Space.FOURIER_REAL],
-                precomp_ctf_images[Space.FOURIER_IMAG],
-            )
-        if precomp_ctf_squared is None:
-            if isinstance(ctf, torch.Tensor):
-                precomp_ctf_squared = torch.square(ctf)
-            else:
-                precomp_ctf_squared = ctf**2
-
-        if reference is None:
-            reference = torch.mean(fourier_images, dim=0)
-
-        if isinstance(prior_mean, dict):
-            prior_mean = torch.complex(
-                prior_mean[Space.FOURIER_REAL], prior_mean[Space.FOURIER_IMAG]
-            )
-
-        fourier_estimate, weights = self.solver.fit(
-            images=fourier_images,
-            image_variance=image_variance,
-            image_std=image_std,
-            ctf=ctf,
+        irls_result = self.solver.fit(
+            batch,
+            space=ImageSpace.FOURIER_COMPLEX,
             reference=reference,
             prior_mean=prior_mean,
             prior_variance=prior_variance,
-            precomp_ctf_images=precomp_ctf_images,
-            precomp_ctf_squared=precomp_ctf_squared,
             max_iter_override=max_iter_override,
         )
 
-        weights = {
-            Space.REAL: None,
-            Space.FOURIER_REAL: weights,
-            Space.FOURIER_IMAG: weights,
-        }
+        self.final_weights = irls_result.weights.as_space_dict()
+        self.avg = torch.fft.irfft2(irls_result.estimate, norm="ortho")
 
-        self.final_weights = weights
-        self.avg = torch.fft.irfft2(fourier_estimate, norm="ortho")
-
-        return fourier_estimate, weights[Space.FOURIER_REAL]
+        return EstimatorResult(
+            average=self.avg,
+            estimate=irls_result.estimate,
+            weights=irls_result.weights,
+            converged=irls_result.converged,
+            n_iter=irls_result.n_iter,
+        )
 
     @torch.inference_mode()
     def reconstruct_from_weights(
-        self, images: dict[Space, torch.Tensor], weights: dict[Space, torch.Tensor]
+        self,
+        images: dict[ImageSpace, torch.Tensor] | ImageBatch,
+        weights: dict[ImageSpace, torch.Tensor] | WeightSet,
+        space: ImageSpace = ImageSpace.FOURIER_COMPLEX
     ):
-        fourier_real = weighted_average(
-            images[Space.FOURIER_REAL], weights[Space.FOURIER_REAL]
+        if space != ImageSpace.FOURIER_COMPLEX:
+            raise ValueError(
+                f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
+                f"got {space.name}"
+            )
+        
+        fourier_reconstruction = self.solver.reconstruct_from_weights(
+            images, weights, space=ImageSpace.FOURIER_COMPLEX
         )
-        fourier_imag = weighted_average(
-            images[Space.FOURIER_IMAG], weights[Space.FOURIER_IMAG]
-        )
-
-        return torch.fft.irfft2(torch.complex(fourier_real, fourier_imag), norm="ortho")
+        norm = images.norm if isinstance(images, ImageBatch) else "ortho"
+        return torch.fft.irfft2(fourier_reconstruction, norm=norm)
 
 
 def flatten_complex_batch(batch: torch.Tensor) -> torch.Tensor:
     n = batch.shape[0]
     return torch.view_as_real(batch).reshape(n, -1)
 
+
 def flatten_complex_tensor(v: torch.Tensor) -> torch.Tensor:
     return torch.view_as_real(v).reshape(-1)
+
+
+def unflatten_complex_tensor(
+    v: torch.Tensor, original_shape: tuple[int, ...]
+) -> torch.Tensor:
+    return torch.view_as_complex(v.reshape(*original_shape, 2))
+
+
+def expand_real_batch_to_flat_complex_batch(batch: torch.Tensor) -> torch.Tensor:
+    n = batch.shape[0]
+    batch = batch.unsqueeze(-1)
+    batch = batch.expand(*batch.shape, 2)
+    batch = batch.reshape(n, -1)
+    return batch
+
+
+def expand_real_tensor_to_flat_complex_tensor(v: torch.Tensor) -> torch.Tensor:
+    v = v.unsqueeze(-1)
+    v = v.expand(*v.shape, 2)
+    v = v.reshape(-1)
+    return v
+
 
 class FlatteningIRLSFourier(Estimator):
     def __init__(self, solver: IRLSSolver, device=None):
         super().__init__(device)
 
-        if not solver.space == Space.REAL:
-            raise ValueError(
-                "By convention, JointIRLSFourier solver space must be Space.REAL"
-            )
         self.solver = solver
-        self.space = Space.FOURIER_REAL
         self.max_iter = self.solver.max_iter
+        self.space = ImageSpace.FOURIER_COMPLEX
 
     @torch.inference_mode()
     def step(
@@ -450,8 +469,6 @@ class FlatteningIRLSFourier(Estimator):
         images: torch.Tensor,
         image_variance: torch.Tensor,
         image_std: torch.Tensor,
-        precomp_ctf_images: torch.Tensor,
-        precomp_ctf_squared: torch.Tensor,
         reference: torch.Tensor,
         prior_mean: torch.Tensor | None = None,
         prior_variance: torch.Tensor | float | None = None,
@@ -460,8 +477,6 @@ class FlatteningIRLSFourier(Estimator):
             images=images,
             image_variance=image_variance,
             image_std=image_std,
-            precomp_ctf_images=precomp_ctf_images,
-            precomp_ctf_squared=precomp_ctf_squared,
             reference=reference,
             prior_mean=prior_mean,
             prior_variance=prior_variance,
@@ -470,107 +485,155 @@ class FlatteningIRLSFourier(Estimator):
     @torch.inference_mode()
     def fit(
         self,
-        images: dict[Space, torch.Tensor] | torch.Tensor,
-        image_variance: dict[Space, torch.Tensor] | torch.Tensor | float | None = None,
-        image_std: dict[Space, torch.Tensor] | torch.Tensor | float | None = None,
-        ctf: torch.Tensor | float | None = None,
+        batch: ImageBatch,
+        *,
+        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,
         reference: torch.Tensor | None = None,
-        prior_mean: dict[Space, torch.Tensor] | torch.Tensor | None = None,
+        prior_mean: torch.Tensor | None = None,
         prior_variance: torch.Tensor | float | None = None,
-        precomp_ctf_images: dict[Space, torch.Tensor] | None = None,
-        precomp_ctf_squared: torch.Tensor | float | None = None,
-        max_iter_override: int | None = None
+        max_iter_override: int | None = None,
     ):
-        # Get fourier space representation of images
-        if isinstance(images, torch.Tensor):
-            fourier_images = torch.fft.rfft2(images, norm="ortho")
-        else:
-            fourier_images = torch.complex(
-                images[Space.FOURIER_REAL], images[Space.FOURIER_IMAG]
+        if space != ImageSpace.FOURIER_COMPLEX:
+            raise ValueError(
+                f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
+                f"got {space.name}"
             )
-
-        n = fourier_images.shape[0]
-        fourier_images_realimag = torch.view_as_real(fourier_images)
-        fourier_images_realimag = fourier_images_realimag.reshape(n, -1)
-
-        # Get per-frequency image variance if given as space dict or None
-        if not isinstance(image_variance, (torch.Tensor, float)):
-            image_variance = torch.var(fourier_images_realimag, dim=0)
-        image_std = torch.sqrt(image_variance)
-
-        # ctf
-        if ctf is None:
-            ctf = 1.0
-        elif isinstance(ctf, torch.Tensor):
-            ctf = ctf.unsqueeze(-1)
-            ctf = ctf.expand(*ctf.shape, 2)
-            ctf = ctf.reshape(n, -1)
-        # Precompute ctf * images and ctf**2 for efficiency
-        precomp_ctf_images = ctf * fourier_images_realimag
-        if precomp_ctf_squared is None:
-            if isinstance(ctf, torch.Tensor):
-                precomp_ctf_squared = torch.square(ctf)
-            else:
-                precomp_ctf_squared = ctf**2
-
-        reference = torch.mean(fourier_images_realimag, dim=0)
-
-        if isinstance(prior_mean, dict):
-            prior_mean = torch.complex(
-                prior_mean[Space.FOURIER_REAL], prior_mean[Space.FOURIER_IMAG]
-            )
-        if prior_mean is not None:
-            prior_mean = flatten_complex_tensor(prior_mean)
-        if isinstance(prior_variance, torch.Tensor) and prior_variance.ndim == 2:
-            prior_variance = flatten_complex_tensor(prior_variance)
-
-        fourier_estimate, weights = self.solver.fit(
-            images=fourier_images_realimag,
-            image_variance=image_variance,
-            image_std=image_std,
-            ctf=ctf,
+        (
+            fourier_images_realimag,
+            fourier_shape,
+            variance_realimag,
+            ctf,
+            reference_realimag,
+            prior_mean_realimag,
+            prior_variance,
+        ) = self._setup_flat_data(
+            batch,
             reference=reference,
             prior_mean=prior_mean,
             prior_variance=prior_variance,
-            precomp_ctf_images=precomp_ctf_images,
-            precomp_ctf_squared=precomp_ctf_squared,
-            max_iter_override=max_iter_override
         )
+
+        irls_results = self.solver.fit_tensor(
+            images=fourier_images_realimag,
+            image_variance=variance_realimag,
+            ctf=ctf,
+            reference=reference_realimag,
+            prior_mean=prior_mean_realimag,
+            prior_variance=prior_variance,
+            max_iter_override=max_iter_override,
+        )
+
+        # Recover fourier space estimate
+        fourier_estimate_realimag = irls_results.estimate
+        fourier_estimate = unflatten_complex_tensor(
+            fourier_estimate_realimag, original_shape=fourier_shape
+        )
+
+        # Recover final weights
+        weights = irls_results.weights.select_space_weights(self.solver.space)
         # Reshape weights to the standard (N, 1, 1) format
-        weights = weights.reshape(n, 1, 1)
+        weights = weights.reshape(batch.n_images, 1, 1)
+        weight_set = WeightSet(real=None, fourier_real=weights, fourier_imag=weights)
 
-        fourier_estimate = torch.view_as_complex(
-            fourier_estimate.reshape(*fourier_images.shape[1:], 2)
+        self.final_weights = weight_set.as_space_dict()
+        self.avg = torch.fft.irfft2(fourier_estimate, norm="ortho")
+        return EstimatorResult(
+            average=self.avg,
+            estimate=fourier_estimate,
+            weights=weight_set,
+            converged=irls_results.converged,
+            n_iter=irls_results.n_iter,
         )
 
-        weights = {
-            Space.REAL: weights,
-            Space.FOURIER_REAL: weights,
-            Space.FOURIER_IMAG: None,
-        }
+    def _setup_flat_data(
+        self,
+        batch: ImageBatch,
+        *,
+        reference: torch.Tensor | None = None,
+        prior_mean: torch.Tensor | None = None,
+        prior_variance: torch.Tensor | float | None = None,
+    ) -> tuple[
+        torch.Tensor,  # fourier images flattened
+        tuple[int, ...],  # fourier shape
+        torch.Tensor | None,  # flattened reference
+        torch.Tensor | None,  # flattened prior mean
+        torch.Tensor | float | None,  # flattened prior variance
+    ]:
+        fourier_images = batch.select_space_images(ImageSpace.FOURIER_COMPLEX)
+        fourier_shape = tuple(fourier_images[0].shape)
+        fourier_images_realimag = flatten_complex_batch(fourier_images)
 
-        self.final_weights = weights
-        self.avg = torch.fft.irfft2(fourier_estimate, norm="ortho")
+        variance = torch.complex(*batch.fourier_component_variances())
+        variance_realimag = flatten_complex_tensor(variance)
 
-        return fourier_estimate, weights[Space.FOURIER_REAL]
+        ctf = batch.ctf
+        if isinstance(ctf, torch.Tensor) and ctf.ndim == fourier_images.ndim:
+            ctf = expand_real_batch_to_flat_complex_batch(ctf)
+
+        if reference is None:
+            reference_realimag = None
+        elif isinstance(reference, torch.Tensor):
+            if not torch.is_complex(reference):
+                reference = torch.fft.rfft2(reference, norm=batch.norm)
+            reference_realimag = flatten_complex_tensor(reference)
+
+        if prior_mean is None:
+            prior_mean_realimag = None
+        else:
+            if not torch.is_complex(prior_mean):
+                prior_mean = torch.fft.rfft2(prior_mean, norm=batch.norm)
+            prior_mean_realimag = flatten_complex_tensor(prior_mean)
+
+        if (
+            isinstance(prior_variance, torch.Tensor)
+            and prior_variance.shape == fourier_images[0].shape
+        ):
+            prior_variance = expand_real_tensor_to_flat_complex_tensor(prior_variance)
+
+        return (
+            fourier_images_realimag,
+            fourier_shape,
+            variance_realimag,
+            ctf,
+            reference_realimag,
+            prior_mean_realimag,
+            prior_variance,
+        )
 
     @torch.inference_mode()
     def reconstruct_from_weights(
-        self, images: dict[Space, torch.Tensor], weights: dict[Space, torch.Tensor]
+        self,
+        images: dict[ImageSpace, torch.Tensor] | ImageBatch,
+        weights: dict[ImageSpace, torch.Tensor] | WeightSet,
+        space: ImageSpace = ImageSpace.FOURIER_COMPLEX
     ):
-        fourier_images = torch.complex(
-            images[Space.FOURIER_REAL], images[Space.FOURIER_IMAG]
-        )
+        if space != ImageSpace.FOURIER_COMPLEX:
+            raise ValueError(
+                f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
+                f"got {space.name}"
+            )
+        
+        if isinstance(images, dict):
+            fourier_images = torch.complex(
+                images[ImageSpace.FOURIER_REAL], images[ImageSpace.FOURIER_IMAG]
+            )
+        else:
+            fourier_images = images.select_space_images(ImageSpace.FOURIER_COMPLEX)
 
         n = fourier_images.shape[0]
-        fourier_images_realimag = torch.view_as_real(fourier_images)
-        fourier_images_realimag = fourier_images_realimag.reshape(n, -1)
+        fourier_shape = tuple(fourier_images.shape[1:])
+        fourier_images_realimag = flatten_complex_batch(fourier_images)
 
-        w = weights[self.space]
-        w = w.reshape(n, 1)
-        realimag_estimate = weighted_average(fourier_images_realimag, weights=w)
-        fourier_estimate = torch.view_as_complex(
-            realimag_estimate.reshape(*fourier_images.shape[1:], 2)
-        )
+        if isinstance(weights, dict):
+            weights = weights[ImageSpace.FOURIER_REAL]
+        elif isinstance(weights, WeightSet):
+            weights = weights.fourier_real
 
-        return torch.fft.irfft2(fourier_estimate, norm="ortho")
+        # Reshape weights from (n, 1, 1) convention to (n, 1) for weighted average
+        weights = weights.reshape(n, 1)
+
+        realimag_estimate = weighted_average(fourier_images_realimag, weights=weights)
+        fourier_estimate = unflatten_complex_tensor(realimag_estimate, fourier_shape)
+
+        norm = images.norm if isinstance(images, ImageBatch) else "ortho"
+        return torch.fft.irfft2(fourier_estimate, norm=norm)

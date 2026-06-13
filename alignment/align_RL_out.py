@@ -1,3 +1,11 @@
+"""
+Alignment code for particles whose alignment parameters have been calculated by RELION
+
+Original author: Erney Ramírez Aportela
+The code has been modified by Andrés Contreras Santos to split data reading and 
+alignment into two different functions.
+"""
+
 import argparse
 import torch
 import torch.nn.functional as F
@@ -89,7 +97,7 @@ def read_data(
     with open(star_path) as f:
         lines = f.readlines()
 
-    # separar secciones optics y particles
+    # Separate optics and particles sections
     optics_start = [
         i for i, l in enumerate(lines) if l.strip().startswith("data_optics")
     ][0]
@@ -97,7 +105,7 @@ def read_data(
         i for i, l in enumerate(lines) if l.strip().startswith("data_particles")
     ][0]
 
-    # --- Extraer bloque optics ---
+    # Extract optics block
     optics_section = [
         l
         for l in lines[optics_start:particles_start]
@@ -108,10 +116,10 @@ def read_data(
     optics_str = " ".join(optics_cols) + "\n" + "".join(optics_data)
     optics_df = pd.read_csv(StringIO(optics_str), sep=r"\s+")
 
-    # pixel size
+    # Pixel size
     pix_size = float(optics_df["_rlnImagePixelSize"].values[0])
 
-    # --- Extraer bloque particles ---
+    # Extract particles block
     particles_section = [
         l
         for l in lines[particles_start:]
@@ -124,38 +132,39 @@ def read_data(
     particles_str = " ".join(particles_cols) + "\n" + "".join(particles_data)
     particles_df = pd.read_csv(StringIO(particles_str), sep=r"\s+")
 
-    # --- Extraer campos ---
+    # Extract fields
     img_paths = particles_df["_rlnImageName"].tolist()
     psi = -particles_df["_rlnAnglePsi"].values
     shiftX = particles_df["_rlnOriginXAngst"].values / pix_size
     shiftY = particles_df["_rlnOriginYAngst"].values / pix_size
 
-    # --- Cargar stack de partículas ---
-    star_dir = os.path.dirname(star_path) + "/"
-    stack_path = star_dir + img_paths[0].split("@")[1]  # formato: "XXX@file.mrcs"
+    # Load particles stack
+    star_dir = os.path.dirname(star_path)
+    pure_stack_path = img_paths[0].split("@")[1]
+    stack_path = os.path.join(star_dir, pure_stack_path)
     with mrcfile.open(stack_path, permissive=True) as mrc:
         particles = mrc.data.copy()
 
+    # Convert everything to tensors
     particles = torch.tensor(particles, dtype=torch.float32, device=device)
-
     psi = torch.tensor(np.deg2rad(psi), dtype=torch.float32, device=device)
     shiftX = torch.tensor(shiftX, dtype=torch.float32, device=device)
     shiftY = torch.tensor(shiftY, dtype=torch.float32, device=device)
 
-    return particles, psi, shiftX, shiftY
+    return particles, psi, shiftX, shiftY, pix_size
 
 
-def align_particles_batch(
+def align_particles_batch_RELION(
     particles: torch.Tensor,
     psi: torch.Tensor,
     shiftX: torch.Tensor,
     shiftY: torch.Tensor,
-    device: str = "cpu",
     batch_size: int = 256,
     inplace: bool = True,
 ):
     """
     Aligns a set of particles using batched Fourier shifts and spatial rotations.
+    Follows RELION's conventions for alignment.
 
     The alignment consists of:
     1. Subpixel translations applied in Fourier space.
@@ -175,7 +184,8 @@ def align_particles_batch(
         Number of particles processed per batch, by default 256.
     inplace : bool, optional
         If True, overwrites the input `particles` tensor to save memory.
-        If False, allocates a new tensor for the aligned output. Default is True.
+        If False, allocates a new tensor for the aligned output.
+        Default is True.
 
     Returns
     -------
@@ -191,17 +201,6 @@ def align_particles_batch(
       `align_corners=True`.
     """
     n, h, w = particles.shape
-
-    # Create normalized coordinate grid (h, w, 2)
-    yy, xx = torch.meshgrid(
-        torch.linspace(-1, 1, h, device=device),
-        torch.linspace(-1, 1, w, device=device),
-        indexing="ij",
-    )
-    base_grid = torch.stack([xx, yy], dim=-1)
-
-    # Flatten grid to (1, h*w, 2) for batched matrix multiplication
-    base_grid_rot = base_grid.view(-1, 2).unsqueeze(0)
 
     # Initialize aligned images tensor
     if inplace:
@@ -257,31 +256,30 @@ def align_particles_batch(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Aplicar alineamiento a partículas de un archivo .star de RELION 3.0+"
+        description="Applies alignment to particles from a .star file from  RELION 3.0+"
     )
-    parser.add_argument("star", type=str, help="Ruta al archivo .star de entrada")
+    parser.add_argument("star", type=str, help="Path to the input .star file")
     parser.add_argument(
         "--out",
         type=str,
         default="aligned_particles.mrcs",
-        help="Ruta de salida para el .mrcs con las partículas alineadas",
+        help="Path to the output .mrcs file with the aligned particles",
     )
     parser.add_argument(
-        "--device",
-        type=str,
-        default="cpu",
-        choices=["cpu", "cuda"],
-        help="Dispositivo para PyTorch",
+        "--overwrite",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Overwrite the output .mrcs file if it already exists"
     )
     args = parser.parse_args()
 
-    particles, psi, shiftX, shiftY = read_data(args.star, device=args.device)
-    aligned = align_particles_batch(
-        particles, psi, shiftX, shiftY, device=args.device, batch_size=256, inplace=True
+    particles, psi, shiftX, shiftY, pix_size = read_data(args.star, device=args.device)
+    aligned = align_particles_batch_RELION(
+        particles, psi, shiftX, shiftY, batch_size=256, inplace=True
     )
 
-    mrcfile.write(args.out, data=aligned.detach().cpu().numpy(), overwrite=True)
-    print(f"Partículas alineadas guardadas en {args.out}")
+    mrcfile.write(args.out, data=aligned.detach().cpu().numpy(), overwrite=args.overwrite, voxel_size=pix_size)
+    print(f"Aligned particles saved in {args.out}")
 
 
 if __name__ == "__main__":

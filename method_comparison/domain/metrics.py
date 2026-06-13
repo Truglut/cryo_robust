@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from method_comparison.domain.enums import Space, AggregationStrategy
+from method_comparison.domain.enums import ImageSpace, AggregationStrategy
 from method_comparison.evaluation.frc import FRCThreshold
 
 
@@ -139,7 +139,9 @@ class MethodMetrics:
     """
 
     reconstruction_metrics: ReconstructionMetrics
-    space_metrics: dict[Space, dict[AggregationStrategy, ClassificationMetrics]] | None
+    space_metrics: (
+        dict[ImageSpace, dict[AggregationStrategy, ClassificationMetrics]] | None
+    )
 
     def reconstruction_record(self) -> dict:
         """Serialize the global reconstruction metrics to a dictionary."""

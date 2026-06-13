@@ -1,17 +1,23 @@
 import yaml
 from pathlib import Path
+from argparse import Namespace
 
 import numpy as np
 import mrcfile
 import torch
 
 from estimators import build_estimator
+from estimators.data import ImageBatch
 from estimators.base import Estimator
 from estimators.admm import ADMMSolver
-from estimators.irls import IRLSFourier, JointIRLSFourier
-from estimators.gmm import GMMEstimator, RecursiveGMMEstimator
+from estimators.irls import (
+    IRLSFourier,
+    JointIRLSFourier,
+    FlatteningIRLSFourier,
+)
+from estimators.gmm import RecursiveGMMEstimator
 
-from method_comparison.domain.enums import Space, AggregationStrategy
+from method_comparison.domain.enums import ImageSpace, AggregationStrategy
 from method_comparison.evaluation.aggregation import aggregate_weights
 from method_comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
 
@@ -21,9 +27,101 @@ from utils.masks import create_circular_mask
 def load_config(config_path: str, snr: float | None = None):
     with open(config_path, "r") as file:
         cfg = yaml.safe_load(file)
-        if snr is not None:
-            cfg["noise"]["snr"] = snr
-        return cfg
+    if snr is not None:
+        cfg.setdefault("noise", {})["snr"] = snr
+    return cfg
+
+
+def load_reference(
+    path: str | Path | None, device: str | torch.device
+) -> torch.Tensor | None:
+    if path is None:
+        return None
+    return torch.as_tensor(mrcfile.read(path), dtype=torch.float32, device=device)
+
+
+def fit_estimator(
+    estimator: Estimator,
+    image_batch: ImageBatch,
+    reference: torch.Tensor | None = None,
+    *,
+    plot_gmm: bool = False,
+    method_name: str = "GMM",
+) -> None:
+    if isinstance(estimator, ADMMSolver):
+        estimator.fit(
+            image_batch,
+            initial_reference_real=reference,
+            initial_reference_fourier=(
+                None
+                if reference is None
+                else torch.fft.rfft2(reference, norm=image_batch.norm)
+            ),
+        )
+    elif isinstance(estimator, RecursiveGMMEstimator):
+        estimator.fit(
+            image_batch,
+            reference=reference,
+            plot_fits=plot_gmm,
+            plot_title=method_name,
+        )
+    else:
+        estimator.fit(image_batch, reference=reference)
+
+
+def run_estimators(
+    cfg: dict,
+    image_batch: ImageBatch,
+    args: Namespace,
+    add_avg: bool = False,
+    add_median: bool = False,
+) -> dict:
+    results = {}
+
+    # Iterate over methods to run them and save results
+    for method_cfg in cfg["experiment"]["methods"]:
+        method_name = method_cfg["name"]
+        print(f"Running {method_name}...")
+
+        # Build and fit the estimator
+        estimator = build_estimator(method_cfg, image_batch, device=args.device)
+        reference = load_reference(method_cfg.get("initial_reference"), args.device)
+        fit_estimator(
+            estimator,
+            image_batch,
+            reference,
+            plot_gmm="gmm" in args.plot,
+            method_name=method_name,
+        )
+
+        # Save results in dict
+        results[method_name] = {
+            "estimator": estimator,
+            "reference": reference,
+            "avg": estimator.avg,
+            "weights": estimator.final_weights,
+        }
+
+    # Add results of sample average and median if requested
+    if add_avg:
+        results[AVERAGE_NAME] = {
+            "avg": image_batch.ensure_real().mean(dim=0),
+            "weights": {
+                space: torch.ones((image_batch.n_images, 1, 1), device=args.device)
+                for space in ImageSpace
+            },
+            "reference": None,
+            "estimator": AVERAGE_NAME,
+        }
+    if add_median:
+        results[MEDIAN_NAME] = {
+            "avg": image_batch.ensure_real().median(dim=0).values,
+            "weights": {space: None for space in ImageSpace},
+            "reference": None,
+            "estimator": MEDIAN_NAME,
+        }
+
+    return results
 
 
 def apply_mask(images_tensor: torch.Tensor, mask_radius: float, inplace: bool = False):
@@ -41,91 +139,23 @@ def apply_mask(images_tensor: torch.Tensor, mask_radius: float, inplace: bool = 
     return masked_images, mask_tensor
 
 
-def run_estimators(
-    cfg: dict,
-    images_dict: dict[Space, torch.Tensor],
-    args,
-    add_avg: bool = False,
-    add_median: bool = False,
-) -> dict:
-    device = args.device
-
-    results = {}
-    for method_cfg in cfg["experiment"]["methods"]:
-        method_name = method_cfg["name"]
-        print(f"Running {method_name}...")
-
-        estimator = build_estimator(method_cfg, images_dict, device=device)
-
-        # Handle optional reference
-        reference = None
-        if method_cfg.get("initial_reference"):
-            ref_np = mrcfile.read(method_cfg["initial_reference"])
-            reference = torch.tensor(ref_np, dtype=torch.float32, device=device)
-
-        if isinstance(estimator, (GMMEstimator, RecursiveGMMEstimator)):
-            estimator.fit(
-                images_dict,
-                reference=reference,
-                plot_fits="gmm" in args.plot,
-                plot_title=method_name,
-            )
-        elif isinstance(estimator, ADMMSolver):
-            ref_real = reference
-            if ref_real is not None:
-                ref_fourier = torch.fft.rfft2(ref_real, norm="ortho")
-            else:
-                ref_fourier = None
-            estimator.fit(
-                images_dict, initial_ref_real=ref_real, initial_ref_fourier=ref_fourier
-            )
-        else:
-            estimator.fit(images_dict, reference=reference)
-
-        results[method_name] = {
-            "estimator": estimator,
-            "reference": reference,
-            "avg": estimator.avg,
-            "weights": estimator.final_weights,
-        }
-
-    if add_avg:
-        results[AVERAGE_NAME] = {
-            "avg": images_dict[Space.REAL].mean(dim=0),
-            "weights": {
-                space: torch.ones(
-                    size=(images_dict[space].shape[0], 1, 1),
-                    dtype=torch.float32,
-                    device=args.device,
-                )
-                for space in Space
-            },
-            "reference": None,
-            "estimator": AVERAGE_NAME,
-        }
-
-    if add_median:
-        results[MEDIAN_NAME] = {
-            "avg": images_dict[Space.REAL].median(dim=0).values,
-            "weights": {space: None for space in Space},
-            "reference": None,
-            "estimator": MEDIAN_NAME,
-        }
-
-    return results
-
-
-def get_weights(estimator: Estimator, final_weights: dict[Space, torch.Tensor]):
-    if isinstance(estimator, ADMMSolver):
-        weights = final_weights[Space.REAL]
-    elif isinstance(estimator, IRLSFourier):
+def canonical_image_weights(
+    estimator: Estimator, final_weights: dict[ImageSpace, torch.Tensor]
+):
+    if isinstance(estimator, IRLSFourier):
         weights = 0.5 * (
-            final_weights[Space.FOURIER_REAL] + final_weights[Space.FOURIER_IMAG]
+            final_weights[ImageSpace.FOURIER_REAL]
+            + final_weights[ImageSpace.FOURIER_IMAG]
         )
-    elif isinstance(estimator, JointIRLSFourier):
-        weights = final_weights[Space.FOURIER_REAL]
+    elif isinstance(estimator, (JointIRLSFourier, FlatteningIRLSFourier)):
+        weights = final_weights[ImageSpace.FOURIER_REAL]
     else:
-        weights = final_weights[estimator.space]
+        weights = final_weights[ImageSpace.REAL]
+
+    if weights is None:
+        raise ValueError(
+            f"canonical_image_weights: extracted None for estimator of type {type(estimator)}"
+        )
 
     return aggregate_weights(weights, AggregationStrategy.MEAN)
 
@@ -155,7 +185,7 @@ def process_and_save_subsets(
         if data["estimator"] in [AVERAGE_NAME, MEDIAN_NAME]:
             continue
         # Get aggregated weights according to estimator type
-        weights = get_weights(data["estimator"], data["weights"])
+        weights = canonical_image_weights(data["estimator"], data["weights"])
 
         # Initialize indices dicts
         idx_good = {"quantile": {}, "fixed_threshold": {}}

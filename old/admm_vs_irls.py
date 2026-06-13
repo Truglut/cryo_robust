@@ -4,8 +4,9 @@ import matplotlib.pyplot as plt
 
 from estimators.admm import ADMMSolver
 
-from method_comparison.domain.enums import Space
+from method_comparison.domain.enums import ImageSpace
 from method_comparison.visualization.plotting import LABEL_MAP
+
 
 def compute_baseline_irls(
     admm_estimator: ADMMSolver, images_dict: dict
@@ -28,8 +29,8 @@ def compute_baseline_irls(
     )
 
     # Fit strictly without the prior to establish the true baseline
-    _, weights = baseline_solver.fit(
-        images=images_dict[Space.REAL], prior_mean=None, prior_variance=None
+    _, weights = baseline_solver.fit_tensor(
+        images=images_dict[ImageSpace.REAL], prior_mean=None, prior_variance=None
     )
     return weights
 

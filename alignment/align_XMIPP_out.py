@@ -1,139 +1,152 @@
+"""
+Alignment code for particles whose alignment parameters have been calculated by XMIPP
+
+Original author: Erney Ramírez Aportela
+The code has been modified by Andrés Contreras Santos to split data reading and
+alignment into two different functions.
+"""
+
 import torch
 import argparse
 import mrcfile
-import pandas as pd
-from io import StringIO
-import numpy as np
 import torch.nn.functional as F
 
-@torch.no_grad()
-def read_data(star_path, device="cuda"):
-    """Calcula el promedio alineado de partículas con shift + rot en batches."""
-    with open(star_path) as f:
-        lines = f.readlines()
-
-    optics_start = [i for i, l in enumerate(lines) if l.strip().startswith("data_optics")][0]
-    particles_start = [i for i, l in enumerate(lines) if l.strip().startswith("data_particles")][0]
-
-    # --- Optics ---
-    optics_section = [
-        l for l in lines[optics_start:particles_start]
-        if l.strip() and not l.strip().startswith(("data_", "loop_", "#"))
-    ]
-    optics_cols = [l.strip() for l in optics_section if l.strip().startswith("_rln")]
-    optics_data = [l for l in optics_section if not l.strip().startswith("_rln")]
-    optics_str = " ".join(optics_cols) + "\n" + "".join(optics_data)
-    optics_df = pd.read_csv(StringIO(optics_str), sep=r'\s+')
-    pix_size = float(optics_df["_rlnImagePixelSize"].values[0])
-
-    # --- Particles ---
-    particles_section = [
-        l for l in lines[particles_start:]
-        if l.strip() and not l.strip().startswith(("data_", "loop_", "#"))
-    ]
-    particles_cols = [l.strip() for l in particles_section if l.strip().startswith("_rln")]
-    particles_data = [l for l in particles_section if not l.strip().startswith("_rln")]
-    particles_str = " ".join(particles_cols) + "\n" + "".join(particles_data)
-    particles_df = pd.read_csv(StringIO(particles_str), sep=r'\s+')
-
-    img_paths = particles_df["_rlnImageName"].tolist()
-    psi = -particles_df["_rlnAnglePsi"].values
-    shiftX = particles_df["_rlnOriginXAngst"].values / pix_size
-    shiftY = particles_df["_rlnOriginYAngst"].values / pix_size
-
-    # --- Cargar stack ---
-    stack_path = img_paths[0].split("@")[1]
-    with mrcfile.open(stack_path, permissive=True) as mrc:
-        particles = mrc.data.copy()
-
-    # Convertir tensores
-    particles = torch.tensor(particles, dtype=torch.float32, device=device)
-    angles_rad = torch.tensor(np.deg2rad(psi), dtype=torch.float32, device=device)
-    shiftX = torch.tensor(shiftX, dtype=torch.float32, device=device)
-    shiftY = torch.tensor(shiftY, dtype=torch.float32, device=device)
-
-    return particles, angles_rad, shiftX, shiftY, pix_size
-
+from align_RL_out import read_data, fourier_shift_batch
 
 @torch.no_grad()
-def fourier_shift_batch(imgs, shifts_x, shifts_y):
+def align_particles_batch_XMIPP(
+    particles: torch.Tensor,
+    angles_rad: torch.Tensor,
+    shiftX: torch.Tensor,
+    shiftY: torch.Tensor,
+    batch_size: int = 256,
+    inplace: bool = True,
+) -> torch.Tensor:
+    """
+    Aligns a set of particles using batched Fourier shifts and spatial rotations.
+    Follows XMIPP's conventions for alignment.
 
-    n, h, w = imgs.shape
-    device = imgs.device
+    The alignment consists of:
+    1. In-plane rotations applied via grid sampling.
+    2. Subpixel translations applied in Fourier space.
 
-    # Coordenadas de frecuencia
-    ky = torch.fft.fftfreq(h, d=1.0, device=device).reshape(1, h, 1)
-    kx = torch.fft.rfftfreq(w, d=1.0, device=device).reshape(1, 1, w//2 + 1)
-
-    # Expandir shifts
-    sx = shifts_x.view(n, 1, 1)
-    sy = shifts_y.view(n, 1, 1)
-
-    # Transformada real
-    F = torch.fft.rfft2(imgs)  # (n,h,w//2+1), compleja
-
-    # Fase para shift
-    phase = torch.exp(-2j * torch.pi * (kx * sx + ky * sy))
-    F.mul_(phase)  # inplace, ahorra memoria
-    del phase
-
-    # Transformada inversa real
-    shifted = torch.fft.irfft2(F, s=(h, w))  # devuelve real
-    del F
-
-    return shifted
+    Parameters
+    ----------
+    particles : torch.Tensor
+        Tensor of shape (N, H, W) containing the unaligned particle images.
+    psi : torch.Tensor
+        Tensor of shape (N,) containing in-plane rotation angles (in radians).
+    shiftX : torch.Tensor
+        Tensor of shape (N,) containing X shifts.
+    shiftY : torch.Tensor
+        Tensor of shape (N,) containing Y shifts.
+    batch_size : int, optional
+        Number of particles processed per batch, by default 256.
+    inplace : bool, optional
+        If True, overwrites the input `particles` tensor to save memory.
+        If False, allocates a new tensor for the aligned output. 
+        Default is True.
 
 
-@torch.no_grad()
-def align_particles(particles, angles_rad, shiftX, shiftY, device="cuda", batch_size=256):
-    """Calcula el promedio alineado de partículas con shift + rot en batches."""
-    
+    Returns
+    -------
+    torch.Tensor
+        Tensor of shape (N, H, W) containing the aligned particle images.
+
+    Notes
+    -----
+    - Translations are applied using the Fourier shift theorem for
+      subpixel accuracy.
+    - Rotations are applied using `torch.nn.functional.grid_sample`.
+    - The coordinate grid is defined in the range [-1, 1] with
+      `align_corners=True`.
+    """
+
     n, h, w = particles.shape
 
-    freq_w = w // 2 + 1
-    
-    # Tensor para guardar las imágenes reales (Shifted)
-    # Usamos device='cpu' para no saturar la gráfica
-    all_shifted = torch.empty((n, h, w), dtype=particles.dtype, device='cpu')
+    # Initialize aligned images tensor
+    if inplace:
+        aligned = particles
+    else:
+        aligned = torch.empty_like(particles)
 
-    # --- Base grid (solo una vez) ---
-    yy, xx = torch.meshgrid(
-        torch.linspace(-1, 1, h, device=device),
-        torch.linspace(-1, 1, w, device=device),
-        indexing="ij"
-    )
-    base_grid = torch.stack([xx, yy], dim=-1)  # (h,w,2)
-    base_grid_flat = base_grid.view(-1, 2)
-
-    # --- Procesar por batches ---
+    # Process particles in batches
     for i in range(0, n, batch_size):
         j = min(i + batch_size, n)
+
+        # Read batch data
         batch = particles[i:j]
         batch_shx = shiftX[i:j]
         batch_shy = shiftY[i:j]
         batch_ang = angles_rad[i:j]
 
-        # #rot
+        # 1. Rotation
         cos = torch.cos(batch_ang)
         sin = torch.sin(batch_ang)
-        rot_mats = torch.stack([
-            torch.stack([cos, -sin], dim=1),
-            torch.stack([sin,  cos], dim=1)
-        ], dim=1)  # (B, 2, 2)
-        grids = base_grid_flat.unsqueeze(0).matmul(rot_mats.transpose(1, 2))
-        grids = grids.view(-1, h, w, 2)
+        zeros = torch.zeros_like(cos)
 
-        # Rotar en batch
-        imgs = batch.unsqueeze(1)  # (B, 1, H, W) 
-        rotated = F.grid_sample(imgs, grids, align_corners=True, padding_mode="zeros")
-        
-        # --- 2) Shift después (en Fourier) ---
-        rotated = rotated.squeeze(1)
+        # Build affine rotation matrices: shape(B, 2, 3)
+        rot_mats = torch.stack(
+            [
+                torch.stack([cos, -sin, zeros], dim=1),
+                torch.stack([sin, cos, zeros], dim=1)
+            ]
+        )
 
-        all_shifted[i:j] = fourier_shift_batch(rotated, batch_shx, batch_shy).detach().cpu()
-                
-        # Limpieza de memoria GPU
-        del batch, grids, rotated, rot_mats
-        torch.cuda.empty_cache()
+        # Build affine rotation grid for grid_sample
+        grids = F.affine_grid(
+            rot_mats, size=(batch.size(0), 1, h, 2), align_corners=True
+        )
 
-    return all_shifted
+        # Prepare images for grid_sample -> (B, 1, h, w)
+        imgs = batch.unsqueeze(1)
+
+        # Apply rotation through sampling
+        rotated = F.grid_sample(
+            imgs, grids, align_corners=True, padding_mode="zeros"
+        )
+
+        # 2. Fourier shift
+        shifted = fourier_shift_batch(rotated, batch_shx, batch_shy)
+
+        # Save aligned images to aligned tensor
+        aligned[i:j] = shifted
+
+    return aligned
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Applies alignment to particles from a .star file from  RELION 3.0+"
+    )
+    parser.add_argument("star", type=str, help="Path to the input .star file")
+    parser.add_argument(
+        "--out",
+        type=str,
+        default="aligned_particles.mrcs",
+        help="Path to the output .mrcs file with the aligned particles",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Overwrite the output .mrcs file if it already exists",
+    )
+    args = parser.parse_args()
+
+    particles, psi, shiftX, shiftY, pix_size = read_data(args.star, device=args.device)
+    aligned = align_particles_batch_XMIPP(
+        particles, psi, shiftX, shiftY, batch_size=256, inplace=True
+    )
+
+    mrcfile.write(
+        args.out,
+        data=aligned.detach().cpu().numpy(),
+        overwrite=args.overwrite,
+        voxel_size=pix_size,
+    )
+    print(f"Aligned particles saved in {args.out}")
+
+
+if __name__ == "__main__":
+    main()
