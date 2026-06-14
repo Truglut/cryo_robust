@@ -3,10 +3,10 @@ import torch
 from sklearn.metrics import root_mean_squared_error
 from scipy.stats import pearsonr
 
-from estimators.base import Estimator
-from estimators.irls import IRLSSolver
-from estimators.data import ImageBatch
-from estimators.gmm import RecursiveGMMEstimator
+from cryo_robust.estimators.base import Estimator
+from cryo_robust.estimators.irls import IRLSSolver
+from cryo_robust.estimators.data import ImageBatch
+from cryo_robust.estimators.gmm import RecursiveGMMEstimator
 
 from cryo_robust.comparison.domain.enums import ImageSpace
 from cryo_robust.comparison.domain.metrics import ReconstructionMetrics
