@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from method_comparison.visualization.plotting import BASE_PLOT_OPTIONS
+from cryo_robust.comparison.visualization.plotting import BASE_PLOT_OPTIONS
 
 ALL_PLOTS = ["weights", "gmm", "frc"]
 

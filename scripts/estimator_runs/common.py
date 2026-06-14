@@ -6,22 +6,22 @@ import numpy as np
 import mrcfile
 import torch
 
-from estimators import build_estimator
-from estimators.data import ImageBatch
-from estimators.base import Estimator
-from estimators.admm import ADMMSolver
-from estimators.irls import (
+from cryo_robust.estimators import build_estimator
+from cryo_robust.estimators.data import ImageBatch
+from cryo_robust.estimators.base import Estimator
+from cryo_robust.estimators.admm import ADMMSolver
+from cryo_robust.estimators.irls import (
     IRLSFourier,
     JointIRLSFourier,
     FlatteningIRLSFourier,
 )
-from estimators.gmm import RecursiveGMMEstimator
+from cryo_robust.estimators.gmm import RecursiveGMMEstimator
 
-from method_comparison.domain.enums import ImageSpace, AggregationStrategy
-from method_comparison.evaluation.aggregation import aggregate_weights
-from method_comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
+from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
+from cryo_robust.comparison.evaluation.aggregation import aggregate_weights
+from cryo_robust.comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
 
-from utils.masks import create_circular_mask
+from cryo_robust.utils.masks import create_circular_mask
 
 
 def load_config(config_path: str | Path, snr: float | None = None):

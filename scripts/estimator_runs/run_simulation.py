@@ -5,16 +5,16 @@ import numpy as np
 import mrcfile
 import torch
 
-from estimators.data import ImageBatch
+from cryo_robust.estimators.data import ImageBatch
 
-from method_comparison.domain.enums import ImageSpace, AggregationStrategy
-from method_comparison.domain.reports import EvaluationReport, EvaluationStudy
-from method_comparison.dataset_builder import create_evaluation_dataset
-from method_comparison.evaluation.frc import FRCThreshold
-from method_comparison.evaluation.report_building import compute_report
-from method_comparison.visualization.printing import print_report
-from method_comparison.visualization.plotting import plot_report
-from method_comparison.latex import generate_latex_report
+from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
+from cryo_robust.comparison.domain.reports import EvaluationReport, EvaluationStudy
+from cryo_robust.comparison.dataset_builder import create_evaluation_dataset
+from cryo_robust.comparison.evaluation.frc import FRCThreshold
+from cryo_robust.comparison.evaluation.report_building import compute_report
+from cryo_robust.comparison.visualization.printing import print_report
+from cryo_robust.comparison.visualization.plotting import plot_report
+from cryo_robust.comparison.latex import generate_latex_report
 
 from scripts.estimator_runs.cli import build_simulation_parser, parse_arguments
 from scripts.estimator_runs.common import (
@@ -25,7 +25,7 @@ from scripts.estimator_runs.common import (
 )
 from scripts.estimator_runs.napari_visualization import visualize_results
 
-from utils.masks import create_fourier_mask
+from cryo_robust.utils.masks import create_fourier_mask
 
 FRC_THRESHOLDS = [FRCThreshold.ONE_HALF, FRCThreshold.HALF_BIT]
 RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]

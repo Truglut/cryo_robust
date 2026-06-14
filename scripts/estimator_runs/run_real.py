@@ -5,12 +5,12 @@ import torch
 import mrcfile
 from sklearn.metrics import root_mean_squared_error
 
-from estimators.data import ImageBatch
+from cryo_robust.estimators.data import ImageBatch
 
-from method_comparison.domain.enums import ImageSpace, AggregationStrategy
-from method_comparison.evaluation.report_building import compute_report
-from method_comparison.visualization.printing import print_report
-from method_comparison.visualization.plotting import plot_report
+from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
+from cryo_robust.comparison.evaluation.report_building import compute_report
+from cryo_robust.comparison.visualization.printing import print_report
+from cryo_robust.comparison.visualization.plotting import plot_report
 
 from scripts.estimator_runs.cli import build_experimental_parser, parse_arguments
 from scripts.estimator_runs.common import (
@@ -22,7 +22,7 @@ from scripts.estimator_runs.common import (
 from scripts.estimator_runs.napari_visualization import visualize_results
 from scripts.estimator_runs.run_simulation import FRC_THRESHOLDS
 
-from utils.masks import create_fourier_mask
+from cryo_robust.utils.masks import create_fourier_mask
 
 
 def load_and_preprocess(cfg: dict, args) -> tuple[torch.Tensor, np.ndarray, Path]:

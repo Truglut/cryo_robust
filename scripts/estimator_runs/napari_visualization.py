@@ -4,7 +4,7 @@ import torch
 import numpy as np
 import napari
 
-from method_comparison.dataset_builder import LABEL_TYPES
+from cryo_robust.comparison.dataset_builder import LABEL_TYPES
 
 from scripts.estimator_runs.common import AVERAGE_NAME
 
