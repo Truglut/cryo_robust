@@ -12,7 +12,10 @@ def build_base_parser() -> tuple[
     argparse._ArgumentGroup,
     argparse._ArgumentGroup,
 ]:
-    """Parses the config from the command line"""
+    """
+    Build the base command-line argument parser, with arguments that are common
+    to simulated data and experimental data runs
+    """
     parser = argparse.ArgumentParser(description="Run robust estimators on real data")
     visualization_group = parser.add_argument_group("Visualization")
     subset_group = parser.add_argument_group("Subset selection")
