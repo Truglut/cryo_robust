@@ -1,4 +1,9 @@
-data/
+# Do not track raw data
+data/*
+# Except for minimal reproducibility inputs
+!data/base_image.mrc
+!data/outlier_images.mrcs
+
 results/
 my_utils/
 admm/configs/
