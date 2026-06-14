@@ -3,7 +3,7 @@ from typing import Any, Iterable
 import numpy as np
 import torch
 
-from estimators.data import ImageBatch
+from cryo_robust.estimators.data import ImageBatch
 
 from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
 from cryo_robust.comparison.domain.metrics import MethodMetrics, ClassificationMetrics
