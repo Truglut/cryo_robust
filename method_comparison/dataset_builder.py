@@ -175,7 +175,7 @@ def create_evaluation_dataset(
         labels[current_idx : current_idx + n_noise] = 3
         current_idx += n_noise
 
-    # Standardize images before adding noise
+    # If requested, standardize images before adding noise
     if standardize_before_noise:
         # Standardize ground truth
         ref_image = (ref_image - ref_image.mean()) / ref_image.std()
