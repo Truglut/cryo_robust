@@ -3,7 +3,8 @@ Alignment code for particles whose alignment parameters have been calculated by 
 
 Original author: Erney Ramírez Aportela
 The code has been modified by Andrés Contreras Santos to split data reading and 
-alignment into two different functions.
+alignment into two different functions, as well as slightly modify the rotation
+code to generate the grid with ``torch.affine_grid()``.
 """
 
 import argparse

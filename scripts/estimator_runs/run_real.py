@@ -12,15 +12,15 @@ from method_comparison.evaluation.report_building import compute_report
 from method_comparison.visualization.printing import print_report
 from method_comparison.visualization.plotting import plot_report
 
-from scripts.cli import build_experimental_parser, parse_arguments
-from scripts.common import (
+from scripts.estimator_runs.cli import build_experimental_parser, parse_arguments
+from scripts.estimator_runs.common import (
     load_config,
     apply_mask,
     run_estimators,
     process_and_save_subsets,
 )
-from scripts.napari_visualization import visualize_results
-from scripts.run_simulation import FRC_THRESHOLDS
+from scripts.estimator_runs.napari_visualization import visualize_results
+from scripts.estimator_runs.run_simulation import FRC_THRESHOLDS
 
 from utils.masks import create_fourier_mask
 

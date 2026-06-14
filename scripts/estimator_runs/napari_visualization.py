@@ -6,7 +6,7 @@ import napari
 
 from method_comparison.dataset_builder import LABEL_TYPES
 
-from scripts.common import AVERAGE_NAME
+from scripts.estimator_runs.common import AVERAGE_NAME
 
 
 def visualize_results(
