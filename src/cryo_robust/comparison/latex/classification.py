@@ -2,11 +2,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from method_comparison.domain.enums import ImageSpace, AggregationStrategy
-from method_comparison.domain.reports import EvaluationReport, EvaluationStudy
-from method_comparison.visualization.plotting import AVERAGE_NAME, plot_vs_snr
-from method_comparison.latex.tables import format_dataframe
-from method_comparison.latex.figures import create_figure_block
+from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
+from cryo_robust.comparison.domain.reports import EvaluationReport, EvaluationStudy
+from cryo_robust.comparison.visualization.plotting import AVERAGE_NAME, plot_vs_snr
+from .tables import format_dataframe
+from .figures import create_figure_block
 
 
 def generate_classification_section(

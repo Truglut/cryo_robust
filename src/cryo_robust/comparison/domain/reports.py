@@ -3,9 +3,9 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from method_comparison.domain.enums import ImageSpace
-from method_comparison.domain.metrics import MethodMetrics, ClassificationMetrics
-from method_comparison.evaluation.frc import FRCData, FRCThreshold
+from .enums import ImageSpace
+from .metrics import MethodMetrics, ClassificationMetrics
+from cryo_robust.comparison.evaluation.frc import FRCData, FRCThreshold
 
 ID_COLS = ["method", "space", "aggregation_strategy", "run"]
 

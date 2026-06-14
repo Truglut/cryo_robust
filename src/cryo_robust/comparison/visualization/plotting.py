@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import pandas as pd
 
-from method_comparison.domain.enums import ImageSpace
-from method_comparison.domain.metrics import ClassificationMetrics
-from method_comparison.domain.reports import EvaluationReport, MethodResults
-from method_comparison.evaluation.frc import FRCData, FRCThreshold, get_threshold
+from cryo_robust.comparison.domain.enums import ImageSpace
+from cryo_robust.comparison.domain.metrics import ClassificationMetrics
+from cryo_robust.comparison.domain.reports import EvaluationReport, MethodResults
+from cryo_robust.comparison.evaluation.frc import FRCData, FRCThreshold, get_threshold
 
 # Helper for consistent coloring
 LABEL_MAP = {

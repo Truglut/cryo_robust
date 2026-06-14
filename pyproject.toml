@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cryo-robust"
+version = "0.1.0"
+description = "Robust estimators and evaluation tools for cryo-EM image processing experiments."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Andrés" }
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "torch",
+    "matplotlib",
+    "pandas",
+    "scikit-learn",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-from method_comparison.domain.enums import ImageSpace
+from cryo_robust.comparison.domain.enums import ImageSpace
 
 
 class Estimator:

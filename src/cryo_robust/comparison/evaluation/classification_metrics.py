@@ -5,8 +5,8 @@ import numpy as np
 from sklearn.metrics import average_precision_score, roc_auc_score
 import torch
 
-from method_comparison.domain.enums import ImageSpace, AggregationStrategy
-from method_comparison.domain.metrics import ClassificationMetrics
+from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
+from cryo_robust.comparison.domain.metrics import ClassificationMetrics
 
 # List of all implemented recall methods
 ALL_RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]

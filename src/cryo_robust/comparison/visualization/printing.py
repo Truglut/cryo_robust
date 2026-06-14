@@ -1,4 +1,4 @@
-from method_comparison.domain.reports import EvaluationReport
+from cryo_robust.comparison.domain.reports import EvaluationReport
 
 
 def print_report(report: EvaluationReport) -> None:

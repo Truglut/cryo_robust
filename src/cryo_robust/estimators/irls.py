@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import torch
 
-from estimators.base import Estimator
-from estimators.results import WeightSet, EstimatorResult
-from estimators.weights import weighted_average, WeightFunction
-from estimators.data import ImageBatch, to_tensor
+from .base import Estimator
+from .results import WeightSet, EstimatorResult
+from .weights import weighted_average, WeightFunction
+from .data import ImageBatch, to_tensor
 
-from method_comparison.domain.enums import ImageSpace
+from cryo_robust.comparison.domain.enums import ImageSpace
 
 
 class IRLSSolver(Estimator):

@@ -4,7 +4,7 @@ import warnings
 import numpy as np
 import torch
 
-from method_comparison.domain.enums import AggregationStrategy, ImageSpace
+from cryo_robust.comparison.domain.enums import AggregationStrategy, ImageSpace
 
 
 def mean_aggregate(

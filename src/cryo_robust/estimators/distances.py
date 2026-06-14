@@ -5,7 +5,7 @@ from typing import Callable
 
 import torch
 
-from estimators.weights import (
+from .weights import (
     tagare_weights,
     cosine_similarity,
     cross_correlation,

@@ -4,21 +4,21 @@ from typing import Any
 
 import numpy as np
 
-from method_comparison.domain.reports import EvaluationReport, EvaluationStudy
+from cryo_robust.comparison.domain.reports import EvaluationReport, EvaluationStudy
 
 # Report sections
-from method_comparison.latex.preamble import generate_document_preamble
-from method_comparison.latex.experiment_info import write_experiment_info
-from method_comparison.latex.weights_and_frc import (
+from .preamble import generate_document_preamble
+from .experiment_info import write_experiment_info
+from .weights_and_frc import (
     generate_weight_and_frc_plots_section,
 )
-from method_comparison.latex.reconstruction import (
+from .reconstruction import (
     generate_reconstruction_section,
 )
-from method_comparison.latex.classification import (
+from .classification import (
     generate_classification_section,
 )
-from method_comparison.latex.images import generate_images_section
+from .images import generate_images_section
 
 
 def generate_latex_report(

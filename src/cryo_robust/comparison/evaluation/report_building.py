@@ -5,20 +5,20 @@ import torch
 
 from estimators.data import ImageBatch
 
-from method_comparison.domain.enums import ImageSpace, AggregationStrategy
-from method_comparison.domain.metrics import MethodMetrics, ClassificationMetrics
-from method_comparison.domain.reports import MethodResults, EvaluationReport
-from method_comparison.evaluation.aggregation import (
+from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
+from cryo_robust.comparison.domain.metrics import MethodMetrics, ClassificationMetrics
+from cryo_robust.comparison.domain.reports import MethodResults, EvaluationReport
+from .aggregation import (
     compute_aggregated_weights,
     setup_energy_reference,
 )
-from method_comparison.evaluation.classification_metrics import (
+from .classification_metrics import (
     ALL_RECALL_METHODS,
     compute_classification_metrics,
     compute_fourier_ring_classification_metrics,
 )
-from method_comparison.evaluation.frc import FRCThreshold
-from method_comparison.evaluation.reconstruction_metrics import (
+from .frc import FRCThreshold
+from .reconstruction_metrics import (
     compute_reconstruction_metrics,
     get_half_set_indices,
 )

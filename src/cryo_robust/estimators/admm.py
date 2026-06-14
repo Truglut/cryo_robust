@@ -1,17 +1,17 @@
 import numpy as np
 import torch
 
-from estimators.base import Estimator
-from estimators.data import ImageBatch
-from estimators.results import EstimatorResult, WeightSet
-from estimators.irls import (
+from .base import Estimator
+from .data import ImageBatch
+from .results import EstimatorResult, WeightSet
+from .irls import (
     IRLSSolver,
     JointIRLSFourier,
     FlatteningIRLSFourier,
     IRLSFourier,
 )
 
-from method_comparison.domain.enums import ImageSpace
+from cryo_robust.comparison.domain.enums import ImageSpace
 
 ACCEPTED_FOURIER_SOLVERS = (
     IRLSSolver,

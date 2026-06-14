@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import Any
 
-from method_comparison.domain.reports import EvaluationReport, EvaluationStudy
-from method_comparison.latex.figures import create_figure_section
-from method_comparison.visualization.plotting import save_snr_reports_figures
+from cryo_robust.comparison.domain.reports import EvaluationReport, EvaluationStudy
+from .figures import create_figure_section
+from cryo_robust.comparison.visualization.plotting import save_snr_reports_figures
 
 
 def weights_and_frc_plots_latex(

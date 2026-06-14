@@ -3,9 +3,9 @@ from typing import Any
 
 import numpy as np
 
-from method_comparison.domain.reports import EvaluationReport, EvaluationStudy
-from method_comparison.visualization.plotting import generate_image_plots
-from method_comparison.latex.figures import create_figure_block, create_figure_grid
+from cryo_robust.comparison.domain.reports import EvaluationReport, EvaluationStudy
+from cryo_robust.comparison.visualization.plotting import generate_image_plots
+from .figures import create_figure_block, create_figure_grid
 
 
 def generate_images_section(

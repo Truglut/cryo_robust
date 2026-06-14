@@ -8,16 +8,16 @@ from estimators.irls import IRLSSolver
 from estimators.data import ImageBatch
 from estimators.gmm import RecursiveGMMEstimator
 
-from method_comparison.domain.enums import ImageSpace
-from method_comparison.domain.metrics import ReconstructionMetrics
-from method_comparison.evaluation.frc import (
+from cryo_robust.comparison.domain.enums import ImageSpace
+from cryo_robust.comparison.domain.metrics import ReconstructionMetrics
+from .frc import (
     FRCThreshold,
     FRCData,
     compute_frc,
     get_resolution,
     area_under_frc,
 )
-from method_comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
+from cryo_robust.comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
 
 
 def get_half_set_indices(

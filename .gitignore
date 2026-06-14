@@ -4,6 +4,9 @@ data/*
 !data/base_image.mrc
 !data/outlier_images.mrcs
 
+# Do not track config files
+configs/*
+
 results/
 my_utils/
 admm/configs/

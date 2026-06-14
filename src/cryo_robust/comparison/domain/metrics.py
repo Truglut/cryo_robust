@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from method_comparison.domain.enums import ImageSpace, AggregationStrategy
-from method_comparison.evaluation.frc import FRCThreshold
+from .enums import ImageSpace, AggregationStrategy
+from cryo_robust.comparison.evaluation.frc import FRCThreshold
 
 
 @dataclass

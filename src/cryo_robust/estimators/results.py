@@ -5,7 +5,7 @@ from typing import Any, Mapping
 
 import torch
 
-from method_comparison.domain.enums import ImageSpace
+from cryo_robust.comparison.domain.enums import ImageSpace
 
 
 @dataclass

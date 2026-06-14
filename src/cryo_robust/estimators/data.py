@@ -6,7 +6,7 @@ from typing import Mapping
 import numpy as np
 import torch
 
-from method_comparison.domain.enums import ImageSpace
+from cryo_robust.comparison.domain.enums import ImageSpace
 
 ArrayLike = torch.Tensor | np.ndarray
 

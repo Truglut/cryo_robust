@@ -4,13 +4,13 @@ from sklearn.mixture import GaussianMixture
 import scipy.stats as stats
 import matplotlib.pyplot as plt
 
-from estimators.base import Estimator
-from estimators.weights import weighted_average
-from estimators.distances import DistanceFunction
-from estimators.data import ImageBatch
-from estimators.results import EstimatorResult, WeightSet
+from .base import Estimator
+from .weights import weighted_average
+from .distances import DistanceFunction
+from .data import ImageBatch
+from .results import EstimatorResult, WeightSet
 
-from method_comparison.domain.enums import ImageSpace
+from cryo_robust.comparison.domain.enums import ImageSpace
 
 
 class RecursiveGMMEstimator(Estimator):
