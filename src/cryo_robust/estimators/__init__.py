@@ -1,16 +1,16 @@
-from estimators.data import ImageBatch
-from estimators.irls import (
+from .data import ImageBatch
+from .irls import (
     IRLSSolver,
     IRLSFourier,
     JointIRLSFourier,
     FlatteningIRLSFourier,
 )
-from estimators.gmm import RecursiveGMMEstimator
-from estimators.admm import ADMMSolver
-from estimators.weights import get_weight_function
-from estimators.distances import get_distance_function
+from .gmm import RecursiveGMMEstimator
+from .admm import ADMMSolver
+from .weights import get_weight_function
+from .distances import get_distance_function
 
-from method_comparison.domain.enums import ImageSpace
+from cryo_robust.comparison.domain.enums import ImageSpace
 
 TAGARE_CONSTANT = 1.0e-5
 
