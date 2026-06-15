@@ -144,7 +144,8 @@ def build_simulation_parser() -> argparse.ArgumentParser:
         "--snr",
         nargs="+",
         type=float,
-        help="Target signal to noise ratio in image generation",
+        help="Target signal to noise ratios in image generation. Default is [0.01]",
+        default=[0.01]
     )
 
     simulation_group.add_argument(
