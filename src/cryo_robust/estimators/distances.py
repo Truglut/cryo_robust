@@ -106,9 +106,9 @@ def lp_norm(
     return (
         ((reference - images) / std)
         .abs()
-        .float_power_(p)
+        .pow_(p)
         .mean(dim=(1, 2))
-        .float_power_(1.0 / p)
+        .pow_(1.0 / p)
     )
 
 
