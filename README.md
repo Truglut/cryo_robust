@@ -22,20 +22,6 @@ The repository is intended as research code accompanying the thesis, not as a ge
 
 ## Repository structure
 
-```text
-.
-├── src/cryo_robust/
-│   ├── estimators/          # Robust estimators, weights, distances and data containers
-│   ├── comparison/          # Simulation, evaluation, metrics, plotting and report utilities
-│   └── utils/               # Shared helper utilities
-├── scripts/                 # Scripts used to run experiments and processing utilities
-├── tests/                   # Basic pytest test suite
-├── docs/                    # Short documentation about estimators, experiments and tests
-├── data/                    # Small input data files used by the simulation setup
-├── pyproject.toml
-└── README.md
-```
-
 - `src/cryo_robust/estimators`: robust estimators and related data structures.
 - `src/cryo_robust/comparison`: simulation, evaluation, metrics, visualization and LaTeX report generation.
 - `src/cryo_robust/utils`: shared helper utilities, such as real- or fourier-space masks.
