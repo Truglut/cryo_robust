@@ -81,7 +81,7 @@ class RecursiveGMMEstimator(Estimator):
 
     def _fit_one_iteration(
         self, images: torch.Tensor, reference: torch.Tensor
-    ) -> tuple[np.ndarray, torch.Tensor, torch.Tensor, bool]:
+    ) -> tuple[np.ndarray, torch.Tensor, torch.Tensor, bool, float, float]:
         distances = self.distance_function(images, reference)
         distances, dist_mean, dist_std = self._standardize(distances)
 
