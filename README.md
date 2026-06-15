@@ -12,7 +12,7 @@ pip install -e .
 
 ## Repository structure
 
-- `src/cryo_robust/estimators/`: robsut estimators and related data structures.
+- `src/cryo_robust/estimators`: robust estimators and related data structures.
 - `src/cryo_robust/comparison`: simulation, evaluation, metrics, visualization and LaTeX report generation.
 - `scripts`: command-line scripts used to run the experiments.
 - `data`: small input data required to reproduce the simulated experiments.
