@@ -1,3 +1,10 @@
+"""
+ADMM-based estimator.
+
+This module combines real-space and Fourier-space IRLS updates using an ADMM-style
+optimization scheme.
+"""
+
 import numpy as np
 import torch
 
@@ -22,6 +29,7 @@ ACCEPTED_FOURIER_SOLVERS = (
 
 
 class ADMMSolver(Estimator):
+    """ADMM estimator coupling real-space and Fourier-space IRLS updates."""
     def __init__(
         self,
         irls_real: IRLSSolver,
@@ -239,7 +247,7 @@ class ADMMSolver(Estimator):
 
                 # Update references
                 reference_real = next_real
-                reference_fourier = reference_fourier
+                reference_fourier = next_fourier
 
                 # Convergence check
                 if primal_norm < eps_primal and dual_norm < eps_dual:

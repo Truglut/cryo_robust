@@ -1,4 +1,6 @@
-"""Distance/dissimilarity functions used by GMM-based estimators."""
+"""
+Distance/dissimilarity functions used by GMM-based estimators.
+"""
 from __future__ import annotations
 
 from typing import Callable

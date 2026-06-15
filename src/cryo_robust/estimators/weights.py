@@ -1,4 +1,10 @@
-## Robust weighting functions for M-estimators
+"""
+Robust weighting functions for M-estimators.
+
+The functions in this module compute either pixelwise weights or global
+image-level weights used by the IRLS estimators.
+"""
+
 from __future__ import annotations
 
 from functools import partial

@@ -1,3 +1,12 @@
+"""
+IRLS-based estimators.
+
+This module contains the basic single-space IRLS solver and several Fourier-space
+wrappers. The wrappers differ in how they represent complex Fourier coefficients:
+separate real/imaginary solvers, joint complex weights, or flattened real-valued
+representations.
+"""
+
 from __future__ import annotations
 
 import torch
@@ -209,8 +218,6 @@ class IRLSSolver(Estimator):
         weights: dict[ImageSpace, torch.Tensor | None] | WeightSet | torch.Tensor,
         space: ImageSpace | None = None,
     ) -> torch.Tensor:
-        if weights is None:
-            print("weights son None al entrar")
         if space is None:
             space = self.space
 
@@ -231,13 +238,16 @@ class IRLSSolver(Estimator):
                 weights = weights[space]
         elif isinstance(weights, WeightSet):
             weights = weights.select_space_weights(space)
+
         if weights is None:
-            print("weights son None después de seleccionar")
+            raise ValueError(f"No weights available for reconstruction in space {space}.")
 
         return weighted_average(images, weights, eps=self.eps)
 
 
 class IRLSFourier(Estimator):
+    """Fourier estimator using separate IRLS solvers for real and imaginary parts."""
+
     def __init__(self, irls_real: IRLSSolver, irls_imag: IRLSSolver, device=None):
         super().__init__(device)
 
@@ -342,6 +352,11 @@ class IRLSFourier(Estimator):
 
 
 class JointIRLSFourier(Estimator):
+    """
+    Fourier estimator using one IRLS solver on complex Fourier coefficients, meant to
+    operate on the modulus of the complex residual.
+    """
+
     def __init__(self, solver: IRLSSolver, device=None):
         super().__init__(device)
 
@@ -456,6 +471,11 @@ def expand_real_tensor_to_flat_complex_tensor(v: torch.Tensor) -> torch.Tensor:
 
 
 class FlatteningIRLSFourier(Estimator):
+    """
+    Fourier estimator that applies real-valued IRLS to flattened complex coefficients.
+    Necessary for applying the global weighting schemes to complex images.
+    """
+
     def __init__(self, solver: IRLSSolver, device=None):
         super().__init__(device)
 

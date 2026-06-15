@@ -1,3 +1,11 @@
+"""
+GMM-based robust estimator.
+
+This module implements a recursive robust averaging method that fits a two-component
+Gaussian mixture model to distances/dissimilarities to the current reference and uses 
+the responsibilities of the closest component as image weights.
+"""
+
 import numpy as np
 import torch
 from sklearn.mixture import GaussianMixture
@@ -14,6 +22,7 @@ from cryo_robust.comparison.domain.enums import ImageSpace
 
 
 class RecursiveGMMEstimator(Estimator):
+    """Recursive robust averaging estimator based on GMM responsibilities."""
     def __init__(
         self,
         distance_function: DistanceFunction,
