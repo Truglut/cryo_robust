@@ -117,10 +117,6 @@ This code accompanies the Master's thesis:
 
 The main goal of the project is to study robust estimation methods for cryo-EM image averaging, with emphasis on statistical modeling, robustness to outliers, Fourier-space methods, and quantitative comparison of estimator performance.
 
-Code for robust estimation experiments for cryo-EM class averaging, developed as part of a Master's thesis on robust estimation in cryo-EM image processing.
-
-The repository contains implementations of robust estimators, simulation and evaluation pipelines, and tools for generating LaTeX reports with figures and tables.
-
 ***
 
 Author: Andrés Contreras de Santos
