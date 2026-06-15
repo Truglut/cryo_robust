@@ -9,7 +9,7 @@ description = "Robust estimators and evaluation tools for cryo-EM image processi
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
-    { name = "Andrés" }
+    { name = "Andrés Contreras de Santos" }
 ]
 dependencies = [
     "numpy",
@@ -20,5 +20,17 @@ dependencies = [
     "scikit-learn",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+visualization = [
+    "napari",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
