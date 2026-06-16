@@ -896,12 +896,17 @@ def plot_vs_snr(
     # Set log scale
     ax.set_xscale("log")
 
-    # Force more ticks on a log scale
-    # 'subs=(1.0, 2.0, 5.0)' means it will try to place ticks at 1x, 2x, and 5x of every decade
-    ax.xaxis.set_major_locator(ticker.LogLocator(base=10.0, subs=(1.0, 1.5, 2.0, 5.0), numticks=10))
+    # 1. Extract exactly which SNR values exist in the data
+    unique_snrs = sorted(df[snr_column].unique())
     
-    # Use standard LogFormatterMathtext to keep the pretty 10^x scientific notation
-    ax.xaxis.set_major_formatter(ticker.LogFormatterMathtext())
+    # 2. Force matplotlib to place ticks exactly at these data points
+    ax.set_xticks(unique_snrs)
+    
+    # 3. Format to 3 decimal places max, rounding 0.0067 to 0.007
+    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{round(x, 3):g}"))
+    
+    # 4. Clear out minor ticks so they don't create visual clutter behind your exact points
+    ax.xaxis.set_minor_locator(ticker.NullLocator())
 
     # Labels and Font sizes
     ax.set_xlabel("SNR", fontsize=10)
