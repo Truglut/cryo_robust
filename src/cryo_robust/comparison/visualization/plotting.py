@@ -127,6 +127,8 @@ def _plot_weight_distributions(
     labels: np.ndarray | None,
     max_subplots: int,
     density: bool,
+    fig_width: float = 4.0,
+    fig_height: float = 3.0
 ) -> list[plt.Figure]:
     """
     Produce batched weight distribution figures.
@@ -155,7 +157,7 @@ def _plot_weight_distributions(
         chunk = items[batch_start : batch_start + max_subplots]
         n = len(chunk)
 
-        fig, axes = plt.subplots(n, 1, figsize=(8.0, 3.0 * n), sharex=False)
+        fig, axes = plt.subplots(n, 1, figsize=(fig_width, fig_height * n), sharex=False)
         if n == 1:
             axes = [axes]
 
@@ -746,7 +748,7 @@ def plot_vs_snr(
     method_column: str = "method",
     snr_column: str = "snr",
     dpi: int = 150,
-    figsize: tuple[int, int] = (5, 4.5),
+    figsize: tuple[int, int] | None = None,
     title: str | None = None,
     ylabel: str = "Score",
     aggregated_data: bool = False,
@@ -845,8 +847,10 @@ def plot_vs_snr(
     legend_rows = -(-total_legend_items // N_COLS) 
     
     # Dynamically adjust height: base height + extra space per row
-    base_width = 5
-    base_height = 3 + (legend_rows * 0.18)
+    if figsize is None:
+        base_width = 5
+        base_height = 3 + (legend_rows * 0.18)
+        figsize = (base_width, base_height)
     
     # Create the figure with the adjusted dynamic size
     fig, ax = plt.subplots(figsize=(base_width, base_height))
@@ -905,7 +909,7 @@ def plot_vs_snr(
     # 3. Format to 3 decimal places max, rounding 0.0067 to 0.007
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{round(x, 3):g}"))
     
-    # 4. Clear out minor ticks so they don't create visual clutter behind your exact points
+    # 4. Clear out minor ticks so they don't create visual clutter
     ax.xaxis.set_minor_locator(ticker.NullLocator())
 
     # Labels and Font sizes
@@ -927,13 +931,8 @@ def plot_vs_snr(
         ncol=N_COLS,
     )
 
-    # if title is None:
-    #     if len(metric_labels) == 1:
-    #         title = f"{metric_labels[0]} vs SNR"
-    #     else:
-    #         title = "Metrics vs SNR"
-
-    # ax.set_title(title)
+    if title is not None:
+        ax.set_title(title)
 
     fig.tight_layout()
 
