@@ -11,8 +11,6 @@ LABEL_TYPES = {
     3: "noise",
 }
 
-STANDARDIZE_TYPES = ["global", "per_particle"]
-
 
 def add_noise(
     images: np.ndarray,
@@ -84,6 +82,47 @@ def generate_rotated_copies(
     return output_images
 
 
+def apply_random_rotations(
+    images: np.ndarray,
+    min_angle: float,
+    max_angle: float,
+    rng: np.random.Generator,
+    interpolation_order: int = 3,
+    output_images: np.ndarray | None = None,
+):
+    """
+    Applies rotations to the input images, with random rotation angles chosen from
+    a uniform distribution in the ``[min_angle, max_angle)`` interval.
+
+    Parameters
+    ----------
+    images : np.ndarray
+        Images to apply the rotations to. Array of shape ``(n_images, height, width)``.
+    min_angle, max_angle : float
+        Minimum and maximum rotation angles, in degrees.
+    rng : np.random.Generator
+        Random number generator
+    interpolation_order : int, optional
+        Order of interpolation for ``scipy.ndimage.rotate``, by default 3
+    """
+    # Pre-generate all random angles for slight efficiency gain
+    angles = rng.uniform(min_angle, max_angle, size=images.shape[0])
+
+    if output_images is None:
+        output_images = np.empty_like(images)
+
+    for i, angle in enumerate(angles):
+        scipy.ndimage.rotate(
+            images[i],
+            angle,
+            order=interpolation_order,
+            reshape=False,
+            output=output_images[i],
+        )
+
+    return output_images
+
+
 def load_misclassified_images(
     image_path: str, n_copies: int, rng: np.random.Generator
 ) -> np.ndarray:
@@ -108,9 +147,10 @@ def load_misclassified_images(
 def create_evaluation_dataset(
     cfg: dict,
     rng: np.random.Generator,
-    snr: float | None = None,
+    snr: float,
     standardize_before_noise: bool = False,
     per_image_noise_std: bool = False,
+    rotate_misclassified: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Generates an evaluation dataset with rotated inliers, rotated outliers,
@@ -163,9 +203,18 @@ def create_evaluation_dataset(
 
     # Fill misclassified images
     if n_misc > 0:
-        dataset[current_idx : current_idx + n_misc] = load_misclassified_images(
+        misclassified_images = load_misclassified_images(
             data_cfg["misclassified_path"], n_misc, rng=rng
         )
+        if rotate_misclassified:
+            misclassified_images = apply_random_rotations(
+                images=misclassified_images,
+                min_angle=gen_cfg["min_rotation_very_rotated"],
+                max_angle=gen_cfg["max_rotation_very_rotated"],
+                rng=rng,
+                output_images=misclassified_images,
+            )
+        dataset[current_idx : current_idx + n_misc] = misclassified_images
         labels[current_idx : current_idx + n_misc] = 2
         current_idx += n_misc
 
