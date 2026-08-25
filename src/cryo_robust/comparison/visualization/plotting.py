@@ -4,9 +4,11 @@ from typing import Sequence, Iterable
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 import pandas as pd
 
-from cryo_robust.comparison.domain.enums import ImageSpace
+from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
 from cryo_robust.comparison.domain.metrics import ClassificationMetrics
 from cryo_robust.comparison.domain.reports import EvaluationReport, MethodResults
 from cryo_robust.comparison.evaluation.frc import FRCData, FRCThreshold, get_threshold
@@ -34,6 +36,12 @@ BASE_PLOT_OPTIONS = {
     "dpi": 150,
 }
 
+WEIGHT_PLOT_TITLE_OPTIONS = {
+    "show_description": True,
+    "show_method": True,
+    "show_space": True,
+    "show_aggregation": True,
+}
 
 ### ====================
 ### Weight distributions
@@ -41,7 +49,7 @@ BASE_PLOT_OPTIONS = {
 
 
 def _plot_weight_histogram(
-    ax: plt.Axes,
+    ax: Axes,
     scores: np.ndarray,
     title: str,
     labels: np.ndarray | None,
@@ -52,7 +60,7 @@ def _plot_weight_histogram(
 
     Parameters
     ----------
-    ax : plt.Axes
+    ax : Axes
         The axes to draw on.
     scores : np.ndarray
         Score values to histogram.
@@ -63,7 +71,7 @@ def _plot_weight_histogram(
     density : bool
         Whether to normalise to probability density.
     """
-    ax.set_title(f"Weight Distribution: {title}")
+    ax.set_title(title)
 
     min_val, max_val = scores.min(), scores.max()
     bins = (
@@ -92,7 +100,7 @@ def _plot_weight_histogram(
 
 def _collect_weight_scores(
     report: EvaluationReport,
-) -> dict[str, np.ndarray]:
+) -> dict[tuple[str, ImageSpace, AggregationStrategy], np.ndarray]:
     """
     Extract and flatten all (method, space, strategy) score arrays from a report.
 
@@ -108,7 +116,7 @@ def _collect_weight_scores(
     dict[str, np.ndarray]
         Ordered mapping from a human-readable plot key to score array.
     """
-    all_scores: dict[str, np.ndarray] = {}
+    all_scores: dict[tuple[str, ImageSpace, AggregationStrategy], np.ndarray] = {}
 
     for method_result in report.method_results:
         if method_result.name == AVERAGE_NAME:
@@ -116,26 +124,56 @@ def _collect_weight_scores(
 
         for space, strategy_scores in method_result.scores.items():
             for strategy, scores in strategy_scores.items():
-                key = f"{method_result.name} ({space.name} | {strategy})"
+                key = (method_result.name, space, strategy)
                 all_scores[key] = scores
 
     return all_scores
 
 
+def _build_weight_plot_title(
+    method: str,
+    space: ImageSpace,
+    strategy,
+    suffix: str | None = None,
+) -> str:
+    """Build a weight-distribution plot title from the configured components."""
+    parts = []
+
+    if WEIGHT_PLOT_TITLE_OPTIONS["show_description"]:
+        parts.append("Weight distribution")
+
+    if WEIGHT_PLOT_TITLE_OPTIONS["show_method"]:
+        parts.append(method)
+
+    if WEIGHT_PLOT_TITLE_OPTIONS["show_space"]:
+        parts.append(space.name)
+
+    if WEIGHT_PLOT_TITLE_OPTIONS["show_aggregation"]:
+        parts.append(str(strategy))
+
+    title = " — ".join(parts)
+
+    if suffix:
+        title = f"{title} — {suffix}" if title else suffix
+
+    return title
+
+
 def _plot_weight_distributions(
-    all_scores: dict[str, np.ndarray],
+    all_scores: dict[tuple[str, ImageSpace, AggregationStrategy], np.ndarray],
     labels: np.ndarray | None,
     max_subplots: int,
     density: bool,
+    title_suffix: str | None = None,
     fig_width: float = 4.0,
     fig_height: float = 3.0
-) -> list[plt.Figure]:
+) -> list[Figure]:
     """
     Produce batched weight distribution figures.
 
     Parameters
     ----------
-    all_scores : dict[str, np.ndarray]
+    all_scores : dict[tuple[str, ImageSpace, AggregationStrategy], np.ndarray]
         Mapping from plot key to score array, as returned by
         `_collect_weight_scores`.
     labels : np.ndarray | None
@@ -147,7 +185,7 @@ def _plot_weight_distributions(
 
     Returns
     -------
-    list[plt.Figure]
+    list[Figure]
         One figure per batch.
     """
     figures = []
@@ -161,8 +199,14 @@ def _plot_weight_distributions(
         if n == 1:
             axes = [axes]
 
-        for ax, (plot_key, scores) in zip(axes, chunk):
-            _plot_weight_histogram(ax, scores, plot_key, labels, density)
+        for ax, ((method, space, strategy), scores) in zip(axes, chunk):
+            title = _build_weight_plot_title(
+                method=method,
+                space=space,
+                strategy=strategy,
+                suffix=title_suffix
+            )
+            _plot_weight_histogram(ax, scores, title, labels, density)
 
         fig.tight_layout()
         figures.append(fig)
@@ -180,7 +224,7 @@ def _plot_frc_curves(
     frc_thresholds: list[FRCThreshold] = [],
     title: str = "Resolution Estimates (FRC)",
     x_axis_freqs: bool = True,
-) -> plt.Figure | None:
+) -> Figure | None:
     """
     Plot Fourier Ring Correlation (FRC) curves.
 
@@ -197,7 +241,7 @@ def _plot_frc_curves(
 
     Returns
     -------
-    plt.Figure | None
+    Figure | None
         The generated figure, or None if `data_items` is empty.
     """
     # Early exit if no data is provided to avoid generating empty figures
@@ -241,7 +285,7 @@ def _plot_frc_curves(
 
 def plot_report_frc_curves(
     report: EvaluationReport, x_axis_freqs: bool = True
-) -> tuple[plt.Figure | None, plt.Figure | None]:
+) -> tuple[Figure | None, Figure | None]:
     """
     Generate FRC curve figures for ground truth and half-set data from a report.
 
@@ -254,7 +298,7 @@ def plot_report_frc_curves(
 
     Returns
     -------
-    tuple[plt.Figure | None, plt.Figure | None]
+    tuple[Figure | None, Figure | None]
         A tuple containing the ground truth FRC figure and the half-set FRC figure.
         Either or both can be `None` if the respective data is not present.
     """
@@ -361,7 +405,7 @@ def plot_method_fourier_ring_curves(
     space: ImageSpace = ImageSpace.FOURIER_REAL,
     pixel_size: float = 1.0,
     figsize: tuple[int, int] = (11, 4.5),
-) -> plt.Figure | None:
+) -> Figure | None:
     """
     Generates one classification metrics vs. Fourier frequency for one estimation method.
     Returns ``None`` if the estimator does not have valid weights in the requested space.
@@ -379,8 +423,8 @@ def plot_method_fourier_ring_curves(
 
     Returns
     -------
-    plt.Figure | None
-        plt.Figure object containing the plot, or ``None`` if the estimation method
+    Figure | None
+        Figure object containing the plot, or ``None`` if the estimation method
         did not have valid weights for the requested space
     """
     ring_metrics_dict = getattr(method_results, "fourier_ring_metrics", {}).get(space)
@@ -431,7 +475,7 @@ def plot_fourier_ring_summary(
     space: ImageSpace = ImageSpace.FOURIER_REAL,
     pixel_size: float = 1.0,
     figsize: tuple[int, int] = (8, 5),
-) -> plt.Figure | None:
+) -> Figure | None:
     """
     Generates a single summary plot comparing all models across the spectrum.
     Solid line = Soft Precision, Dashed line = Soft Recall (Huang-Tagare).
@@ -450,8 +494,8 @@ def plot_fourier_ring_summary(
 
     Returns
     -------
-    plt.Figure | None
-        The plt.Figure object containing the plot, or
+    Figure | None
+        The Figure object containing the plot, or
         ``None`` if no methods with valid weights for the requested space were provided.
     """
     fig, ax = plt.subplots(figsize=figsize)

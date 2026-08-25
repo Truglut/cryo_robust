@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from .enums import ImageSpace
+from .enums import ImageSpace, AggregationStrategy
 from .metrics import MethodMetrics, ClassificationMetrics
 from cryo_robust.comparison.evaluation.frc import FRCData, FRCThreshold
 
@@ -44,7 +44,7 @@ class MethodResults:
 
     name: str
     metrics: MethodMetrics | None
-    scores: dict[ImageSpace, np.ndarray]
+    scores: dict[ImageSpace, dict[AggregationStrategy, np.ndarray]]
     ground_truth_frc_data: FRCData | None
     half_set_frc_data: FRCData
     estimated_img: np.ndarray
