@@ -58,7 +58,10 @@ def run_experiment(
     tensor_images = torch.from_numpy(images).to(dtype=torch.float32, device=args.device)
 
     # Apply mask to images
-    mask_radius = cfg["mask"]["params"]["radius"]
+    mask_radius = cfg.get("mask", {}).get("params", {}).get("radius")
+    if mask_radius is None:
+        h, w = images.shape[1:]
+        mask_radius = max(h // 2, w // 2)
     tensor_images, mask_tensor = apply_mask(tensor_images, mask_radius, inplace=True)
     mask = mask_tensor.detach().cpu().numpy()
     ground_truth *= mask
