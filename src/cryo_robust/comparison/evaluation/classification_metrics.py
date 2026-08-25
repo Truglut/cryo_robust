@@ -57,7 +57,10 @@ def compute_soft_metrics(
     }
 
     return ClassificationMetrics(
-        ap=ap, roc_auc=roc_auc, soft_precision=soft_precision, soft_recall=soft_recall
+        ap=float(ap),
+        roc_auc=float(roc_auc),
+        soft_precision=soft_precision,
+        soft_recall=soft_recall,
     )
 
 
@@ -65,7 +68,7 @@ def compute_classification_metrics(
     agg_weights: dict[ImageSpace, dict[AggregationStrategy, np.ndarray]],
     labels: np.ndarray,
     recall_methods: Iterable[str],
-) -> dict[ImageSpace, dict[AggregationStrategy, dict]]:
+) -> dict[ImageSpace, dict[AggregationStrategy, ClassificationMetrics]]:
     classification_metrics: dict[
         ImageSpace, dict[AggregationStrategy, ClassificationMetrics]
     ] = {}

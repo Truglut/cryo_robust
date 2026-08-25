@@ -67,6 +67,9 @@ class MethodResults:
         # Get the flat records from the metrics dataclass
         records = self.metrics.classification_metrics_records()
 
+        if records is None:
+            return []
+
         # Inject the method name into every row
         return [{"method": self.name, **record} for record in records]
 

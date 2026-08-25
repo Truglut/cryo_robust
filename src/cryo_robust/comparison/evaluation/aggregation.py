@@ -51,7 +51,8 @@ def energy_aggregate(
 
 
 AGGREGATORS: dict[
-    AggregationStrategy, Callable[[torch.Tensor, torch.Tensor | None], np.ndarray]
+    AggregationStrategy,
+    Callable[[torch.Tensor, torch.Tensor | None, torch.Tensor | None], np.ndarray],
 ] = {
     AggregationStrategy.MEAN: mean_aggregate,
     AggregationStrategy.ENERGY: energy_aggregate,
@@ -135,8 +136,8 @@ def setup_energy_reference(
 
 def _get_space_reference(
     space: ImageSpace,
-    ref_real: torch.Tensor,
-    ref_fourier: torch.Tensor,
+    ref_real: torch.Tensor | None,
+    ref_fourier: torch.Tensor | None,
 ) -> torch.Tensor | None:
     """
     Return the reference tensor and aggregation strategies for a given space.
@@ -199,7 +200,7 @@ def compute_aggregated_weights(
         Aggregated scores keyed by space then strategy. Spaces with
         `None` weights or no matching reference are omitted.
     """
-    scores: dict[ImageSpace, dict[str, np.ndarray]] = {}
+    scores: dict[ImageSpace, dict[AggregationStrategy, np.ndarray]] = {}
 
     for space, weights in weights_dict.items():
         if weights is None:

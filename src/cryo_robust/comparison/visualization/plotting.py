@@ -403,7 +403,7 @@ def plot_method_fourier_ring_curves(
     method_results: MethodResults,
     space: ImageSpace = ImageSpace.FOURIER_REAL,
     pixel_size: float = 1.0,
-    figsize: tuple[int, int] = (11, 4.5),
+    figsize: tuple[float, float] = (11, 4.5),
 ) -> Figure | None:
     """
     Generates one classification metrics vs. Fourier frequency for one estimation method.
@@ -417,7 +417,7 @@ def plot_method_fourier_ring_curves(
         Space to extract the weights from, by default Space.FOURIER_REAL
     pixel_size : float, optional
         Image pixel size, by default 1.0
-    figsize : tuple[int, int], optional
+    figsize : tuple[float, float], optional
         Figure size, by default (11, 4.5)
 
     Returns
@@ -800,7 +800,7 @@ def plot_vs_snr(
     method_column: str = "method",
     snr_column: str = "snr",
     dpi: int = 150,
-    figsize: tuple[int, int] | None = None,
+    figsize: tuple[float, float] | None = None,
     title: str | None = None,
     ylabel: str = "Score",
     aggregated_data: bool = False,
@@ -827,9 +827,8 @@ def plot_vs_snr(
         Default is ``"snr"``.
     dpi : int, optional
         Output resolution in dots per inch. Default is 150.
-    figsize : tuple[int, int], optional
+    figsize : tuple[float, float], optional
         Figure size in inches as ``(width, height)``.
-        Default is ``(10, 6)``.
     title : str | None, optional
         Figure title. If ``None``, a title is generated automatically from
         the selected metrics.

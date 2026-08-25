@@ -2,6 +2,8 @@ from enum import Enum
 
 
 class ImageSpace(str, Enum):
+    label: str
+
     # Pass both the raw value and the pretty label to the constructor
     REAL = ("real", "Real Space")
     FOURIER_REAL = ("fourier_real", "Fourier Space (Real Part)")
