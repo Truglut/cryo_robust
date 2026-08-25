@@ -166,7 +166,7 @@ def _plot_weight_distributions(
     density: bool,
     title_suffix: str | None = None,
     fig_width: float = 4.0,
-    fig_height: float = 3.0
+    fig_height: float = 3.0,
 ) -> list[Figure]:
     """
     Produce batched weight distribution figures.
@@ -195,16 +195,15 @@ def _plot_weight_distributions(
         chunk = items[batch_start : batch_start + max_subplots]
         n = len(chunk)
 
-        fig, axes = plt.subplots(n, 1, figsize=(fig_width, fig_height * n), sharex=False)
+        fig, axes = plt.subplots(
+            n, 1, figsize=(fig_width, fig_height * n), sharex=False
+        )
         if n == 1:
             axes = [axes]
 
         for ax, ((method, space, strategy), scores) in zip(axes, chunk):
             title = _build_weight_plot_title(
-                method=method,
-                space=space,
-                strategy=strategy,
-                suffix=title_suffix
+                method=method, space=space, strategy=strategy, suffix=title_suffix
             )
             _plot_weight_histogram(ax, scores, title, labels, density)
 
@@ -610,6 +609,7 @@ def save_report_figures(
     dpi: int = 150,
     frc_x_axis_freqs: bool = True,
     pixel_size: float = 1.0,
+    title_suffix: str | None = None,
 ) -> dict[str, list[Path]]:
     """
     Save all report figures to disk and return their paths.
@@ -630,6 +630,8 @@ def save_report_figures(
         Plot frequencies instead of spatial resolution on the x-axis in FRC plots.
     pixel_size: float, optional
         Image pixel size. Default is 1.0.
+    title_suffix: str, optional.
+        Suffix to append to weight plot titles.
 
     Returns
     -------
@@ -659,7 +661,9 @@ def save_report_figures(
 
     all_scores = _collect_weight_scores(report)
     for i, fig in enumerate(
-        _plot_weight_distributions(all_scores, report.labels, max_subplots, density)
+        _plot_weight_distributions(
+            all_scores, report.labels, max_subplots, density, title_suffix=title_suffix
+        )
     ):
         path = report_figure_path / f"weight_distribution_{i}.pdf"
         fig.savefig(path, dpi=dpi, bbox_inches="tight")
@@ -731,6 +735,7 @@ def save_snr_reports_figures(
     dpi: int = 150,
     frc_x_axis_freqs: bool = True,
     pixel_size: float = 1.0,
+    title_suffix: str | None = None,
 ) -> dict[float, dict[str, list[Path]]]:
     """
     Save all report figures to disk and return their paths.
@@ -749,8 +754,10 @@ def save_snr_reports_figures(
         Output resolution in dots per inch. Default is 150.
     frc_x_axis_freqs: bool, optional
         Plot frequencies instead of spatial resolution on the x-axis in FRC plots.
-    pixel_size: float, optional
+    pixel_size : float, optional
         Image pixel size. Default is 1.0.
+    title_suffix : str, optional
+        Suffix to append to weight plot titles.
 
     Returns
     -------
@@ -773,6 +780,7 @@ def save_snr_reports_figures(
             dpi=dpi,
             frc_x_axis_freqs=frc_x_axis_freqs,
             pixel_size=pixel_size,
+            title_suffix=title_suffix,
         )
 
     return saved
@@ -883,19 +891,19 @@ def plot_vs_snr(
     methods: list[str] = sorted(df[method_column].unique())
 
     N_COLS = 2
-    
+
     # Total items = (number of methods) * (number of metrics)
     total_legend_items = len(methods) * len(metrics)
-    
+
     # Calculate rows (ceiling division)
-    legend_rows = -(-total_legend_items // N_COLS) 
-    
+    legend_rows = -(-total_legend_items // N_COLS)
+
     # Dynamically adjust height: base height + extra space per row
     if figsize is None:
         base_width = 5
         base_height = 3 + (legend_rows * 0.18)
         figsize = (base_width, base_height)
-    
+
     # Create the figure with the adjusted dynamic size
     fig, ax = plt.subplots(figsize=(base_width, base_height))
 
@@ -927,7 +935,7 @@ def plot_vs_snr(
                     color=color,
                     linestyle=linestyles[metric_idx % len(linestyles)],
                     marker=markers[metric_idx % len(markers)],
-                    linewidth=1.2
+                    linewidth=1.2,
                 )
             else:
                 ax.plot(
@@ -937,22 +945,23 @@ def plot_vs_snr(
                     color=color,
                     linestyle=linestyles[metric_idx % len(linestyles)],
                     marker=markers[metric_idx % len(markers)],
-                    linewidth=1.2
+                    linewidth=1.2,
                 )
-
 
     # Set log scale
     ax.set_xscale("log")
 
     # 1. Extract exactly which SNR values exist in the data
     unique_snrs = sorted(df[snr_column].unique())
-    
+
     # 2. Force matplotlib to place ticks exactly at these data points
     ax.set_xticks(unique_snrs)
-    
+
     # 3. Format to 3 decimal places max, rounding 0.0067 to 0.007
-    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{round(x, 3):g}"))
-    
+    ax.xaxis.set_major_formatter(
+        ticker.FuncFormatter(lambda x, pos: f"{round(x, 3):g}")
+    )
+
     # 4. Clear out minor ticks so they don't create visual clutter
     ax.xaxis.set_minor_locator(ticker.NullLocator())
 

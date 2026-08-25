@@ -11,6 +11,7 @@ def build_base_parser() -> tuple[
     argparse._ArgumentGroup,
     argparse._ArgumentGroup,
     argparse._ArgumentGroup,
+    argparse._ArgumentGroup,
 ]:
     """
     Build the base command-line argument parser, with arguments that are common
@@ -42,7 +43,7 @@ def build_base_parser() -> tuple[
         "--print",
         action=argparse.BooleanOptionalAction,
         default=False,
-        help="Print the report to terminal"
+        help="Print the report to terminal",
     )
     visualization_group.add_argument(
         "--max-subplots",
@@ -60,6 +61,12 @@ def build_base_parser() -> tuple[
         "--density",
         action="store_true",
         help="Normalize weight distribution histograms to probability densities",
+    )
+    visualization_group.add_argument(
+        "--plot-title-suffix",
+        type=str,
+        default=None,
+        help="Optional suffix appended to plot titles",
     )
     visualization_group.add_argument(
         "--show-images",
@@ -108,19 +115,19 @@ def build_base_parser() -> tuple[
         "--reapply-mask",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Reapply the mask to estimations before evaluation"
+        help="Reapply the mask to estimations before evaluation",
     )
     evaluation_group.add_argument(
         "--independent-half-sets",
         action=argparse.BooleanOptionalAction,
         default=False,
-        help="Independently re-fit estimators on half sets for half-set FRC calculations"
+        help="Independently re-fit estimators on half sets for half-set FRC calculations",
     )
     evaluation_group.add_argument(
         "--fourier-weight-mask",
         choices=["low-pass", "band-pass", "high-pass", "none"],
         help="Type of mask to be used when evaluating weights in Fourier Space",
-        default="none"
+        default="none",
     )
     return parser, visualization_group, subset_group, saving_group, evaluation_group
 
@@ -145,33 +152,33 @@ def build_simulation_parser() -> argparse.ArgumentParser:
         nargs="+",
         type=float,
         help="Target signal to noise ratios in image generation. Default is [0.01]",
-        default=[0.01]
+        default=[0.01],
     )
 
     simulation_group.add_argument(
         "--standardize",
         choices=["before", "after", "both", "none"],
         default="after",
-        help="When to standardize generated images. Default is %(default)s"
+        help="When to standardize generated images. Default is %(default)s",
     )
     simulation_group.add_argument(
         "--per-image-noise-std",
         default=False,
         action=argparse.BooleanOptionalAction,
-        help="Add a different noise std to each image to achieve a uniform SNR. Default is False"
+        help="Add a different noise std to each image to achieve a uniform SNR. Default is False",
     )
     simulation_group.add_argument(
         "--n-runs",
         type=int,
         default=1,
-        help="Number of simulations to run with the specified configuration."
+        help="Number of simulations to run with the specified configuration.",
     )
     return parser
 
 
 def build_experimental_parser() -> argparse.ArgumentParser:
     """
-    Builds the experimental image estimator runs argument parser by adding 
+    Builds the experimental image estimator runs argument parser by adding
     its specific arguments to the base parser.
     """
     parser, _, _, _, _ = build_base_parser()
@@ -208,6 +215,7 @@ def parse_arguments(parser: argparse.ArgumentParser) -> argparse.Namespace:
         "max_subplots": args.max_subplots,
         "density": args.density,
         "dpi": args.dpi,
+        "title_suffix": args.plot_title_suffix,
     }
 
     return args
