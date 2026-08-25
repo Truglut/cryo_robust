@@ -49,7 +49,7 @@ A number of additional argument flags can be added to modify several parameters 
 Example usage:
 
 ```bash
-python -m scripts.estimator_runs.run_simulation --config configs/example_gmm --snr 0.05 0.02 0.01 0.0067 0.005 --report results/gmm_report --n-runs 10
+python -m scripts.estimator_runs.run_simulation --config configs/example_gmm.yaml --snr 0.05 0.02 0.01 0.0067 0.005 --report results/gmm_report --n-runs 10
 ```
 
 For a complete list of optional arguments, run
