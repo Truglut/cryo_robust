@@ -37,10 +37,27 @@ def add_noise(
         global_image_std = images.std(axis=(1, 2)).mean()
         noise_std = global_image_std / np.sqrt(snr)
 
-    print("Adding noise to images:")
-    print(
-        f"\t- Signal std:         {np.sqrt(signal_var):.4f}\tVariance:  {signal_var:6f}"
+    print_noise_specs(
+        signal_var=signal_var,
+        noise_std=noise_std,
+        snr=snr,
+        per_image_noise_std=per_image_noise_std,
     )
+    
+    if per_image_noise_std:
+        noise_std = np.broadcast_to(noise_std[:, None, None], shape=images.shape)
+    return images + rng.normal(0, noise_std, size=images.shape)
+
+
+def print_noise_specs(
+    signal_var: float | None,
+    noise_std: np.ndarray,
+    snr: float,
+    per_image_noise_std: bool,
+):
+    signal_std = None if signal_var is None else np.sqrt(signal_var)
+    print("Adding noise to images:")
+    print(f"\t- Signal std:         {signal_std:.4f}\tVariance:  {signal_var:6f}")
     if per_image_noise_std:
         print(
             f"\t- Average noise std:  {noise_std.mean():.4f}\tVariance: {np.square(noise_std).mean():.4f}.\n"
@@ -48,10 +65,6 @@ def add_noise(
     else:
         print(f"\t- Noise std:          {noise_std:.4f}\tVariance:  {noise_std**2:.6f}")
     print(f"\t- SNR:                {snr:.4f}\n")
-
-    if per_image_noise_std:
-        noise_std = np.broadcast_to(noise_std[:, None, None], shape=images.shape)
-    return images + rng.normal(0, noise_std, size=images.shape)
 
 
 def generate_rotated_copies(
