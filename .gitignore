@@ -14,8 +14,8 @@ admm/configs/
 method_comparison/configs/
 scratch/
 
-# Bash script for running all of the simulations for the Master's thesis
-run_simulations.sh
+# Bash scripts
+bash_scripts
 
 ## .gitignore for Python: from https://github.com/github/gitignore/blob/main/Python.gitignore
 
