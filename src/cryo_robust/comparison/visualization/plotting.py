@@ -15,10 +15,10 @@ from cryo_robust.comparison.evaluation.frc import FRCData, FRCThreshold, get_thr
 
 # Helper for consistent coloring
 LABEL_MAP = {
-    0: {"name": "Genuinas", "color": "blue"},
-    1: {"name": "Mal alineadas", "color": "orange"},
-    2: {"name": "Mal clasificadas", "color": "red"},
-    3: {"name": "Ruido", "color": "darkorange"},
+    0: {"name": "Genuine", "color": "#083DB0"},
+    1: {"name": "Misaligned", "color": "orange"},
+    2: {"name": "Misclassified", "color": "#F9290D"},
+    3: {"name": "Noise", "color": "darkorange"},
 }
 
 THRESHOLD_COLORS = {
@@ -38,9 +38,9 @@ BASE_PLOT_OPTIONS = {
 
 WEIGHT_PLOT_TITLE_OPTIONS = {
     "show_description": True,
-    "show_method": True,
-    "show_space": True,
-    "show_aggregation": True,
+    "show_method": False,
+    "show_space": False,
+    "show_aggregation": False,
 }
 
 ### ====================
@@ -93,6 +93,8 @@ def _plot_weight_histogram(
                 alpha=0.5,
                 label=config["name"],
                 color=config["color"],
+                edgecolor=config["color"],
+                linewidth=1.2,
                 density=density,
             )
     ax.legend()
