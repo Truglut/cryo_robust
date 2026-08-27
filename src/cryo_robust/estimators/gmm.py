@@ -2,7 +2,7 @@
 GMM-based robust estimator.
 
 This module implements a recursive robust averaging method that fits a two-component
-Gaussian mixture model to distances/dissimilarities to the current reference and uses 
+Gaussian mixture model to distances/dissimilarities to the current reference and uses
 the responsibilities of the closest component as image weights.
 """
 
@@ -23,6 +23,7 @@ from cryo_robust.comparison.domain.enums import ImageSpace
 
 class RecursiveGMMEstimator(Estimator):
     """Recursive robust averaging estimator based on GMM responsibilities."""
+
     def __init__(
         self,
         distance_function: DistanceFunction,
@@ -32,38 +33,81 @@ class RecursiveGMMEstimator(Estimator):
         space: ImageSpace = ImageSpace.REAL,
         device: str = "cpu",
         random_state: int | None = None,
+        gmm_max_iter: int = 20,
+        gmm_tol: float = 1.0e-4,
     ):
         super().__init__(device=device)
-        self.model = GaussianMixture(n_components=2, random_state=random_state)
+
+        self.model = GaussianMixture(
+            n_components=2,
+            max_iter=gmm_max_iter,
+            tol=gmm_tol,
+            random_state=random_state,
+            warm_start=True,
+        )
+
         self.distance_function = distance_function
         self.max_iter = max_iter
+        self.tol = tol
+        self.standardize_distances = standardize_distances
+        self.space = space
+
+        self.gmm_max_iter = gmm_max_iter
+        self.gmm_tol = gmm_tol
+
         self.n_its = None
         self.converged = False
-        self.tol = tol
-        self.space = space
-        self.standardize_distances = standardize_distances
 
-    def _new_model(self, initialize_params: bool) -> GaussianMixture:
-        model = GaussianMixture(
+    def _new_model(self) -> GaussianMixture:
+        """Create a fresh GMM, resetting any state from previous ``fit`` calls."""
+        return GaussianMixture(
             n_components=2,
+            max_iter=self.gmm_max_iter,
+            tol=self.gmm_tol,
             random_state=self.model.random_state,
             warm_start=True,
         )
 
-        if initialize_params:
-            n_features = 1
-            model.means_init = np.array([-np.ones(n_features), np.ones(n_features)])
-            model.weights_init = np.array([0.8, 0.2])
+    def _initialize_model_params(self, distances: torch.Tensor) -> None:
+        """Initialize component weights and means from the observed distances.
 
-        return model
+        The lower-distance component is initialized with weight 0.8 and its mean at
+        the 0.2 quantile. The higher-distance component is initialized with weight
+        0.2 and its mean at the 0.8 quantile.
+        """
+        component_weights = torch.tensor(
+            [0.8, 0.2],
+            dtype=distances.dtype,
+            device=distances.device,
+        )
+
+        component_means = torch.quantile(
+            distances.reshape(-1),
+            1.0 - component_weights,
+        )
+
+        # Initialize both components with the same empirical variance
+        variance = distances.reshape(-1).var(unbiased=False).clamp_min(
+            self.model.reg_covar
+        )
+        component_precisions = (1.0 / variance).expand(2, 1, 1)
+        
+        self.model.means_init = (
+            component_means.reshape(2, 1).detach().cpu().numpy()
+        )
+        self.model.weights_init = component_weights.detach().cpu().numpy()
+        self.model.precisions_init = component_precisions.detach().cpu().numpy()
 
     def _standardize(
         self, distances: torch.Tensor
     ) -> tuple[torch.Tensor, float, float]:
+        """Optionally standardize distances to zero mean and unit variance."""
         if not self.standardize_distances:
             return distances, 0.0, 1.0
-        std = distances.std()
+
+        std = distances.std().clamp_min(1.0e-8)
         mean = distances.mean()
+
         return (distances - mean) / std, mean.item(), std.item()
 
     def _responsibility_weights(
@@ -73,29 +117,47 @@ class RecursiveGMMEstimator(Estimator):
         dtype: torch.dtype,
         device: torch.device,
     ) -> torch.Tensor:
+        """Return posterior probabilities of the lower-distance GMM component."""
         good_component = np.argmin(model.means_.mean(axis=1))
         responsibilities = model.predict_proba(distances_np)[:, good_component]
-        return torch.as_tensor(responsibilities, dtype=dtype, device=device).view(
-            -1, 1, 1
-        )
+
+        # .view(-1, 1, 1) allows the weights to broadcast over image batches.
+        # NOTE: this would need to be modified to generalize to other image dimensions.
+        return torch.as_tensor(
+            responsibilities,
+            dtype=dtype,
+            device=device,
+        ).view(-1, 1, 1)
 
     def _fit_one_iteration(
-        self, images: torch.Tensor, reference: torch.Tensor
+        self,
+        images: torch.Tensor,
+        reference: torch.Tensor,
+        initialize_params: bool = False,
     ) -> tuple[np.ndarray, torch.Tensor, torch.Tensor, bool, float, float]:
+        """Perform one iteration of the recursive GMM estimation procedure."""
         distances = self.distance_function(images, reference)
-        distances, dist_mean, dist_std = self._standardize(distances)
+        std_distances, dist_mean, dist_std = self._standardize(distances)
 
         # Prepare distances for sklearn's GaussianMixture
-        distances_np = distances.detach().cpu().numpy()
-        if distances_np.ndim == 1:
-            distances_np = distances_np.reshape(-1, 1)
+        if std_distances.ndim == 1:
+            std_distances = std_distances[:, None]
 
-        # Fit GMM to the distance distribution
+        if initialize_params:
+            self._initialize_model_params(std_distances)
+
+        distances_np = std_distances.detach().cpu().numpy()
+
+        # Fit GMM to the distance distribution. With warm_start=True, later
+        # recursive iterations start from the previous iteration's fitted model.
         self.model.fit(distances_np)
 
         # Get weights and update reference
         weights = self._responsibility_weights(
-            self.model, distances_np, dtype=images.dtype, device=images.device
+            self.model,
+            distances_np,
+            dtype=images.dtype,
+            device=images.device,
         )
         next_reference = weighted_average(images, weights)
         rel_change = torch.linalg.norm(next_reference - reference) / (
@@ -120,10 +182,11 @@ class RecursiveGMMEstimator(Estimator):
         plot_fits: bool = False,
         plot_title: str = "GMM Distances & Fit",
     ) -> EstimatorResult:
+        """Fit the recursive estimator and return its result."""
         # Reset the GMM to avoid carrying over state from previous fit() calls
-        self.model = self._new_model(initialize_params)
+        self.model = self._new_model()
 
-        # Select real space images
+        # Select real-space images
         if isinstance(images, ImageBatch):
             images = images.real
 
@@ -135,7 +198,11 @@ class RecursiveGMMEstimator(Estimator):
         self.converged = False
         for i in range(self.max_iter):
             distances_np, weights, next_reference, converged, dist_mean, dist_std = (
-                self._fit_one_iteration(images, reference)
+                self._fit_one_iteration(
+                    images,
+                    reference,
+                    initialize_params=initialize_params and i == 0,
+                )
             )
 
             # Update reference
@@ -144,7 +211,10 @@ class RecursiveGMMEstimator(Estimator):
             # Plot initial fit
             if i == 0 and plot_fits:
                 fig, axes = self._produce_initial_diagnostics(
-                    distances_np, dist_mean, dist_std, plot_title
+                    distances_np,
+                    dist_mean,
+                    dist_std,
+                    plot_title,
                 )
 
             # Check convergence
@@ -152,7 +222,7 @@ class RecursiveGMMEstimator(Estimator):
                 self.converged = True
                 break
 
-        # Save results
+        # Save results using the existing gmm.py data model
         self.avg = reference
         weight_set = WeightSet(real=weights, fourier_real=None, fourier_imag=None)
         self.final_weights = weight_set.as_space_dict()
@@ -160,7 +230,12 @@ class RecursiveGMMEstimator(Estimator):
         # Plot final model fit
         if plot_fits:
             ax = axes[1]
-            self._produce_final_diagnostics(ax, distances_np, dist_mean, dist_std)
+            self._produce_final_diagnostics(
+                ax,
+                distances_np,
+                dist_mean,
+                dist_std,
+            )
             fig.tight_layout()
 
         return EstimatorResult(
@@ -168,7 +243,7 @@ class RecursiveGMMEstimator(Estimator):
             estimate=reference,
             weights=weight_set,
             converged=self.converged,
-            n_iter=i+1
+            n_iter=i + 1,
         )
 
     def _produce_initial_diagnostics(
@@ -198,11 +273,11 @@ class RecursiveGMMEstimator(Estimator):
         one_comp_model.fit(distances_to_ref_np)
 
         # Fit comparison
-        print(f"GMM Fit Comparison")
-        print(f"AIC:")
+        print("GMM Fit Comparison")
+        print("AIC:")
         print(f"- One comp: {one_comp_model.aic(distances_to_ref_np)}")
         print(f"- Two comp: {self.model.aic(distances_to_ref_np)}")
-        print(f"BIC:")
+        print("BIC:")
         print(f"- One comp: {one_comp_model.bic(distances_to_ref_np)}")
         print(f"- Two comp: {self.model.bic(distances_to_ref_np)}")
 
