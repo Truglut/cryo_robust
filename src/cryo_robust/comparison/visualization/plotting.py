@@ -38,8 +38,8 @@ BASE_PLOT_OPTIONS = {
 
 WEIGHT_PLOT_TITLE_OPTIONS = {
     "show_description": True,
-    "show_method": False,
-    "show_space": False,
+    "show_method": True,
+    "show_space": True,
     "show_aggregation": False,
 }
 
