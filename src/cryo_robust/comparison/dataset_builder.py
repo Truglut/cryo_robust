@@ -43,7 +43,7 @@ def add_noise(
         snr=snr,
         per_image_noise_std=per_image_noise_std,
     )
-    
+
     if per_image_noise_std:
         noise_std = np.broadcast_to(noise_std[:, None, None], shape=images.shape)
     return images + rng.normal(0, noise_std, size=images.shape)
@@ -164,6 +164,7 @@ def create_evaluation_dataset(
     standardize_before_noise: bool = False,
     per_image_noise_std: bool = False,
     rotate_misclassified: bool = True,
+    standardize_reference: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Generates an evaluation dataset with rotated inliers, rotated outliers,
@@ -230,6 +231,15 @@ def create_evaluation_dataset(
         dataset[current_idx : current_idx + n_misc] = misclassified_images
         labels[current_idx : current_idx + n_misc] = 2
         current_idx += n_misc
+
+    # Standardize images with respect to the reference (before adding noise, and before adding "pure noise" images)
+    if standardize_reference:
+        ref_mean = ref_image.mean()
+        ref_std = ref_image.std()
+
+        ref_image = (ref_image - ref_mean) / ref_std
+        dataset -= ref_mean
+        dataset /= ref_std
 
     # Add images with no signal (all zeros, noise will be added later)
     if n_noise > 0:

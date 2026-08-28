@@ -46,6 +46,7 @@ def run_experiment(
         snr=snr,
         standardize_before_noise=args.standardize in ["before", "both"],
         per_image_noise_std=args.per_image_noise_std,
+        standardize_reference=args.standardize_reference,
     )
 
     if args.standardize in ["after", "both"]:

@@ -183,6 +183,12 @@ def build_simulation_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Path to the .mrc file containing the image that will be used as misclassified images for the simulation. If provided, will override the path in the config file.",
     )
+    simulation_group.add_argument(
+        "--standardize-reference",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="If True, the reference image will be standardized to zero mean and unit std before generating the dataset",
+    )
     return parser
 
 
