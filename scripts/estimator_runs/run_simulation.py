@@ -138,7 +138,12 @@ def main():
     args = parse_arguments(build_simulation_parser())
 
     # Load configurations
-    cfg = load_config(args.config, args.snr)
+    cfg = load_config(
+        args.config,
+        args.snr,
+        reference_image_path=args.reference_image_path,
+        misclassified_path=args.misclassified_path,
+    )
     ground_truth_image: np.ndarray = mrcfile.read(cfg["data"]["reference_image_path"])
 
     # rng seed for reproducibilty

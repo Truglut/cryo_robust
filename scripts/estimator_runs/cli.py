@@ -173,6 +173,16 @@ def build_simulation_parser() -> argparse.ArgumentParser:
         default=1,
         help="Number of simulations to run with the specified configuration.",
     )
+    simulation_group.add_argument(
+        "--reference-image-path",
+        type=Path,
+        help="Path to the .mrc file containing the image that will be used as the reference for the simulation. If provided, will override the path in the config file.",
+    )
+    simulation_group.add_argument(
+        "--misclassified-path",
+        type=Path,
+        help="Path to the .mrc file containing the image that will be used as misclassified images for the simulation. If provided, will override the path in the config file.",
+    )
     return parser
 
 

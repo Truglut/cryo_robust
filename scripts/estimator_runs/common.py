@@ -24,7 +24,12 @@ from cryo_robust.comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_N
 from cryo_robust.utils.masks import create_circular_mask
 
 
-def load_config(config_path: str | Path, snr: float | None = None):
+def load_config(
+    config_path: str | Path,
+    snr: float | None = None,
+    reference_image_path: Path | None = None,
+    misclassified_path: Path | None = None,
+):
     """
     Loads the config file and overrides the config SNR specification if the ``snr``
     argument is not ``None``.
@@ -33,6 +38,11 @@ def load_config(config_path: str | Path, snr: float | None = None):
         cfg = yaml.safe_load(file)
     if snr is not None:
         cfg.setdefault("noise", {})["snr"] = snr
+    cfg.setdefault("data", {})
+    if reference_image_path is not None:
+        cfg["data"]["reference_image_path"] = reference_image_path
+    if misclassified_path is not None:
+        cfg["data"]["misclassified_path"] = misclassified_path
     return cfg
 
 
@@ -149,7 +159,7 @@ def run_estimators(
 
 def apply_mask(images_tensor: torch.Tensor, mask_radius: float, inplace: bool = False):
     """
-    Applies a circular mask to a batch of images, optionally modifying the 
+    Applies a circular mask to a batch of images, optionally modifying the
     input tensor in-place
     """
     # Create mask on device
@@ -169,7 +179,7 @@ def canonical_image_weights(
     estimator: Estimator, final_weights: dict[ImageSpace, torch.Tensor]
 ):
     """
-    Gets a canonical set of image weights for each estimator type, used for 
+    Gets a canonical set of image weights for each estimator type, used for
     identifying 'good' and 'bad' image subsets
     """
     if isinstance(estimator, IRLSFourier):
@@ -198,7 +208,7 @@ def process_and_save_subsets(
     snr: float | None = None,
 ) -> None:
     """
-    For each of the provided quantiles and weight thresholds (through the 
+    For each of the provided quantiles and weight thresholds (through the
     command-line arguments stored in ``args``), extracts the subsets of images with
     highest and lowest weights.
     Saves these subsets to a file if requested.
