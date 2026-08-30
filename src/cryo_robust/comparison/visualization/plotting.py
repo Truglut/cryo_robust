@@ -612,6 +612,7 @@ def save_report_figures(
     frc_x_axis_freqs: bool = True,
     pixel_size: float = 1.0,
     title_suffix: str | None = None,
+    content: set[str] = {"weights", "frc", "fourier-rings"}
 ) -> dict[str, list[Path]]:
     """
     Save all report figures to disk and return their paths.
@@ -634,6 +635,15 @@ def save_report_figures(
         Image pixel size. Default is 1.0.
     title_suffix: str, optional.
         Suffix to append to weight plot titles.
+    content : set[str]
+        Set of content sections to include in the LaTeX report. This will also
+        determine which plots get generated. The relevant options for this section
+        are 
+        - "weights": weight histograms for each estimator and set of experimental 
+        conditions
+        - "frc": FRC curves with ground-truth at each set of experimental conditions
+        - "fourier-rings": classification metrics by Fourier ring for fourier-space
+        methods.
 
     Returns
     -------
@@ -661,69 +671,73 @@ def save_report_figures(
         "fourier_ring_summary": [],
     }
 
-    all_scores = _collect_weight_scores(report)
-    for i, fig in enumerate(
-        _plot_weight_distributions(
-            all_scores, report.labels, max_subplots, density, title_suffix=title_suffix
-        )
-    ):
-        path = report_figure_path / f"weight_distribution_{i}.pdf"
-        fig.savefig(path, dpi=dpi, bbox_inches="tight")
-        plt.close(fig)
-        saved["weight_distributions"].append(path)
+    # Weight distribution histograms
+    if "weights" in content:
+        all_scores = _collect_weight_scores(report)
+        for i, fig in enumerate(
+            _plot_weight_distributions(
+                all_scores, report.labels, max_subplots, density, title_suffix=title_suffix
+            )
+        ):
+            path = report_figure_path / f"weight_distribution_{i}.pdf"
+            fig.savefig(path, dpi=dpi, bbox_inches="tight")
+            plt.close(fig)
+            saved["weight_distributions"].append(path)
 
     # FRC curves
-    gt_frc_fig, hs_frc_fig = plot_report_frc_curves(
-        report, x_axis_freqs=frc_x_axis_freqs
-    )
-    if gt_frc_fig is not None:
-        path = report_figure_path / "gt_frc_curves.pdf"
-        gt_frc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
-        plt.close(gt_frc_fig)
-        saved["frc_curves"].append(path)
-    if hs_frc_fig is not None:
-        path = report_figure_path / "hs_frc_curves.pdf"
-        hs_frc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
-        plt.close(hs_frc_fig)
-        saved["frc_curves"].append(path)
+    if "frc" in content:
+        gt_frc_fig, hs_frc_fig = plot_report_frc_curves(
+            report, x_axis_freqs=frc_x_axis_freqs
+        )
+        if gt_frc_fig is not None:
+            path = report_figure_path / "gt_frc_curves.pdf"
+            gt_frc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
+            plt.close(gt_frc_fig)
+            saved["frc_curves"].append(path)
+        if hs_frc_fig is not None:
+            path = report_figure_path / "hs_frc_curves.pdf"
+            hs_frc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
+            plt.close(hs_frc_fig)
+            saved["frc_curves"].append(path)
 
     ## Fourier ring classification metrics
-    for space in [ImageSpace.FOURIER_REAL, ImageSpace.FOURIER_IMAG]:
-        space_str = "real" if space == ImageSpace.FOURIER_REAL else "imag"
+    if "fourier-rings" in content:
+        for space in [ImageSpace.FOURIER_REAL, ImageSpace.FOURIER_IMAG]:
+            space_str = "real" if space == ImageSpace.FOURIER_REAL else "imag"
 
-        # 1. Output individual method subplot figures
-        for res in report.method_results:
-            fig = plot_method_fourier_ring_curves(
-                res, space=space, pixel_size=pixel_size
+            # 1. Output individual method subplot figures
+            for res in report.method_results:
+                fig = plot_method_fourier_ring_curves(
+                    res, space=space, pixel_size=pixel_size
+                )
+
+                if fig is None:
+                    continue
+
+                clean_name = res.name.lower().replace(" ", "_")
+                fig_filename = f"fourier_{space_str}_rings_{clean_name}.pdf"
+                fig_save_path = report_figure_path / fig_filename
+
+                fig.savefig(fig_save_path, dpi=dpi, bbox_inches="tight")
+                plt.close(fig)
+
+                saved["fourier_ring_classification"].append(fig_save_path)
+
+            # 2. Output global multi-method summary
+            summary_fig = plot_fourier_ring_summary(
+                report.method_results, space=space, pixel_size=pixel_size
             )
 
-            if fig is None:
+            if summary_fig is None:
                 continue
 
-            clean_name = res.name.lower().replace(" ", "_")
-            fig_filename = f"fourier_{space_str}_rings_{clean_name}.pdf"
-            fig_save_path = report_figure_path / fig_filename
+            summary_filename = f"fourier_{space_str}_rings_summary.pdf"
+            summary_save_path = report_figure_path / summary_filename
 
-            fig.savefig(fig_save_path, dpi=dpi, bbox_inches="tight")
-            plt.close(fig)
+            summary_fig.savefig(summary_save_path, dpi=dpi, bbox_inches="tight")
+            plt.close(summary_fig)
 
-            saved["fourier_ring_classification"].append(fig_save_path)
-
-        # 2. Output global multi-method summary
-        summary_fig = plot_fourier_ring_summary(
-            report.method_results, space=space, pixel_size=pixel_size
-        )
-
-        if summary_fig is None:
-            continue
-
-        summary_filename = f"fourier_{space_str}_rings_summary.pdf"
-        summary_save_path = report_figure_path / summary_filename
-
-        summary_fig.savefig(summary_save_path, dpi=dpi, bbox_inches="tight")
-        plt.close(summary_fig)
-
-        saved["fourier_ring_summary"].append(summary_save_path)
+            saved["fourier_ring_summary"].append(summary_save_path)
 
     return saved
 
@@ -738,6 +752,7 @@ def save_snr_reports_figures(
     frc_x_axis_freqs: bool = True,
     pixel_size: float = 1.0,
     title_suffix: str | None = None,
+    content: set[str] = {"weights", "frc", "fourier-rings"}
 ) -> dict[float, dict[str, list[Path]]]:
     """
     Save all report figures to disk and return their paths.
@@ -760,6 +775,15 @@ def save_snr_reports_figures(
         Image pixel size. Default is 1.0.
     title_suffix : str, optional
         Suffix to append to weight plot titles.
+    content : set[str]
+        Set of content sections to include in the LaTeX report. This will also
+        determine which plots get generated. The relevant options for this section
+        are 
+        - "weights": weight histograms for each estimator and set of experimental 
+        conditions
+        - "frc": FRC curves with ground-truth at each set of experimental conditions
+        - "fourier-rings": classification metrics by Fourier ring for fourier-space
+        methods.
 
     Returns
     -------
@@ -783,6 +807,7 @@ def save_snr_reports_figures(
             frc_x_axis_freqs=frc_x_axis_freqs,
             pixel_size=pixel_size,
             title_suffix=title_suffix,
+            content=content,
         )
 
     return saved

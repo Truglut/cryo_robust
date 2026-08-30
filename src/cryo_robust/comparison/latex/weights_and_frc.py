@@ -50,6 +50,7 @@ def generate_weight_and_frc_plots_section(
     figures_path: Path,
     plot_options: dict[str, Any],
     frc_x_axis_freqs: bool = True,
+    content: set[str] = {"weights", "frc", "fourier-rings"}
 ) -> str:
     """
     Generates the LaTeX text for the plots section.
@@ -71,6 +72,15 @@ def generate_weight_and_frc_plots_section(
             - dpi: int
     frc_x_axis_freqs: bool, optional
         Plot frequencies instead of spatial resolution on the x-axis in FRC plots.
+    content : set[str]
+        Set of content sections to include in the LaTeX report. This will also
+        determine which plots get generated. The relevant options for this section
+        are 
+        - "weights": weight histograms for each estimator and set of experimental 
+        conditions
+        - "frc": FRC curves with ground-truth at each set of experimental conditions
+        - "fourier-rings": classification metrics by Fourier ring for fourier-space
+        methods.
 
     Returns
     -------
@@ -90,6 +100,7 @@ def generate_weight_and_frc_plots_section(
         output_path=output_path,
         figures_path=figures_path,
         frc_x_axis_freqs=frc_x_axis_freqs,
+        content=content,
         **plot_options,
     )
 

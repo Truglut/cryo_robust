@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from cryo_robust.comparison.visualization.plotting import BASE_PLOT_OPTIONS
+from cryo_robust.comparison.latex.main import REPORT_CONTENT_OPTIONS
 
 ALL_PLOTS = ["weights", "gmm", "frc"]
 
@@ -142,6 +143,17 @@ def build_simulation_parser() -> argparse.ArgumentParser:
     # Add reports to saving group
     saving_group.add_argument(
         "--report", type=Path, help="Generate a LaTeX report at the provided path"
+    )
+    REPORT_CONTENT_OPTIONS.add("all")
+    saving_group.add_argument(
+        "--report-content",
+        help=(
+            "Content to include in the LaTeX report. This will also determine "
+            f"which figures get generated. Options are {REPORT_CONTENT_OPTIONS}."
+        ),
+        nargs="+",
+        choices=REPORT_CONTENT_OPTIONS,
+        default=["all"]
     )
 
     simulation_group = parser.add_argument_group("Simulation")

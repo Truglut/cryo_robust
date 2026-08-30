@@ -20,6 +20,15 @@ from .classification import (
 )
 from .images import generate_images_section
 
+REPORT_CONTENT_OPTIONS = {
+    "classification",
+    "reconstruction",
+    "weights",
+    "frc",
+    "fourier-rings",
+    "images",
+}
+
 
 def generate_latex_report(
     results: dict[float, EvaluationReport] | dict[float, EvaluationStudy],
@@ -64,6 +73,10 @@ def generate_latex_report(
                 - dpi: int
     """
     plot_options = args.plot_options
+    content = set(args.report_content)
+
+    if "all" in content:
+        content = REPORT_CONTENT_OPTIONS
 
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -80,7 +93,7 @@ def generate_latex_report(
         output_path=output_path,
         figures_path=figures_path,
         dpi=plot_options["dpi"],
-    )
+    ) if "classification" in content else ""
 
     # Reconstruction section: rmse, correlation, resolution
     reconstruction_section = generate_reconstruction_section(
@@ -88,7 +101,7 @@ def generate_latex_report(
         output_path=output_path,
         figures_path=figures_path,
         dpi=plot_options["dpi"],
-    )
+    ) if "reconstruction" in content else ""
 
     # Save figures and generate the plots section
     plots_section = generate_weight_and_frc_plots_section(
@@ -96,6 +109,7 @@ def generate_latex_report(
         output_path=output_path,
         figures_path=figures_path,
         plot_options=plot_options,
+        content=content,
     )
 
     # Images section with ground truth and estimation
@@ -105,7 +119,7 @@ def generate_latex_report(
         output_path=output_path,
         figures_path=figures_path,
         plot_options=plot_options,
-    )
+    ) if "images" in content else ""
 
     # Write all the contents to the file
     with report_path.open("w") as f:
