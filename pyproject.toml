@@ -18,6 +18,8 @@ dependencies = [
     "matplotlib",
     "pandas",
     "scikit-learn",
+    "mrcfile",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
