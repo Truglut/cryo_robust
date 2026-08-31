@@ -3,7 +3,6 @@ import torch
 from sklearn.metrics import root_mean_squared_error
 from scipy.stats import pearsonr
 
-from cryo_robust.estimators.base import Estimator
 from cryo_robust.estimators.irls import IRLSSolver
 from cryo_robust.estimators.data import ImageBatch
 
@@ -94,30 +93,24 @@ def compute_reconstruction_metrics(
         reconstruction_A = result_A.average
         reconstruction_B = result_B.average
     else:
-        weights_A = {
-            space: (
-                weights.select_space_weights(space)[idx_A]
-                if weights.select_space_weights(space) is not None
-                else None
-            )
-            for space in ImageSpace
-        }
-        weights_B = {
-            space: (
-                weights.select_space_weights(space)[idx_B]
-                if weights.select_space_weights(space) is not None
-                else None
-            )
-            for space in ImageSpace
-        }
+        weights_A = weights.subset(idx_A)
+        weights_B = weights.subset(idx_B)
 
         # Handle IRLSSolver first because it is currently the only that takes ImageBatch
         if isinstance(estimator, IRLSSolver):
-            reconstruction_A = estimator.reconstruct_from_weights(batch_A, weights_A)
-            reconstruction_B = estimator.reconstruct_from_weights(batch_B, weights_B)
+            reconstruction_A = estimator.reconstruct_from_weights(
+                batch_A, weights_A.as_space_dict()
+            )
+            reconstruction_B = estimator.reconstruct_from_weights(
+                batch_B, weights_B.as_space_dict()
+            )
         else:
-            reconstruction_A = estimator.reconstruct_from_weights(images_A, weights_A)
-            reconstruction_B = estimator.reconstruct_from_weights(images_B, weights_B)
+            reconstruction_A = estimator.reconstruct_from_weights(
+                images_A, weights_A.as_space_dict()
+            )
+            reconstruction_B = estimator.reconstruct_from_weights(
+                images_B, weights_B.as_space_dict()
+            )
 
     reconstruction_A = reconstruction_A.detach().cpu().numpy()
     reconstruction_B = reconstruction_B.detach().cpu().numpy()

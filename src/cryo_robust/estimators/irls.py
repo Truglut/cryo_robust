@@ -237,10 +237,12 @@ class IRLSSolver(Estimator):
             else:
                 weights = weights[space]
         elif isinstance(weights, WeightSet):
-            weights = weights.select_space_weights(space)
+            weights = weights.select_space(space)
 
         if weights is None:
-            raise ValueError(f"No weights available for reconstruction in space {space}.")
+            raise ValueError(
+                f"No weights available for reconstruction in space {space}."
+            )
 
         return weighted_average(images, weights, eps=self.eps)
 
@@ -329,14 +331,14 @@ class IRLSFourier(Estimator):
         self,
         images: dict[ImageSpace, torch.Tensor | None] | ImageBatch,
         weights: dict[ImageSpace, torch.Tensor | None] | WeightSet,
-        space: ImageSpace = ImageSpace.FOURIER_COMPLEX
+        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,
     ) -> torch.Tensor:
         if space != ImageSpace.FOURIER_COMPLEX:
             raise ValueError(
                 f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
                 f"got {space.name}"
             )
-        
+
         reconstructed_fourier_real = self.irls_real.reconstruct_from_weights(
             images, weights, space=ImageSpace.FOURIER_REAL
         )
@@ -425,14 +427,14 @@ class JointIRLSFourier(Estimator):
         self,
         images: dict[ImageSpace, torch.Tensor] | ImageBatch,
         weights: dict[ImageSpace, torch.Tensor] | WeightSet,
-        space: ImageSpace = ImageSpace.FOURIER_COMPLEX
+        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,
     ):
         if space != ImageSpace.FOURIER_COMPLEX:
             raise ValueError(
                 f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
                 f"got {space.name}"
             )
-        
+
         fourier_reconstruction = self.solver.reconstruct_from_weights(
             images, weights, space=ImageSpace.FOURIER_COMPLEX
         )
@@ -550,7 +552,7 @@ class FlatteningIRLSFourier(Estimator):
         )
 
         # Recover final weights
-        weights = irls_results.weights.select_space_weights(self.solver.space)
+        weights = irls_results.weights.select_space(self.solver.space)
         # Reshape weights to the standard (N, 1, 1) format
         weights = weights.reshape(batch.n_images, 1, 1)
         weight_set = WeightSet(real=None, fourier_real=weights, fourier_imag=weights)
@@ -625,14 +627,14 @@ class FlatteningIRLSFourier(Estimator):
         self,
         images: dict[ImageSpace, torch.Tensor] | ImageBatch,
         weights: dict[ImageSpace, torch.Tensor] | WeightSet,
-        space: ImageSpace = ImageSpace.FOURIER_COMPLEX
+        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,
     ):
         if space != ImageSpace.FOURIER_COMPLEX:
             raise ValueError(
                 f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
                 f"got {space.name}"
             )
-        
+
         if isinstance(images, dict):
             fourier_images = torch.complex(
                 images[ImageSpace.FOURIER_REAL], images[ImageSpace.FOURIER_IMAG]

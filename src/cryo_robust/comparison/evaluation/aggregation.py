@@ -6,6 +6,8 @@ import torch
 
 from cryo_robust.comparison.domain.enums import AggregationStrategy, ImageSpace
 
+from cryo_robust.estimators.results import WeightSet
+
 
 def mean_aggregate(
     weights: torch.Tensor,
@@ -167,7 +169,7 @@ def _get_space_reference(
 
 
 def compute_aggregated_weights(
-    weights_dict: dict[ImageSpace, torch.Tensor | None],
+    weights: WeightSet,
     real_agg_strategies: Iterable[AggregationStrategy],
     fourier_agg_strategies: Iterable[AggregationStrategy],
     ref_real: torch.Tensor | None = None,
@@ -202,10 +204,13 @@ def compute_aggregated_weights(
     """
     scores: dict[ImageSpace, dict[AggregationStrategy, np.ndarray]] = {}
 
-    for space, weights in weights_dict.items():
-        if weights is None:
+    for space in (ImageSpace.REAL, ImageSpace.FOURIER_REAL, ImageSpace.FOURIER_IMAG):
+        space_weights = weights.select_space(space)
+
+        if space_weights is None:
             continue
-        ref = _get_space_reference(space, ref_real, ref_fourier)
+
+        reference = _get_space_reference(space, ref_real, ref_fourier)
         strategies = (
             real_agg_strategies if space == ImageSpace.REAL else fourier_agg_strategies
         )
@@ -215,11 +220,11 @@ def compute_aggregated_weights(
 
         scores[space] = {
             strategy: aggregate_weights(
-                weights, strategy=strategy, reference=ref, mask=mask
+                space_weights, strategy=strategy, reference=reference, mask=mask
             )
             for strategy in strategies
             if not (
-                ref is None and strategy == "energy"
+                reference is None and strategy == AggregationStrategy.ENERGY
             )  # energy strategy requested but no reference available; skip
         }
 

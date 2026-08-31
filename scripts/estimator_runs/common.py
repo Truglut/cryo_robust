@@ -11,14 +11,10 @@ from cryo_robust.estimators.data import ImageBatch
 from cryo_robust.estimators.results import EstimatorResult, WeightSet
 from cryo_robust.estimators.base import Estimator
 from cryo_robust.estimators.admm import ADMMSolver
-from cryo_robust.estimators.irls import (
-    IRLSFourier,
-    JointIRLSFourier,
-    FlatteningIRLSFourier,
-)
+
 from cryo_robust.estimators.gmm import RecursiveGMMEstimator
 
-from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
+from cryo_robust.comparison.domain.enums import AggregationStrategy
 from cryo_robust.comparison.domain.runs import MethodRun
 
 from cryo_robust.comparison.evaluation.aggregation import aggregate_weights
@@ -191,29 +187,34 @@ def apply_mask(images_tensor: torch.Tensor, mask_radius: float, inplace: bool = 
     return masked_images, mask_tensor
 
 
-def canonical_image_weights(
-    estimator: Estimator, final_weights: dict[ImageSpace, torch.Tensor]
-):
+def canonical_image_weights(weights: WeightSet) -> np.ndarray:
     """
-    Gets a canonical set of image weights for each estimator type, used for
-    identifying 'good' and 'bad' image subsets
+    Return one scalar weight per image from an estimator WeightSet.
+
+    Parameters
+    ----------
+    weights : WeightSet
+        Estimator weights.
+
+    Returns
+    -------
+    np.ndarray
+        One scalar score per image.
+
+    Raises
+    ------
+    ValueError
+        If the estimator did not produce any usable weights.
     """
-    if isinstance(estimator, IRLSFourier):
-        weights = 0.5 * (
-            final_weights[ImageSpace.FOURIER_REAL]
-            + final_weights[ImageSpace.FOURIER_IMAG]
-        )
-    elif isinstance(estimator, (JointIRLSFourier, FlatteningIRLSFourier)):
-        weights = final_weights[ImageSpace.FOURIER_REAL]
-    else:
-        weights = final_weights[ImageSpace.REAL]
+    canonical = weights.canonical_weights()
 
-    if weights is None:
-        raise ValueError(
-            f"canonical_image_weights: extracted None for estimator of type {type(estimator)}"
-        )
+    if canonical is None:
+        raise ValueError("No canonical image weights are available.")
 
-    return aggregate_weights(weights, AggregationStrategy.MEAN)
+    return aggregate_weights(
+        canonical,
+        AggregationStrategy.MEAN,
+    )
 
 
 def process_and_save_subsets(

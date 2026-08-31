@@ -69,8 +69,8 @@ class WeightSet:
             return cls.shared_fourier(weights)
 
         raise ValueError(f"Unsupported IRLS space: {space}")
-    
-    def select_space_weights(self, space: ImageSpace):
+
+    def select_space(self, space: ImageSpace):
         if space == ImageSpace.REAL:
             return self.real
         if space == ImageSpace.FOURIER_REAL:
@@ -83,6 +83,30 @@ class WeightSet:
             # should be equal
             return self.fourier_real
 
+    def subset(self, indices: torch.Tensor) -> WeightSet:
+        """
+        Select a subset of image weights.
+
+        Parameters
+        ----------
+        indices : torch.Tensor
+            Indices of the images to keep.
+
+        Returns
+        -------
+        WeightSet
+            WeightSet containing only the selected images.
+        """
+        return WeightSet(
+            real=self.real[indices] if self.real is not None else None,
+            fourier_real=(
+                self.fourier_real[indices] if self.fourier_real is not None else None
+            ),
+            fourier_imag=(
+                self.fourier_imag[indices] if self.fourier_imag is not None else None
+            ),
+        )
+
 
 @dataclass
 class EstimatorResult:
@@ -94,8 +118,3 @@ class EstimatorResult:
     converged: bool | None = None
     n_iter: int | None = None
     diagnostics: dict[str, Any] = field(default_factory=dict)
-
-    @property
-    def final_weights(self) -> dict[ImageSpace, torch.Tensor | None]:
-        """Compatibility alias for old code expecting Space-indexed weights."""
-        return self.weights.as_space_dict()

@@ -1,4 +1,4 @@
-from typing import Any, Iterable, Mapping
+from typing import Iterable, Mapping
 from dataclasses import dataclass
 
 import numpy as np
@@ -37,7 +37,7 @@ class ReportComputationOptions:
 
 
 def compute_report(
-    results: dict[str, MethodRun],
+    results: Mapping[str, MethodRun],
     image_batch: ImageBatch,
     ground_truth_img: np.ndarray | None = None,
     labels: np.ndarray | None = None,
@@ -142,7 +142,7 @@ def compute_report(
 
         if options.scores or options.classification:
             aggregated_weights = compute_aggregated_weights(
-                weights_dict=result.weights.as_space_dict(),
+                weights=result.weights,
                 real_agg_strategies=real_agg_strategies,
                 fourier_agg_strategies=fourier_agg_strategies,
                 ref_real=ref_real,
@@ -164,7 +164,7 @@ def compute_report(
         if options.fourier_ring_metrics and labels is not None:
             # Classification metrics per ring for Fourier spaces
             for space in [ImageSpace.FOURIER_REAL, ImageSpace.FOURIER_IMAG]:
-                w = result.weights.select_space_weights(space)
+                w = result.weights.select_space(space)
 
                 if w is not None and w.shape[-1] > 1:
                     fourier_ring_metrics[space] = (
