@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 import torch
 
+from cryo_robust.estimators.results import EstimatorResult, WeightSet
 from cryo_robust.comparison.domain.enums import AggregationStrategy, ImageSpace
 from cryo_robust.comparison.evaluation.classification_metrics import (
     get_precision,
@@ -29,9 +30,14 @@ class MeanEstimatorForMetricTest:
     def __init__(self):
         self.avg = None
 
-    def fit_tensor(self, images):
-        self.avg = images[ImageSpace.REAL].mean(dim=0)
-        return self.avg
+    def fit(self, images: ImageBatch) -> EstimatorResult:
+        self.avg = images.real.mean(dim=0)
+
+        return EstimatorResult(
+            average=self.avg,
+            estimate=self.avg,
+            weights=WeightSet()
+        )
 
     def reconstruct_from_weights(self, images, weights):
         return images[ImageSpace.REAL].mean(dim=0)

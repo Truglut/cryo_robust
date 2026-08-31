@@ -6,7 +6,6 @@ from scipy.stats import pearsonr
 from cryo_robust.estimators.base import Estimator
 from cryo_robust.estimators.irls import IRLSSolver
 from cryo_robust.estimators.data import ImageBatch
-from cryo_robust.estimators.gmm import RecursiveGMMEstimator
 
 from cryo_robust.comparison.domain.enums import ImageSpace
 from cryo_robust.comparison.domain.metrics import ReconstructionMetrics
@@ -78,26 +77,17 @@ def compute_reconstruction_metrics(
 
     # Reconstruct image estimation for both half sets
     if estimator == AVERAGE_NAME:
-        reconstruction_A = images_A[ImageSpace.REAL].mean(dim=0)
-        reconstruction_B = images_B[ImageSpace.REAL].mean(dim=0)
+        reconstruction_A = batch_A.real.mean(dim=0)
+        reconstruction_B = batch_B.real.mean(dim=0)
     elif estimator == MEDIAN_NAME:
-        reconstruction_A = images_A[ImageSpace.REAL].median(dim=0).values
-        reconstruction_B = images_B[ImageSpace.REAL].median(dim=0).values
+        reconstruction_A = batch_A.real.median(dim=0).values
+        reconstruction_B = batch_B.real.median(dim=0).values
     elif independent_half_sets:
-        # Handle IRLSSolver first because it is currently the only that takes ImageBatch
-        if isinstance(estimator, IRLSSolver):
-            reconstruction_A = estimator.fit(batch_A)
-            reconstruction_B = estimator.fit(batch_B)
-        elif isinstance(estimator, RecursiveGMMEstimator):
-            estimator.fit_tensor(images_A, plot_fits=True)
-            reconstruction_A = estimator.avg
-            estimator.fit_tensor(images_B, plot_fits=True)
-            reconstruction_B = estimator.avg
-        else:
-            estimator.fit_tensor(images_A)
-            reconstruction_A = estimator.avg
-            estimator.fit_tensor(images_B)
-            reconstruction_B = estimator.avg
+        result_A = estimator.fit(batch_A)
+        result_B = estimator.fit(batch_B)
+
+        reconstruction_A = result_A.average
+        reconstruction_B = result_B.average
     else:
         weights_A = {
             space: weights[space][idx_A] if weights.get(space) is not None else None
@@ -112,9 +102,9 @@ def compute_reconstruction_metrics(
         if isinstance(estimator, IRLSSolver):
             reconstruction_A = estimator.reconstruct_from_weights(batch_A, weights_A)
             reconstruction_B = estimator.reconstruct_from_weights(batch_B, weights_B)
-
-        reconstruction_A = estimator.reconstruct_from_weights(images_A, weights_A)
-        reconstruction_B = estimator.reconstruct_from_weights(images_B, weights_B)
+        else:
+            reconstruction_A = estimator.reconstruct_from_weights(images_A, weights_A)
+            reconstruction_B = estimator.reconstruct_from_weights(images_B, weights_B)
 
     reconstruction_A = reconstruction_A.detach().cpu().numpy()
     reconstruction_B = reconstruction_B.detach().cpu().numpy()
