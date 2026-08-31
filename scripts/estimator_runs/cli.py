@@ -144,16 +144,17 @@ def build_simulation_parser() -> argparse.ArgumentParser:
     saving_group.add_argument(
         "--report", type=Path, help="Generate a LaTeX report at the provided path"
     )
-    REPORT_CONTENT_OPTIONS.add("all")
+
+    report_content_options = REPORT_CONTENT_OPTIONS | {"all"}
     saving_group.add_argument(
         "--report-content",
         help=(
             "Content to include in the LaTeX report. This will also determine "
-            f"which figures get generated. Options are {REPORT_CONTENT_OPTIONS}."
+            f"which figures get generated. Options are {report_content_options}."
         ),
         nargs="+",
-        choices=REPORT_CONTENT_OPTIONS,
-        default=["all"]
+        choices=report_content_options,
+        default=[],
     )
 
     simulation_group = parser.add_argument_group("Simulation")
@@ -231,6 +232,11 @@ def parse_arguments(parser: argparse.ArgumentParser) -> argparse.Namespace:
 
     if args.save_thresholds and not args.thresholds:
         parser.error("--save-thresholds requires --thresholds")
+
+    # Preserve the historical behaviour of --report: if no sections are selected,
+    # generate the complete report. Without --report, do not request report-only work.
+    if hasattr(args, "report") and args.report is not None and not args.report_content:
+        args.report_content = ["all"]
 
     # Standardize args.plot to always be a list
     if args.plot is None:
