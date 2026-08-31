@@ -86,7 +86,9 @@ def test_weighted_average_rejects_degenerate_weights():
         (q_norm_weights, {"q": 1.5}),
     ],
 )
-def test_pixelwise_weight_functions_return_finite_nonnegative_weights(weight_fn, kwargs):
+def test_pixelwise_weight_functions_return_finite_nonnegative_weights(
+    weight_fn, kwargs
+):
     reference, images = _reference_and_images()
 
     weights = weight_fn(images, reference, std=1.0, **kwargs)
@@ -192,3 +194,65 @@ def test_unknown_registry_entries_raise_clear_errors():
 
     with pytest.raises(ValueError):
         get_distance_function("not_a_distance", {})
+
+
+def _reference_tagare_weights(
+    images: torch.Tensor,
+    reference: torch.Tensor,
+    beta: float,
+    eps: float = 1.0e-8,
+) -> torch.Tensor:
+    """Direct implementation of the Tagare weight formula for testing."""
+    images_flat = images.flatten(1)
+    reference_flat = reference.flatten()
+
+    cos_abs = torch.abs(
+        torch.cosine_similarity(
+            images_flat,
+            reference_flat,
+            dim=1,
+            eps=eps,
+        )
+    )
+
+    image_norm_sq = torch.linalg.vector_norm(images_flat, dim=1).square()
+    orth_norm_sq = image_norm_sq * (1.0 - cos_abs.square()).clamp_min(0.0)
+
+    weights = torch.exp(-beta * orth_norm_sq) * cos_abs
+
+    return weights.view(-1, *([1] * reference.ndim))
+
+
+def test_tagare_weights_matches_reference_implementation():
+    torch.manual_seed(0)
+
+    reference = torch.randn(16, 16, dtype=torch.float64)
+    random_images = torch.randn(6, 16, 16, dtype=torch.float64)
+
+    images = torch.cat(
+        [
+            random_images,
+            reference.unsqueeze(0),
+            (-reference).unsqueeze(0),
+        ],
+        dim=0,
+    )
+
+    beta = 1.0e-3
+
+    expected = _reference_tagare_weights(
+        images,
+        reference,
+        beta=beta,
+    )
+    actual = tagare_weights(
+        images,
+        reference,
+        beta=beta,
+    )
+
+    torch.testing.assert_close(actual, expected)
+    torch.testing.assert_close(
+        actual[-2:].squeeze(),
+        torch.ones(2, dtype=actual.dtype),
+    )

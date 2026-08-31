@@ -145,39 +145,48 @@ def tagare_weights(
     eps: float = 1.0e-8,
 ) -> torch.Tensor:
     """
-    Calculates non-local structural similarity weights matching the Huang-Tagare model.
+    Calculate non-local structural similarity weights following the
+    Huang-Tagare model.
 
     Parameters
     ----------
     images : torch.Tensor
-        Images tensor of shape (n, h, w).
+        Images tensor of shape ``(n, h, w)``.
     reference : torch.Tensor
-        Reference template tensor of shape (h, w).
-    std : torch.Tensor | float, optional
-        Standard deviation tracking parameter, by default 1.0 (retained for registry consistency).
+        Reference template tensor of shape ``(h, w)``.
+    std : torch.Tensor or float, optional
+        Unused parameter retained for compatibility with the weight-function
+        interface, by default 1.0.
     beta : float, optional
-        Regularization penalty coefficient for orthogonal variance components, by default 1.0e-6.
+        Scale coefficient for the exponential penalty applied to the
+        component orthogonal to the reference, by default 1.0e-6.
     eps : float, optional
-        Cosine similarity processing tolerance floor, by default 1.0e-8.
+        Small value used to avoid division by zero, by default 1.0e-8.
 
     Returns
     -------
     torch.Tensor
-        Tensor reshaped to (n, 1, 1) to enable broadcasting back to spatial axes.
+        Image-level weights with shape ``(n, 1, 1)``.
     """
     images_flat = images.flatten(1)
     reference_flat = reference.flatten()
 
-    # First term: absolute cosine
-    cos_abs = torch.abs(
-        torch.cosine_similarity(images_flat, reference_flat, dim=1, eps=eps)
+    image_norms = torch.linalg.vector_norm(images_flat, dim=1)
+    reference_norm = torch.linalg.vector_norm(reference_flat)
+
+    dot_products = torch.mv(images_flat, reference_flat)
+
+    cos_abs = (
+        (dot_products / (image_norms.clamp_min(eps) * reference_norm.clamp_min(eps)))
+        .abs()
+        .clamp_max_(1.0)
     )
 
-    # Second term: norm of the orthogonal component
-    image_norm_sq = torch.linalg.vector_norm(images_flat, dim=1).square_()
+    image_norm_sq = image_norms.square()
     orth_norm_sq = image_norm_sq * (1.0 - cos_abs.square()).clamp_min_(0.0)
 
     weights = orth_norm_sq.mul_(-beta).exp_().mul_(cos_abs)
+
     return weights.view(-1, *([1] * reference.ndim))
 
 
