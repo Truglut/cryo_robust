@@ -122,7 +122,7 @@ def run_experiment(
         report,
         max_subplots=args.max_subplots,
         plot_weights="weights" in args.plot,
-        density=False,
+        density=args.density,
         plot_frc="frc" in args.plot,
     )
 

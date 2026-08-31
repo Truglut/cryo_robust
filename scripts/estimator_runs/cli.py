@@ -62,6 +62,7 @@ def build_base_parser() -> tuple[
         "--density",
         action="store_true",
         help="Normalize weight distribution histograms to probability densities",
+        default=False,
     )
     visualization_group.add_argument(
         "--plot-title-suffix",
