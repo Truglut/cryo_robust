@@ -19,6 +19,7 @@ from cryo_robust.estimators.gmm import RecursiveGMMEstimator
 
 from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
 from cryo_robust.comparison.evaluation.aggregation import aggregate_weights
+from cryo_robust.comparison.evaluation.report_building import ReportComputationOptions
 from cryo_robust.comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
 
 from cryo_robust.utils.masks import create_circular_mask
@@ -44,6 +45,21 @@ def load_config(
     if misclassified_path is not None:
         cfg["data"]["misclassified_path"] = misclassified_path
     return cfg
+
+
+def get_report_computation_options(args: Namespace) -> ReportComputationOptions:
+    sections = set(args.report_content or [])
+
+    if "all" in sections:
+        return ReportComputationOptions()
+
+    return ReportComputationOptions(
+        reconstruction=bool({"reconstruction", "frc"} & sections or "frc" in args.plot),
+        scores="weights" in sections or "weights" in args.plot,
+        classification="classification" in sections,
+        fourier_ring_metrics="fourier-rings" in sections,
+        store_estimated_images="images" in sections,
+    )
 
 
 def load_reference(

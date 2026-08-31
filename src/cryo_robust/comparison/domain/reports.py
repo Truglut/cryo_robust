@@ -45,10 +45,12 @@ class MethodResults:
     name: str
     metrics: MethodMetrics | None
     scores: dict[ImageSpace, dict[AggregationStrategy, np.ndarray]]
-    ground_truth_frc_data: FRCData | None
-    half_set_frc_data: FRCData
-    estimated_img: np.ndarray
-    fourier_ring_metrics: dict[ImageSpace, dict[int, ClassificationMetrics]]
+    fourier_ring_metrics: dict[ImageSpace, dict[int, ClassificationMetrics]] | None = (
+        None
+    )
+    ground_truth_frc_data: FRCData | None = None
+    half_set_frc_data: FRCData | None = None
+    estimated_img: np.ndarray | None = None
 
     def reconstruction_metrics_record(self) -> dict:
         if self.metrics is None:

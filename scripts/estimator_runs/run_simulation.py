@@ -19,6 +19,7 @@ from cryo_robust.comparison.latex import generate_latex_report
 from scripts.estimator_runs.cli import build_simulation_parser, parse_arguments
 from scripts.estimator_runs.common import (
     load_config,
+    get_report_computation_options,
     apply_mask,
     run_estimators,
     process_and_save_subsets,
@@ -93,6 +94,7 @@ def run_experiment(
         ImageSpace.FOURIER_IMAG: fourier_weight_mask,
     }
 
+    report_options = get_report_computation_options(args)
     # Calculate complete report with classification and reconstruction metrics
     report = compute_report(
         results=results,
@@ -108,6 +110,7 @@ def run_experiment(
         energy_reference="ground_truth",
         independent_half_sets=args.independent_half_sets,
         masks_dict=weights_masks_dict,
+        options=report_options
     )
 
     # Print report to terminal

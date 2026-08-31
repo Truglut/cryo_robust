@@ -1,4 +1,5 @@
 from typing import Any, Iterable
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -24,6 +25,15 @@ from .reconstruction_metrics import (
 )
 
 
+@dataclass(frozen=True)
+class ReportComputationOptions:
+    reconstruction: bool = True
+    scores: bool = True
+    classification: bool = True
+    fourier_ring_metrics: bool = True
+    store_estimated_images: bool = True
+
+
 def compute_report(
     results: dict[str, Any],
     image_batch: ImageBatch,
@@ -34,15 +44,23 @@ def compute_report(
     frc_thresholds: list[FRCThreshold] | None = None,
     recall_methods: Iterable[str] = ALL_RECALL_METHODS,
     real_agg_strategies: Iterable[AggregationStrategy] = (AggregationStrategy.MEAN,),
-    fourier_agg_strategies: Iterable[AggregationStrategy] = (AggregationStrategy.MEAN, AggregationStrategy.ENERGY),
+    fourier_agg_strategies: Iterable[AggregationStrategy] = (
+        AggregationStrategy.MEAN,
+        AggregationStrategy.ENERGY,
+    ),
     energy_reference: str = "ground_truth",
     pixel_size: float = 1.0,
     independent_half_sets: bool = False,
     masks_dict: dict[ImageSpace, np.ndarray | torch.Tensor | None] | None = None,
+    options: ReportComputationOptions | None = None,
 ) -> EvaluationReport:
     """
     Compute all quantitative metrics for a set of estimation results.
     """
+    # Calculate all available sections by default
+    if options is None:
+        options = ReportComputationOptions()
+
     image_dict = image_batch.as_space_dict()
 
     if frc_thresholds is None:
@@ -54,7 +72,11 @@ def compute_report(
 
     # Generate split indices for half-set resolution
     imgs = image_dict[ImageSpace.REAL]
-    split_indices = get_half_set_indices(num_images=imgs.shape[0], device=imgs.device)
+    split_indices = (
+        get_half_set_indices(num_images=imgs.shape[0], device=imgs.device)
+        if options.reconstruction
+        else None
+    )
 
     # Parse and prepare target torch masks for weight aggregation in real and fourier space
     torch_masks = {}
@@ -80,54 +102,69 @@ def compute_report(
         estimator = data["estimator"]
         weights = data["weights"]
 
-        # Get the estimated image for this method
-        estimated_img = data["avg"].detach().cpu().numpy()
-        if reapply_mask:
-            estimated_img *= mask
+        # Initialize results to None, since some may not be computed
+        reconstruction_metrics = None
+        gt_frc_data = None
+        hs_frc_data = None
+        estimated_img = None
+
+        if options.reconstruction or options.store_estimated_images:
+            estimated_img = data["avg"].detach().cpu().numpy()
+
+            if reapply_mask:
+                estimated_img *= mask
+
+        if options.reconstruction:
             comparison_ground_truth = (
-                ground_truth_img * mask if ground_truth_img is not None else None
+                ground_truth_img * mask
+                if reapply_mask and ground_truth_img is not None
+                else ground_truth_img
             )
-        else:
-            comparison_ground_truth = ground_truth_img
 
-        # Reconstruction quality metrics
-        reconstruction_metrics, gt_frc_data, hs_frc_data = (
-            compute_reconstruction_metrics(
-                comparison_ground_truth,
-                estimated_img,
-                frc_thresholds=frc_thresholds,
-                images_dict=image_dict,
-                estimator=estimator,
-                weights=weights,
-                split_indices=split_indices,
-                pixel_size=pixel_size,
-                reapply_mask=reapply_mask,
-                mask=mask,
-                independent_half_sets=independent_half_sets,
+            reconstruction_metrics, gt_frc_data, hs_frc_data = (
+                compute_reconstruction_metrics(
+                    comparison_ground_truth,
+                    estimated_img,
+                    frc_thresholds=frc_thresholds,
+                    images_dict=image_dict,
+                    estimator=estimator,
+                    weights=weights,
+                    split_indices=split_indices,
+                    pixel_size=pixel_size,
+                    reapply_mask=reapply_mask,
+                    mask=mask,
+                    independent_half_sets=independent_half_sets,
+                )
             )
-        )
 
-        aggregated_weights = compute_aggregated_weights(
-            weights_dict=data["weights"],
-            real_agg_strategies=real_agg_strategies,
-            fourier_agg_strategies=fourier_agg_strategies,
-            ref_real=ref_real,
-            ref_fourier=ref_fourier,
-            masks_dict=torch_masks,
-        )
+        aggregated_weights = {}
 
-        fourier_ring_metrics: dict[ImageSpace, dict[int, ClassificationMetrics]] = {}
-        if labels is not None:
-            # Image classification metrics by space
+        if options.scores or options.classification:
+            aggregated_weights = compute_aggregated_weights(
+                weights_dict=data["weights"],
+                real_agg_strategies=real_agg_strategies,
+                fourier_agg_strategies=fourier_agg_strategies,
+                ref_real=ref_real,
+                ref_fourier=ref_fourier,
+                masks_dict=torch_masks,
+            )
+
+        space_metrics = None
+
+        if options.classification and labels is not None:
             space_metrics = compute_classification_metrics(
                 agg_weights=aggregated_weights,
                 labels=labels,
                 recall_methods=recall_methods,
             )
+        
+        fourier_ring_metrics: dict[ImageSpace, dict[int, ClassificationMetrics]] = {}
 
+        if options.fourier_ring_metrics and labels is not None:            
             # Classification metrics per ring for Fourier spaces
             for space in [ImageSpace.FOURIER_REAL, ImageSpace.FOURIER_IMAG]:
                 w = weights.get(space)
+                
                 if w is not None and w.shape[-1] > 1:
                     fourier_ring_metrics[space] = (
                         compute_fourier_ring_classification_metrics(
@@ -136,8 +173,6 @@ def compute_report(
                             recall_methods=recall_methods,
                         )
                     )
-        else:
-            space_metrics = None
 
         method_metrics = MethodMetrics(
             reconstruction_metrics=reconstruction_metrics, space_metrics=space_metrics

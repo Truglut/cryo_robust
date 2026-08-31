@@ -138,13 +138,16 @@ class MethodMetrics:
         `None` for data where no labels are available.
     """
 
-    reconstruction_metrics: ReconstructionMetrics
+    reconstruction_metrics: ReconstructionMetrics | None
     space_metrics: (
         dict[ImageSpace, dict[AggregationStrategy, ClassificationMetrics]] | None
     )
 
     def reconstruction_record(self) -> dict:
         """Serialize the global reconstruction metrics to a dictionary."""
+        if self.reconstruction_metrics is None:
+            return {}
+        
         return self.reconstruction_metrics.to_record()
 
     def classification_metrics_records(self) -> list[dict] | None:
