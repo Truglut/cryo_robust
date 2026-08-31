@@ -26,12 +26,13 @@ def print_report(report: EvaluationReport) -> None:
         print(f"--- {method_result.name.upper()} ---")
 
         m = method_result.metrics
-        # if m is None:
-        #     print("  No metrics available.\n")
-        #     continue
+        if m is None:
+            print("  No metrics available.\n")
+            continue
 
         reconstruction_m = m.reconstruction_metrics
-        print(reconstruction_m.print_text())
+        if reconstruction_m is not None:
+            print(reconstruction_m.print_text())
 
         if m.space_metrics is None:
             continue
