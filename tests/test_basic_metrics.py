@@ -8,6 +8,8 @@ import torch
 
 from cryo_robust.estimators.results import EstimatorResult, WeightSet
 from cryo_robust.comparison.domain.enums import AggregationStrategy, ImageSpace
+from cryo_robust.comparison.domain.runs import MethodRun
+
 from cryo_robust.comparison.evaluation.classification_metrics import (
     get_precision,
     get_recall,
@@ -19,28 +21,28 @@ from cryo_robust.comparison.evaluation.reconstruction_metrics import (
     get_half_set_indices,
 )
 from cryo_robust.estimators.data import ImageBatch
+from cryo_robust.comparison.evaluation.reconstruction_metrics import AVERAGE_NAME
 
+# # Minimal estimator used to exercise compute_reconstruction_metrics without
+# # depending on any robust-estimator internals.  It implements only the methods
+# # needed by that metric function.
+# class MeanEstimatorForMetricTest:
+#     """Minimal estimator used only to exercise reconstruction metric formulas."""
 
-# Minimal estimator used to exercise compute_reconstruction_metrics without
-# depending on any robust-estimator internals.  It implements only the methods
-# needed by that metric function.
-class MeanEstimatorForMetricTest:
-    """Minimal estimator used only to exercise reconstruction metric formulas."""
+#     def __init__(self):
+#         self.avg = None
 
-    def __init__(self):
-        self.avg = None
+#     def fit(self, images: ImageBatch) -> EstimatorResult:
+#         self.avg = images.real.mean(dim=0)
 
-    def fit(self, images: ImageBatch) -> EstimatorResult:
-        self.avg = images.real.mean(dim=0)
+#         return EstimatorResult(
+#             average=self.avg,
+#             estimate=self.avg,
+#             weights=WeightSet()
+#         )
 
-        return EstimatorResult(
-            average=self.avg,
-            estimate=self.avg,
-            weights=WeightSet()
-        )
-
-    def reconstruct_from_weights(self, images, weights):
-        return images[ImageSpace.REAL].mean(dim=0)
+#     def reconstruct_from_weights(self, images, weights):
+#         return images[ImageSpace.REAL].mean(dim=0)
 
 
 # Soft precision is the fraction of total score assigned to inliers.  The recall
@@ -139,8 +141,11 @@ def test_reconstruction_metrics_compute_basic_rmse_and_correlation():
         estimated_img=estimated,
         frc_thresholds=[],
         images_dict=images_dict,
-        estimator=MeanEstimatorForMetricTest(),
-        weights={space: None for space in ImageSpace},
+        method_name=AVERAGE_NAME,
+        method_run=MethodRun(
+            estimator=None,
+            result=EstimatorResult(average=images.mean(dim=0), weights=WeightSet()),
+        ),
         split_indices=split_indices,
         pixel_size=1.0,
         reapply_mask=False,

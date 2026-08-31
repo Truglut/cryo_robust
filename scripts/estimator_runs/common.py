@@ -8,7 +8,7 @@ import torch
 
 from cryo_robust.estimators import build_estimator
 from cryo_robust.estimators.data import ImageBatch
-from cryo_robust.estimators.results import EstimatorResult
+from cryo_robust.estimators.results import EstimatorResult, WeightSet
 from cryo_robust.estimators.base import Estimator
 from cryo_robust.estimators.admm import ADMMSolver
 from cryo_robust.estimators.irls import (
@@ -19,6 +19,8 @@ from cryo_robust.estimators.irls import (
 from cryo_robust.estimators.gmm import RecursiveGMMEstimator
 
 from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
+from cryo_robust.comparison.domain.runs import MethodRun
+
 from cryo_robust.comparison.evaluation.aggregation import aggregate_weights
 from cryo_robust.comparison.evaluation.report_building import ReportComputationOptions
 from cryo_robust.comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
@@ -98,7 +100,7 @@ def fit_estimator(
                 else torch.fft.rfft2(reference, norm=image_batch.norm)
             ),
         )
-    
+
     # Handle GMM separately because it has plotting logic
     elif isinstance(estimator, RecursiveGMMEstimator):
         return estimator.fit(
@@ -118,7 +120,7 @@ def run_estimators(
     args: Namespace,
     add_avg: bool = False,
     add_median: bool = False,
-) -> dict:
+) -> dict[str, MethodRun]:
     """
     Builds all of the estimators that are specified in ``cfg["experiment"]["methods"]``
     and runs them on the image batch.
@@ -149,32 +151,24 @@ def run_estimators(
             method_name=method_name,
         )
 
-        # Save results in dict
-        results[method_name] = {
-            "estimator": estimator,
-            "reference": reference,
-            "avg": estimator_result.average,
-            "weights": estimator_result.weights.as_space_dict(),
-        }
+        results[method_name] = MethodRun(
+            estimator=estimator, result=estimator_result, initial_reference=reference
+        )
 
     # Add results of sample average and median if requested
     if add_avg:
-        results[AVERAGE_NAME] = {
-            "avg": image_batch.ensure_real().mean(dim=0),
-            "weights": {
-                space: torch.ones((image_batch.n_images, 1, 1), device=args.device)
-                for space in ImageSpace
-            },
-            "reference": None,
-            "estimator": AVERAGE_NAME,
-        }
+        average_result = EstimatorResult(
+            average=image_batch.ensure_real().mean(dim=0),
+            weights=WeightSet(
+                real=torch.ones((image_batch.n_images, 1, 1), device=image_batch.device)
+            ),
+        )
+        results[AVERAGE_NAME] = MethodRun(estimator=None, result=average_result)
     if add_median:
-        results[MEDIAN_NAME] = {
-            "avg": image_batch.ensure_real().median(dim=0).values,
-            "weights": {space: None for space in ImageSpace},
-            "reference": None,
-            "estimator": MEDIAN_NAME,
-        }
+        median_result = EstimatorResult(
+            average=image_batch.ensure_real().median(dim=0).values,
+        )
+        results[MEDIAN_NAME] = MethodRun(estimator=None, result=median_result)
 
     return results
 
@@ -223,7 +217,7 @@ def canonical_image_weights(
 
 
 def process_and_save_subsets(
-    results: dict,
+    results: dict[str, MethodRun],
     image_path: Path,
     images_save: np.ndarray,
     args: Namespace,
@@ -251,16 +245,15 @@ def process_and_save_subsets(
         subsets_dir.mkdir(exist_ok=True)
 
     # Iterate over methods to identify subsets and save if requested
-    for method_name, data in results.items():
+    for method_name, run in results.items():
         # Skip the average or the median if they are included in `results`
-        if data["estimator"] in [AVERAGE_NAME, MEDIAN_NAME]:
+        if (
+            method_name in [AVERAGE_NAME, MEDIAN_NAME]
+            or run.result.weights.canonical_weights() is None
+        ):
             continue
-        # Get aggregated weights according to estimator type
-        weights = canonical_image_weights(data["estimator"], data["weights"])
 
-        # Initialize indices dicts
-        idx_good = {"quantile": {}, "fixed_threshold": {}}
-        idx_bad = {"quantile": {}, "fixed_threshold": {}}
+        weights = canonical_image_weights(run.result.weights)
 
         # Quantile subsets
         if quantiles.size > 0:
@@ -276,10 +269,6 @@ def process_and_save_subsets(
                 print(f"\nCalculated images for quantile {q}.")
                 print(f"Number of good images: {subset_good.sum()}")
                 print(f"Number of bad images:  {subset_bad.sum()}\n")
-
-                # Save subset info to results dict for later processing
-                idx_good["quantile"][q] = subset_good
-                idx_bad["quantile"][q] = subset_bad
 
                 # Save image subsets to file if requested
                 if args.save_quantiles:
@@ -306,10 +295,6 @@ def process_and_save_subsets(
             print(f"Number of good images: {subset_good.sum()}")
             print(f"Number of bad images:  {subset_bad.sum()}\n")
 
-            # Save subset info to dict for later processing
-            idx_good["fixed_threshold"][thr] = subset_good
-            idx_bad["fixed_threshold"][thr] = subset_bad
-
             # Save good and bad images for this threshold
             if args.save_thresholds:
                 mrcfile.write(
@@ -322,10 +307,6 @@ def process_and_save_subsets(
                     data=images_save[subset_bad],
                     overwrite=False,
                 )
-
-        # Save subset data in results dict
-        data["idx_good"] = idx_good
-        data["idx_bad"] = idx_bad
 
         # Save weights to file if requested
         if args.save_weights:

@@ -9,6 +9,8 @@ from cryo_robust.estimators.data import ImageBatch
 
 from cryo_robust.comparison.domain.enums import ImageSpace
 from cryo_robust.comparison.domain.metrics import ReconstructionMetrics
+from cryo_robust.comparison.domain.runs import MethodRun
+
 from .frc import (
     FRCThreshold,
     FRCData,
@@ -54,8 +56,8 @@ def compute_reconstruction_metrics(
     estimated_img: np.ndarray,
     frc_thresholds: list[FRCThreshold],
     images_dict: dict[ImageSpace, torch.Tensor],
-    estimator: Estimator,
-    weights: torch.Tensor,
+    method_name: str,
+    method_run: MethodRun,
     split_indices: tuple[torch.Tensor, torch.Tensor],
     pixel_size: float = 1.0,
     reapply_mask: bool = True,
@@ -75,11 +77,14 @@ def compute_reconstruction_metrics(
     images_A = batch_A.as_space_dict()
     images_B = batch_B.as_space_dict()
 
+    estimator = method_run.estimator
+    weights = method_run.result.weights
+
     # Reconstruct image estimation for both half sets
-    if estimator == AVERAGE_NAME:
+    if method_name == AVERAGE_NAME:
         reconstruction_A = batch_A.real.mean(dim=0)
         reconstruction_B = batch_B.real.mean(dim=0)
-    elif estimator == MEDIAN_NAME:
+    elif method_name == MEDIAN_NAME:
         reconstruction_A = batch_A.real.median(dim=0).values
         reconstruction_B = batch_B.real.median(dim=0).values
     elif independent_half_sets:
@@ -90,11 +95,19 @@ def compute_reconstruction_metrics(
         reconstruction_B = result_B.average
     else:
         weights_A = {
-            space: weights[space][idx_A] if weights.get(space) is not None else None
+            space: (
+                weights.select_space_weights(space)[idx_A]
+                if weights.select_space_weights(space) is not None
+                else None
+            )
             for space in ImageSpace
         }
         weights_B = {
-            space: weights[space][idx_B] if weights.get(space) is not None else None
+            space: (
+                weights.select_space_weights(space)[idx_B]
+                if weights.select_space_weights(space) is not None
+                else None
+            )
             for space in ImageSpace
         }
 

@@ -1,4 +1,4 @@
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 from dataclasses import dataclass
 
 import numpy as np
@@ -13,6 +13,8 @@ from .aggregation import (
     compute_aggregated_weights,
     setup_energy_reference,
 )
+from cryo_robust.comparison.domain.runs import MethodRun
+
 from .classification_metrics import (
     ALL_RECALL_METHODS,
     compute_classification_metrics,
@@ -35,7 +37,7 @@ class ReportComputationOptions:
 
 
 def compute_report(
-    results: dict[str, Any],
+    results: dict[str, MethodRun],
     image_batch: ImageBatch,
     ground_truth_img: np.ndarray | None = None,
     labels: np.ndarray | None = None,
@@ -98,9 +100,8 @@ def compute_report(
                 torch_masks[ImageSpace.REAL] = torch.from_numpy(mask).to(imgs.device)
 
     all_results = []
-    for method_name, data in results.items():
-        estimator = data["estimator"]
-        weights = data["weights"]
+    for method_name, run in results.items():
+        result = run.result
 
         # Initialize results to None, since some may not be computed
         reconstruction_metrics = None
@@ -109,7 +110,7 @@ def compute_report(
         estimated_img = None
 
         if options.reconstruction or options.store_estimated_images:
-            estimated_img = data["avg"].detach().cpu().numpy()
+            estimated_img = result.average.detach().cpu().numpy()
 
             if reapply_mask:
                 estimated_img *= mask
@@ -127,8 +128,8 @@ def compute_report(
                     estimated_img,
                     frc_thresholds=frc_thresholds,
                     images_dict=image_dict,
-                    estimator=estimator,
-                    weights=weights,
+                    method_name=method_name,
+                    method_run=run,
                     split_indices=split_indices,
                     pixel_size=pixel_size,
                     reapply_mask=reapply_mask,
@@ -141,7 +142,7 @@ def compute_report(
 
         if options.scores or options.classification:
             aggregated_weights = compute_aggregated_weights(
-                weights_dict=data["weights"],
+                weights_dict=result.weights.as_space_dict(),
                 real_agg_strategies=real_agg_strategies,
                 fourier_agg_strategies=fourier_agg_strategies,
                 ref_real=ref_real,
@@ -157,18 +158,18 @@ def compute_report(
                 labels=labels,
                 recall_methods=recall_methods,
             )
-        
+
         fourier_ring_metrics: dict[ImageSpace, dict[int, ClassificationMetrics]] = {}
 
-        if options.fourier_ring_metrics and labels is not None:            
+        if options.fourier_ring_metrics and labels is not None:
             # Classification metrics per ring for Fourier spaces
             for space in [ImageSpace.FOURIER_REAL, ImageSpace.FOURIER_IMAG]:
-                w = weights.get(space)
-                
+                w = result.weights.select_space_weights(space)
+
                 if w is not None and w.shape[-1] > 1:
                     fourier_ring_metrics[space] = (
                         compute_fourier_ring_classification_metrics(
-                            fourier_weights=weights[space],
+                            fourier_weights=w,
                             labels=labels,
                             recall_methods=recall_methods,
                         )
