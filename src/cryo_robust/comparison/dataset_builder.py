@@ -75,21 +75,36 @@ def generate_rotated_copies(
     rng: np.random.Generator,
     interpolation_order: int = 3,
 ) -> np.ndarray:
-    """Generates rotated copies of a single 2D reference image."""
+    """Generate randomly rotated copies of a single 2D reference image."""
     output_images = np.zeros(
-        (n_copies, image.shape[0], image.shape[1]), dtype=image.dtype
+        (n_copies, image.shape[0], image.shape[1]),
+        dtype=image.dtype,
     )
 
-    # Pre-generate all random angles for slight efficiency gain
     angles = rng.uniform(min_angle, max_angle, size=n_copies)
+
+    # Spline interpolation of order > 1 requires prefiltering. Since all
+    # rotations use the same source image, compute the spline coefficients
+    # once instead of repeating the prefilter for every copy.
+    if interpolation_order > 1:
+        rotation_input = scipy.ndimage.spline_filter(
+            image,
+            order=interpolation_order,
+            output=np.float64,
+            mode="constant",
+        )
+    else:
+        rotation_input = image
 
     for i, angle in enumerate(angles):
         scipy.ndimage.rotate(
-            image,
+            rotation_input,
             angle,
             order=interpolation_order,
             reshape=False,
             output=output_images[i],
+            mode="constant",
+            prefilter=False,
         )
 
     return output_images
