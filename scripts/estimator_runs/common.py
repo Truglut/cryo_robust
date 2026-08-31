@@ -8,6 +8,7 @@ import torch
 
 from cryo_robust.estimators import build_estimator
 from cryo_robust.estimators.data import ImageBatch
+from cryo_robust.estimators.results import EstimatorResult
 from cryo_robust.estimators.base import Estimator
 from cryo_robust.estimators.admm import ADMMSolver
 from cryo_robust.estimators.irls import (
@@ -81,13 +82,14 @@ def fit_estimator(
     *,
     plot_gmm: bool = False,
     method_name: str = "GMM",
-) -> None:
+) -> EstimatorResult:
     """
     Fits the estimator on the given image batch, starting from the specified
     reference
     """
+    # Handle ADMM separately because it needs two references
     if isinstance(estimator, ADMMSolver):
-        estimator.fit(
+        return estimator.fit(
             image_batch,
             initial_reference_real=reference,
             initial_reference_fourier=(
@@ -96,15 +98,18 @@ def fit_estimator(
                 else torch.fft.rfft2(reference, norm=image_batch.norm)
             ),
         )
+    
+    # Handle GMM separately because it has plotting logic
     elif isinstance(estimator, RecursiveGMMEstimator):
-        estimator.fit(
+        return estimator.fit(
             image_batch,
             reference=reference,
             plot_fits=plot_gmm,
             plot_title=method_name,
         )
-    else:
-        estimator.fit(image_batch, reference=reference)
+
+    # Otherwise just fit the estimator
+    return estimator.fit(image_batch, reference=reference)
 
 
 def run_estimators(
@@ -135,7 +140,8 @@ def run_estimators(
         # Build and fit the estimator
         estimator = build_estimator(method_cfg, image_batch, device=args.device)
         reference = load_reference(method_cfg.get("initial_reference"), args.device)
-        fit_estimator(
+
+        estimator_result = fit_estimator(
             estimator,
             image_batch,
             reference,
@@ -147,8 +153,8 @@ def run_estimators(
         results[method_name] = {
             "estimator": estimator,
             "reference": reference,
-            "avg": estimator.avg,
-            "weights": estimator.final_weights,
+            "avg": estimator_result.average,
+            "weights": estimator_result.weights.as_space_dict(),
         }
 
     # Add results of sample average and median if requested
