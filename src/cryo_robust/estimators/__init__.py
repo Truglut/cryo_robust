@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from .data import ImageBatch
 from .irls import (
     IRLSSolver,
@@ -26,7 +28,7 @@ def build_estimator(
     the instantiated Estimator object on the specified device.
     """
     est_type = method_cfg["type"]
-    params = method_cfg.get("params", {})
+    params = deepcopy(method_cfg.get("params", {}))
 
     params["solver_params"] = params.get("solver_params", {})
     params["solver_params"]["space"] = space
