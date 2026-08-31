@@ -43,6 +43,8 @@ WEIGHT_PLOT_TITLE_OPTIONS = {
     "show_aggregation": False,
 }
 
+WEIGHT_HISTOGRAM_TYPE = "stepfilled"
+
 
 def _save_figure(fig: Figure, path: Path, dpi: int, **kwargs) -> Path:
     fig.savefig(path, dpi=dpi, **kwargs)
@@ -87,7 +89,14 @@ def _plot_weight_histogram(
     )
 
     if labels is None:
-        ax.hist(scores, bins=bins, alpha=0.7, color="teal", density=density)
+        ax.hist(
+            scores,
+            bins=bins,
+            alpha=0.7,
+            color="teal",
+            density=density,
+            histtype=WEIGHT_HISTOGRAM_TYPE,
+        )
         return
 
     for label_idx, config in LABEL_MAP.items():
@@ -102,6 +111,7 @@ def _plot_weight_histogram(
                 edgecolor=config["color"],
                 linewidth=1.2,
                 density=density,
+                histtype=WEIGHT_HISTOGRAM_TYPE,
             )
     ax.legend()
 
