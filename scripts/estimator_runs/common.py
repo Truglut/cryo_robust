@@ -229,6 +229,9 @@ def process_and_save_subsets(
     highest and lowest weights.
     Saves these subsets to a file if requested.
     """
+    if not args.quantiles and not args.thresholds and not args.save_weights:
+        return
+
     # Initialize quantiles and thresholds arrays from args
     quantiles = np.array(args.quantiles) if args.quantiles else np.array([])
     fixed_thresholds = np.array(args.thresholds) if args.thresholds else np.array([])
