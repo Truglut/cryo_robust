@@ -43,6 +43,12 @@ WEIGHT_PLOT_TITLE_OPTIONS = {
     "show_aggregation": False,
 }
 
+
+def _save_figure(fig: Figure, path: Path, dpi: int, **kwargs) -> Path:
+    fig.savefig(path, dpi=dpi, **kwargs)
+    plt.close()
+
+
 ### ====================
 ### Weight distributions
 ### ====================
@@ -684,8 +690,7 @@ def save_report_figures(
             )
         ):
             path = report_figure_path / f"weight_distribution_{i}.pdf"
-            fig.savefig(path, dpi=dpi, bbox_inches="tight")
-            plt.close(fig)
+            _save_figure(fig=fig, path=path, dpi=dpi)
             saved["weight_distributions"].append(path)
 
     # FRC curves
@@ -695,13 +700,11 @@ def save_report_figures(
         )
         if gt_frc_fig is not None:
             path = report_figure_path / "gt_frc_curves.pdf"
-            gt_frc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
-            plt.close(gt_frc_fig)
+            _save_figure(fig=gt_frc_fig, path=path, dpi=dpi)
             saved["frc_curves"].append(path)
         if hs_frc_fig is not None:
             path = report_figure_path / "hs_frc_curves.pdf"
-            hs_frc_fig.savefig(path, dpi=dpi, bbox_inches="tight")
-            plt.close(hs_frc_fig)
+            _save_figure(fig=hs_frc_fig, path=path, dpi=dpi)
             saved["frc_curves"].append(path)
 
     ## Fourier ring classification metrics
@@ -722,8 +725,7 @@ def save_report_figures(
                 fig_filename = f"fourier_{space_str}_rings_{clean_name}.pdf"
                 fig_save_path = report_figure_path / fig_filename
 
-                fig.savefig(fig_save_path, dpi=dpi, bbox_inches="tight")
-                plt.close(fig)
+                _save_figure(fig=fig, path=fig_save_path, dpi=dpi)
 
                 saved["fourier_ring_classification"].append(fig_save_path)
 
@@ -738,8 +740,7 @@ def save_report_figures(
             summary_filename = f"fourier_{space_str}_rings_summary.pdf"
             summary_save_path = report_figure_path / summary_filename
 
-            summary_fig.savefig(summary_save_path, dpi=dpi, bbox_inches="tight")
-            plt.close(summary_fig)
+            _save_figure(fig=summary_fig, path=summary_save_path, dpi=dpi)
 
             saved["fourier_ring_summary"].append(summary_save_path)
 
@@ -1019,8 +1020,7 @@ def plot_vs_snr(
 
     fig.tight_layout()
 
-    fig.savefig(save_path, dpi=dpi, bbox_inches="tight", pad_inches=0.02)
-    plt.close(fig)
+    _save_figure(fig=fig, path=save_path, dpi=dpi, pad_inches=0.02)
 
     return save_path
 
@@ -1090,8 +1090,6 @@ def generate_image_plots(
         plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
         # Save cleanly
-        fig.savefig(save_path, bbox_inches="tight", pad_inches=0, dpi=dpi)
-
-        plt.close(fig)
+        _save_figure(fig=fig, path=save_path, dpi=dpi, pad_inches=0)
 
     return save_paths
