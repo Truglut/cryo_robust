@@ -73,10 +73,6 @@ def generate_latex_report(
                 - dpi: int
     """
     plot_options = args.plot_options
-    content = set(args.report_content)
-
-    if "all" in content:
-        content = REPORT_CONTENT_OPTIONS
 
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -85,45 +81,65 @@ def generate_latex_report(
     figures_path.mkdir(parents=True, exist_ok=True)
 
     # Preamble: document class, packages and setup
-    report_preamble = generate_document_preamble()
+    document_preamble = generate_document_preamble()
 
+    reports = results.values()
     # Classification section: recall, precision, etc.
-    class_section = generate_classification_section(
-        results=results,
-        output_path=output_path,
-        figures_path=figures_path,
-        dpi=plot_options["dpi"],
-    ) if "classification" in content else ""
+    class_section = (
+        generate_classification_section(
+            results=results,
+            output_path=output_path,
+            figures_path=figures_path,
+            dpi=plot_options["dpi"],
+        )
+        if any(report.has_classification_metrics for report in reports)
+        else ""
+    )
 
     # Reconstruction section: rmse, correlation, resolution
-    reconstruction_section = generate_reconstruction_section(
-        results=results,
-        output_path=output_path,
-        figures_path=figures_path,
-        dpi=plot_options["dpi"],
-    ) if "reconstruction" in content else ""
+    reconstruction_section = (
+        generate_reconstruction_section(
+            results=results,
+            output_path=output_path,
+            figures_path=figures_path,
+            dpi=plot_options["dpi"],
+        )
+        if any(report.has_reconstruction_metrics for report in reports)
+        else ""
+    )
 
     # Save figures and generate the plots section
+    plot_types = set()
+    if any(report.has_weights for report in reports):
+        plot_types.add("weights")
+    if any(report.has_frc for report in reports):
+        plot_types.add("frc")
+    if any(report.has_fourier_ring_metrics for report in reports):
+        plot_types.add("fourier-rings")
     plots_section = generate_weight_and_frc_plots_section(
         results=results,
         output_path=output_path,
         figures_path=figures_path,
         plot_options=plot_options,
-        content=content,
+        plot_types=plot_types,
     )
 
     # Images section with ground truth and estimation
-    images_section = generate_images_section(
-        results=results,
-        ground_truth_image=ground_truth_image,
-        output_path=output_path,
-        figures_path=figures_path,
-        plot_options=plot_options,
-    ) if "images" in content else ""
+    images_section = (
+        generate_images_section(
+            results=results,
+            ground_truth_image=ground_truth_image,
+            output_path=output_path,
+            figures_path=figures_path,
+            plot_options=plot_options,
+        )
+        if any(report.has_estimated_images for report in reports)
+        else ""
+    )
 
     # Write all the contents to the file
     with report_path.open("w") as f:
-        f.write(report_preamble)
+        f.write(document_preamble)
 
         f.write("\n\n\\begin{document}\n\n")
 

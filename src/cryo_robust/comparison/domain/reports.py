@@ -111,6 +111,39 @@ class EvaluationReport:
 
         return pd.DataFrame(all_records)
 
+    @property
+    def has_weights(self) -> bool:
+        return any(mr.scores for mr in self.method_results)
+
+    @property
+    def has_reconstruction_metrics(self) -> bool:
+        return any(
+            mr.metrics is not None and mr.metrics.reconstruction_metrics is not None
+            for mr in self.method_results
+        )
+
+    @property
+    def has_classification_metrics(self) -> bool:
+        return any(
+            mr.metrics is not None and mr.metrics.space_metrics
+            for mr in self.method_results
+        )
+
+    @property
+    def has_frc(self) -> bool:
+        return any(
+            mr.ground_truth_frc_data is not None or mr.half_set_frc_data is not None
+            for mr in self.method_results
+        )
+
+    @property
+    def has_fourier_ring_metrics(self) -> bool:
+        return any(mr.fourier_ring_metrics for mr in self.method_results)
+
+    @property
+    def has_estimated_images(self) -> bool:
+        return any(mr.estimated_img is not None for mr in self.method_results)
+
 
 @dataclass
 class EvaluationStudy:
@@ -185,3 +218,31 @@ class EvaluationStudy:
         return EvaluationStudy._aggregate(
             df, groupby=["method", "space", "aggregation_strategy"]
         )
+
+    @property
+    def has_weights(self) -> bool:
+        return any(report.has_weights for report in self.reports)
+
+    @property
+    def has_reconstruction_metrics(self) -> bool:
+        return any(report.has_reconstruction_metrics for report in self.reports)
+
+    @property
+    def has_classification_metrics(self) -> bool:
+        return any(
+            report.has_classification_metrics for report in self.reports
+        )
+
+    @property
+    def has_frc(self) -> bool:
+        return any(
+            report.has_frc for report in self.reports
+        )
+
+    @property
+    def has_fourier_ring_metrics(self) -> bool:
+        return any(report.has_fourier_ring_metrics for report in self.reports)
+
+    @property
+    def has_estimated_images(self) -> bool:
+        return any(report.has_estimated_images for report in self.reports)

@@ -612,7 +612,7 @@ def save_report_figures(
     frc_x_axis_freqs: bool = True,
     pixel_size: float = 1.0,
     title_suffix: str | None = None,
-    content: set[str] = {"weights", "frc", "fourier-rings"}
+    plot_types: set[str] = {"weights", "frc", "fourier-rings"},
 ) -> dict[str, list[Path]]:
     """
     Save all report figures to disk and return their paths.
@@ -635,11 +635,11 @@ def save_report_figures(
         Image pixel size. Default is 1.0.
     title_suffix: str, optional.
         Suffix to append to weight plot titles.
-    content : set[str]
-        Set of content sections to include in the LaTeX report. This will also
+    plot_types : set[str]
+        Set of plots to include in the LaTeX report. This will also
         determine which plots get generated. The relevant options for this section
-        are 
-        - "weights": weight histograms for each estimator and set of experimental 
+        are
+        - "weights": weight histograms for each estimator and set of experimental
         conditions
         - "frc": FRC curves with ground-truth at each set of experimental conditions
         - "fourier-rings": classification metrics by Fourier ring for fourier-space
@@ -672,11 +672,15 @@ def save_report_figures(
     }
 
     # Weight distribution histograms
-    if "weights" in content:
+    if "weights" in plot_types:
         all_scores = _collect_weight_scores(report)
         for i, fig in enumerate(
             _plot_weight_distributions(
-                all_scores, report.labels, max_subplots, density, title_suffix=title_suffix
+                all_scores,
+                report.labels,
+                max_subplots,
+                density,
+                title_suffix=title_suffix,
             )
         ):
             path = report_figure_path / f"weight_distribution_{i}.pdf"
@@ -685,7 +689,7 @@ def save_report_figures(
             saved["weight_distributions"].append(path)
 
     # FRC curves
-    if "frc" in content:
+    if "frc" in plot_types:
         gt_frc_fig, hs_frc_fig = plot_report_frc_curves(
             report, x_axis_freqs=frc_x_axis_freqs
         )
@@ -701,7 +705,7 @@ def save_report_figures(
             saved["frc_curves"].append(path)
 
     ## Fourier ring classification metrics
-    if "fourier-rings" in content:
+    if "fourier-rings" in plot_types:
         for space in [ImageSpace.FOURIER_REAL, ImageSpace.FOURIER_IMAG]:
             space_str = "real" if space == ImageSpace.FOURIER_REAL else "imag"
 
@@ -752,7 +756,7 @@ def save_snr_reports_figures(
     frc_x_axis_freqs: bool = True,
     pixel_size: float = 1.0,
     title_suffix: str | None = None,
-    content: set[str] = {"weights", "frc", "fourier-rings"}
+    plot_types: set[str] = {"weights", "frc", "fourier-rings"},
 ) -> dict[float, dict[str, list[Path]]]:
     """
     Save all report figures to disk and return their paths.
@@ -776,10 +780,10 @@ def save_snr_reports_figures(
     title_suffix : str, optional
         Suffix to append to weight plot titles.
     content : set[str]
-        Set of content sections to include in the LaTeX report. This will also
+        Set of plots to include in the LaTeX report. This will also
         determine which plots get generated. The relevant options for this section
-        are 
-        - "weights": weight histograms for each estimator and set of experimental 
+        are
+        - "weights": weight histograms for each estimator and set of experimental
         conditions
         - "frc": FRC curves with ground-truth at each set of experimental conditions
         - "fourier-rings": classification metrics by Fourier ring for fourier-space
@@ -807,7 +811,7 @@ def save_snr_reports_figures(
             frc_x_axis_freqs=frc_x_axis_freqs,
             pixel_size=pixel_size,
             title_suffix=title_suffix,
-            content=content,
+            plot_types=plot_types,
         )
 
     return saved

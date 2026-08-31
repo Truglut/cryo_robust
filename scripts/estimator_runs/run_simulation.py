@@ -95,6 +95,7 @@ def run_experiment(
     }
 
     report_options = get_report_computation_options(args)
+    print(report_options)
     # Calculate complete report with classification and reconstruction metrics
     report = compute_report(
         results=results,
