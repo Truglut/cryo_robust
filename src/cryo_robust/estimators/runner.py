@@ -18,8 +18,8 @@ def load_reference(
     path: str | Path | None, device: str | torch.device
 ) -> torch.Tensor | None:
     """
-    Loads the starting reference from the given path, or returns None if the path
-    is None.
+    Loads the starting reference from the given path and on the given device, 
+    or returns None if the path is None.
     """
     if path is None:
         return None
@@ -36,7 +36,24 @@ def fit_estimator(
 ) -> EstimatorResult:
     """
     Fits the estimator on the given image batch, starting from the specified
-    reference
+    reference.
+
+    Parameters
+    ----------
+    estimator : Estimator
+        Estimator to fit on the images. Must have a `fit()` method that returns
+        a `EstimatorResult` object containing an `average` field.
+    image_batch: ImageBatch
+        Set of images to perform the estimation (i.e. robust averaging) on.
+    reference: torch.Tensor, optional
+        Initial reference for the estimation process. If set to None, the estimator
+        will choose its own default (generally the mean of all images). Default is None.
+    plot_gmm : bool
+        If ``plot_gmm`` is True and ``estimator`` is of type ``RecursiveGMMEstimator``,
+        then plots of the GMM fits will be generated and shown during the estimation
+        process. Default is False.
+    method_name : str
+        Name of the method, used for the GMM plots in case they are requested.
     """
     # Handle ADMM separately because it needs two references
     if isinstance(estimator, ADMMSolver):
@@ -72,15 +89,25 @@ def run_estimators(
     add_median: bool = False,
 ) -> dict[str, MethodRun]:
     """
-    Builds all of the estimators that are specified in ``cfg["experiment"]["methods"]``
-    and runs them on the image batch.
-    Stores and returns their results as a dict with the following keys:
-    - ``"estimator"``. The ``Estimator`` object that implements the estimation method.
-    - ``"reference"``. The initial reference the method used.
-    - ``"avg"``. The final, real-space estimate given by the estimator.
-    - ``"weights"``. A dictionary mapping every ImageSpace to the set of weights the
-        estimator produced in said space, or None if the estimator does not operate
-        in that space.
+    Build and run the configured estimation methods.
+
+    Parameters
+    ----------
+    method_configs : Iterable[Mapping[str, Any]]
+        Estimator configuration blocks.
+    image_batch : ImageBatch
+        Images on which the estimators are fitted.
+    plot_gmm : bool, optional
+        Whether to show GMM fit diagnostics.
+    add_average : bool, optional
+        Include the sample average as a baseline.
+    add_median : bool, optional
+        Include the sample median as a baseline.
+
+    Returns
+    -------
+    dict[str, MethodRun]
+        Estimation runs keyed by method name.
     """
     results = {}
 
