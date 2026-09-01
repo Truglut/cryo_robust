@@ -31,13 +31,10 @@ class RecursiveGMMEstimator(Estimator):
         tol: float = 1.0e-4,
         standardize_distances: bool = True,
         space: ImageSpace = ImageSpace.REAL,
-        device: str = "cpu",
         random_state: int | None = None,
         gmm_max_iter: int = 20,
         gmm_tol: float = 1.0e-4,
     ):
-        super().__init__(device=device)
-
         self.model = GaussianMixture(
             n_components=2,
             max_iter=gmm_max_iter,

@@ -40,9 +40,7 @@ class ADMMSolver(Estimator):
         fourier_multiplier: float,
         atol: float,
         rtol: float,
-        device: str | None = None,
     ):
-        super().__init__(device=device)
         self.irls_real = irls_real
         assert self.irls_real.space == ImageSpace.REAL
         self.irls_fourier = irls_fourier

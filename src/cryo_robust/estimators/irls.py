@@ -30,20 +30,22 @@ class IRLSSolver(Estimator):
         damping_coef: float = 0.0,
         min_weight: float | None = None,
         max_weight: float | None = None,
-        device: str | None = None,
         eps: float = 1e-8,
         space: ImageSpace | str = ImageSpace.REAL,
     ):
-        super().__init__(device=device)
+        # Estimator configuration
         self.weight_function = weight_function
         self.max_iter = max_iter
-        self.tol = tol
+        self.tol = tol  # tolerance for stopping iterations
+        self.eps = eps  # small numerical value to avoid division by zero
+        self.space = space
+
+        # Regularization strategies
         self.damping_coef = damping_coef
         self.min_weight = min_weight
         self.max_weight = max_weight
+
         self.converged = False
-        self.eps = eps
-        self.space = space
 
     def _validate_prior(self, prior_mean, prior_variance) -> None:
         if (prior_mean is None) != (prior_variance is None):
@@ -236,13 +238,13 @@ class IRLSSolver(Estimator):
 class IRLSFourier(Estimator):
     """Fourier estimator using separate IRLS solvers for real and imaginary parts."""
 
-    def __init__(self, irls_real: IRLSSolver, irls_imag: IRLSSolver, device=None):
-        super().__init__(device)
-
+    def __init__(self, irls_real: IRLSSolver, irls_imag: IRLSSolver):
         self.irls_real = irls_real
         assert self.irls_real.space == ImageSpace.FOURIER_REAL
+
         self.irls_imag = irls_imag
         assert self.irls_imag.space == ImageSpace.FOURIER_IMAG
+
         self.space = ImageSpace.FOURIER_COMPLEX
 
     @torch.inference_mode()
@@ -342,11 +344,10 @@ class JointIRLSFourier(Estimator):
     operate on the modulus of the complex residual.
     """
 
-    def __init__(self, solver: IRLSSolver, device=None):
-        super().__init__(device)
-
+    def __init__(self, solver: IRLSSolver):
         self.solver = solver
         assert self.solver.space == ImageSpace.FOURIER_COMPLEX
+
         self.max_iter = self.solver.max_iter
         self.space = ImageSpace.FOURIER_COMPLEX
 
@@ -457,9 +458,7 @@ class FlatteningIRLSFourier(Estimator):
     Necessary for applying the global weighting schemes to complex images.
     """
 
-    def __init__(self, solver: IRLSSolver, device=None):
-        super().__init__(device)
-
+    def __init__(self, solver: IRLSSolver):
         self.solver = solver
         self.max_iter = self.solver.max_iter
         self.space = ImageSpace.FOURIER_COMPLEX

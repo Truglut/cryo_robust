@@ -136,7 +136,7 @@ def run_estimators(
         print(f"Running {method_name}...")
 
         # Build and fit the estimator
-        estimator = build_estimator(method_cfg, image_batch, device=args.device)
+        estimator = build_estimator(method_cfg, image_batch)
         reference = load_reference(method_cfg.get("initial_reference"), args.device)
 
         estimator_result = fit_estimator(

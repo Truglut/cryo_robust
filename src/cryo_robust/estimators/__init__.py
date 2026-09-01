@@ -20,7 +20,6 @@ TAGARE_CONSTANT = 1.0e-5
 def build_estimator(
     method_cfg: dict,
     image_batch: ImageBatch,
-    device: str = "cpu",
     space: ImageSpace = ImageSpace.REAL,
 ):
     """
@@ -42,7 +41,6 @@ def build_estimator(
         )
         return IRLSSolver(
             weight_function=weight_func,
-            device=device,
             **params.get("solver_params", {}),
         )
 
@@ -50,17 +48,17 @@ def build_estimator(
         # Build real part estimator
         config_real = params["real_estimator"]
         irls_real = build_estimator(
-            config_real, image_batch, device, space=ImageSpace.FOURIER_REAL
+            config_real, image_batch, space=ImageSpace.FOURIER_REAL
         )
 
         # Build imaginary part estimator
         config_imag = params["imag_estimator"]
         irls_imag = build_estimator(
-            config_imag, image_batch, device, space=ImageSpace.FOURIER_IMAG
+            config_imag, image_batch, space=ImageSpace.FOURIER_IMAG
         )
 
         # Build global Fourier estimator
-        return IRLSFourier(irls_real, irls_imag, device)
+        return IRLSFourier(irls_real, irls_imag)
 
     elif est_type == "joint_fourier":
         # Build IRLSSolver estimator
@@ -71,11 +69,10 @@ def build_estimator(
                 "params": params,
             },
             image_batch=image_batch,
-            device=device,
             space=ImageSpace.FOURIER_COMPLEX,
         )
 
-        return JointIRLSFourier(solver, device)
+        return JointIRLSFourier(solver)
 
     elif est_type == "flattening_fourier":
         solver = build_estimator(
@@ -84,11 +81,10 @@ def build_estimator(
                 "params": params,
             },
             image_batch=image_batch,
-            device=device,
             space=ImageSpace.FOURIER_REAL,
         )
 
-        return FlatteningIRLSFourier(solver, device)
+        return FlatteningIRLSFourier(solver)
 
     elif est_type == "recursive_gmm":
         distance_func = get_distance_function(
@@ -101,24 +97,21 @@ def build_estimator(
             random_state=params.get("random_state", None),
             max_iter=params.get("max_iter", 10),
             tol=params.get("tol", 1e-3),
-            device=device,
         )
 
     elif est_type == "admm":
         params["solver_params"].pop("space")
         irls_real = build_estimator(
-            params["real_estimator"], image_batch, device=device, space=ImageSpace.REAL
+            params["real_estimator"], image_batch, space=ImageSpace.REAL
         )
         irls_fourier = build_estimator(
             params["fourier_estimator"],
             image_batch,
-            device=device,
             space=ImageSpace.FOURIER_COMPLEX,
         )
         return ADMMSolver(
             irls_real=irls_real,
             irls_fourier=irls_fourier,
-            device=device,
             **params.get("solver_params", {}),
         )
 

@@ -5,9 +5,6 @@ from .results import EstimatorResult, WeightSet
 
 
 class Estimator:
-    def __init__(self, device: torch.device | str):
-        self.device = device
-
     def fit(self, images: ImageBatch) -> EstimatorResult:
         raise NotImplementedError("Subclasses must implement the fit method.")
 
