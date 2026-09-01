@@ -6,7 +6,8 @@ from pathlib import Path
 
 def save_figure(fig: Figure, path: Path, dpi: int, **kwargs) -> Path:
     fig.savefig(path, dpi=dpi, **kwargs)
-    plt.close()
+    plt.close(fig)
+    return path
 
 
 # Helper for consistent coloring
