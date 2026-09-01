@@ -12,17 +12,9 @@ from .base import Estimator
 from .data import ImageBatch
 from .results import EstimatorResult, WeightSet
 from .irls import IRLSSolver
-from .fourier_irls import FlatteningIRLSFourier, JointIRLSFourier, IRLSFourier
 
 
 from cryo_robust.domain import ImageSpace
-
-ACCEPTED_FOURIER_SOLVERS = (
-    IRLSSolver,
-    JointIRLSFourier,
-    FlatteningIRLSFourier,
-    IRLSFourier,
-)
 
 
 class ADMMSolver(Estimator):
@@ -38,21 +30,26 @@ class ADMMSolver(Estimator):
         atol: float,
         rtol: float,
     ):
+        # Real and Fourier-space estimators
         self.irls_real = irls_real
-        assert self.irls_real.space == ImageSpace.REAL
         self.irls_fourier = irls_fourier
-        assert self.irls_fourier.space == ImageSpace.FOURIER_COMPLEX
+
+        # ADMM estimator config
         self.max_iter = max_iter
         self.atol = atol
         self.rtol = rtol
         self.initial_mu = initial_mu
         self.fourier_multiplier = fourier_multiplier
+
         self.converged = False
 
-        if not isinstance(self.irls_fourier, ACCEPTED_FOURIER_SOLVERS):
+        if self.irls_fourier.space != ImageSpace.FOURIER_COMPLEX:
+            raise ValueError("Fourier estimator must operate in Fourier complex space.")
+
+        if self.irls_real.space != ImageSpace.REAL:
             raise ValueError(
-                f"Fourier IRLS solver must be one of {ACCEPTED_FOURIER_SOLVERS},"
-                f" got {type(self.irls_fourier) = }"
+                "Real space estimator must operate in real space "
+                "(i.e. estimator.space == ImageSpace.REAL)"
             )
 
     def _real_update(
@@ -316,19 +313,9 @@ class ADMMSolver(Estimator):
             images, weights, space=ImageSpace.REAL
         )
 
-        if isinstance(self.irls_fourier, IRLSSolver):
-            ref_fourier_real = self.irls_fourier.reconstruct_from_weights(
-                images, weights, space=ImageSpace.FOURIER_REAL
-            )
-            ref_fourier_imag = self.irls_fourier.reconstruct_from_weights(
-                images, weights, space=ImageSpace.FOURIER_IMAG
-            )
-            ref_fourier = torch.complex(ref_fourier_real, ref_fourier_imag)
-            ref_inverse_fourier = torch.fft.irfft2(ref_fourier, norm=images.norm)
-        else:
-            ref_inverse_fourier = self.irls_fourier.reconstruct_from_weights(
-                images, weights, space=ImageSpace.FOURIER_COMPLEX
-            )
+        ref_inverse_fourier = self.irls_fourier.reconstruct_from_weights(
+            images, weights, space=ImageSpace.FOURIER_COMPLEX
+        )
 
         # Return average of real-space and fourier-space estimates
         return 0.5 * (ref_real + ref_inverse_fourier)
