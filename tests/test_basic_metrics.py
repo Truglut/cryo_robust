@@ -123,7 +123,11 @@ def test_reconstruction_metrics_compute_basic_rmse_and_correlation():
         method_name=AVERAGE_NAME,
         method_run=MethodRun(
             estimator=None,
-            result=EstimatorResult(average=images.mean(dim=0), weights=WeightSet()),
+            result=EstimatorResult(
+                estimate=images.mean(dim=0),
+                average=images.mean(dim=0),
+                weights=WeightSet(),
+            ),
         ),
         split_indices=split_indices,
         pixel_size=1.0,

@@ -112,8 +112,8 @@ class WeightSet:
 class EstimatorResult:
     """Standard output returned by estimators."""
 
+    estimate: torch.Tensor
     average: torch.Tensor | None = None
-    estimate: torch.Tensor | None = None
     weights: WeightSet = field(default_factory=WeightSet)
     converged: bool | None = None
     n_iter: int | None = None
