@@ -26,7 +26,12 @@ def generate_latex_report(
     output_path: Path,
     cfg: dict[str, Any],
     ground_truth_image: np.ndarray,
-    args: argparse.Namespace,
+    sections: Collection[ReportSection],
+    plot_options: dict[str, Any],
+    *,
+    standardize: str,
+    per_image_noise_std: bool,
+    fourier_weight_mask: str,
 ) -> None:
     """
     Generate a LaTeX report from evaluation results.
@@ -37,29 +42,30 @@ def generate_latex_report(
 
     Parameters
     ----------
-    snr_reports : dict[float, EvaluationReport]
-        Dict mapping every SNR level to its EvaluationReport of results, or
-        dict mapping every SNR level to its evaluation study containing one
-        report per simulation run.
-    output_path : Path
-        Directory where the LaTeX report should be written.
-    cfg: dict[str, Any]
-        Experiment configuration dict.
-    ground_truth_image: np.ndarray
-        2-dimensional array holding the ground truth image used
-        for generating the dataset.
-    args: argaparse.Namespace
-        Command-line arguments passed to the run_simulation script. Used to extract
-        the standardization and noise std strategies, and plot options.
+    results : dict[float, EvaluationReport] or dict[float, EvaluationStudy]
+        Evaluation results indexed by SNR.
+    output_path : pathlib.Path
+        Directory where the LaTeX report and its generated assets are written.
+    cfg : dict[str, Any]
+        Experiment configuration used to generate the results.
+    ground_truth_image : np.ndarray
+        Ground-truth reference image used in report figures when required.
+    sections : Collection[ReportSection]
+        Sections to include in the report.
+    plot_options : dict[str, Any]
+        Plotting options used when generating report figures.
+    standardize : str
+        Standardization strategy used in the experiment.
+    per_image_noise_std : bool
+        Whether noise standard deviations were sampled independently for each
+        image.
+    fourier_weight_mask : str
+        Fourier weight mask configuration used during evaluation.
 
-        args.plot_options: dict[str, Any]
-            Dict containing the following keyword arguments for figure generation:
-                - max_subplots: int
-                - density: bool
-                - dpi: int
+    Returns
+    -------
+    None
     """
-    plot_options = args.plot_options
-
     output_path.mkdir(parents=True, exist_ok=True)
 
     report_path = output_path / "report.tex"
@@ -132,7 +138,15 @@ def generate_latex_report(
 
         f.write("\n\n\\begin{document}\n\n")
 
-        f.write(write_experiment_info(cfg=cfg, snr_list=results.keys(), args=args))
+        f.write(
+            write_experiment_info(
+                cfg=cfg,
+                snr_list=results.keys(),
+                standardize=standardize,
+                per_image_noise_std=per_image_noise_std,
+                fourier_weight_mask=fourier_weight_mask,
+            )
+        )
 
         f.write(class_section)
 

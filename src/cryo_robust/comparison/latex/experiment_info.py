@@ -12,7 +12,12 @@ PARAMETERS = (
 
 
 def write_experiment_info(
-    cfg: dict[str, Any], snr_list: Iterable[float], args: argparse.Namespace
+    cfg: dict[str, Any],
+    snr_list: Iterable[float],
+    *,
+    standardize: str,
+    per_image_noise_std: bool,
+    fourier_weight_mask: str,
 ) -> str:
     """
     Generate a LaTeX summary of the experiment configuration.
@@ -29,9 +34,13 @@ def write_experiment_info(
         ``min_rotation_very_rotated``, and ``max_rotation_very_rotated``.
     snr_list : Iterable[float]
         SNR values tested in the experiment.
-    args: argaparse.Namespace
-        Command-line arguments passed to the run_simulation script. Used to extract
-        the standardization strategy and the Fourier weight mask.
+    standardize : str
+        Standardization strategy used in the experiments
+    per_image_noise_std : bool
+        Whether the image noise std was calculated independently for each image
+        in the experiment
+    fourier_weight_mask : str
+        Type of mask used to aggregate Fourier-space weights.
 
     Returns
     -------
@@ -50,9 +59,9 @@ def write_experiment_info(
         r"\end{itemize}",
         "",
         rf"\noindent\textbf{{Signal-to-noise ratios tested:}} {snr_text}\\",
-        rf"\textbf{{Per-image noise std:}} {args.per_image_noise_std}\\",
-        rf"\textbf{{Standardization strategy:}} {args.standardize}\\",
-        rf"\textbf{{Fourier weight mask:}} {args.fourier_weight_mask}\\",
+        rf"\textbf{{Per-image noise std:}} {per_image_noise_std}\\",
+        rf"\textbf{{Standardization strategy:}} {standardize}\\",
+        rf"\textbf{{Fourier weight mask:}} {fourier_weight_mask}\\",
         "",
     ]
 
