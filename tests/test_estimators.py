@@ -11,13 +11,13 @@ from cryo_robust.domain import ImageSpace
 from cryo_robust.estimators.admm import ADMMSolver
 from cryo_robust.estimators.data import ImageBatch
 from cryo_robust.estimators.distances import l2_norm
-from cryo_robust.estimators.gmm import RecursiveGMMEstimator
-from cryo_robust.estimators.irls import (
-    IRLSSolver,
+from cryo_robust.estimators.fourier_irls import (
+    FlatteningIRLSFourier,
     IRLSFourier,
     JointIRLSFourier,
-    FlatteningIRLSFourier,
 )
+from cryo_robust.estimators.gmm import RecursiveGMMEstimator
+from cryo_robust.estimators.irls import IRLSSolver
 
 
 # Constant weights make the robust update equivalent to a plain weighted mean.

@@ -11,12 +11,9 @@ import torch
 from .base import Estimator
 from .data import ImageBatch
 from .results import EstimatorResult, WeightSet
-from .irls import (
-    IRLSSolver,
-    JointIRLSFourier,
-    FlatteningIRLSFourier,
-    IRLSFourier,
-)
+from .irls import IRLSSolver
+from .fourier_irls import FlatteningIRLSFourier, JointIRLSFourier, IRLSFourier
+
 
 from cryo_robust.domain import ImageSpace
 

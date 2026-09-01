@@ -3,13 +3,13 @@ from cryo_robust.estimators.base import Estimator
 from cryo_robust.estimators.admm import ADMMSolver
 from cryo_robust.estimators.data import ImageBatch
 from cryo_robust.estimators.distances import get_distance_function
-from cryo_robust.estimators.gmm import RecursiveGMMEstimator
-from cryo_robust.estimators.irls import (
+from cryo_robust.estimators.irls import IRLSSolver
+from cryo_robust.estimators.fourier_irls import (
     FlatteningIRLSFourier,
     IRLSFourier,
-    IRLSSolver,
     JointIRLSFourier,
 )
+from cryo_robust.estimators.gmm import RecursiveGMMEstimator
 from cryo_robust.estimators.weights import get_weight_function
 
 
