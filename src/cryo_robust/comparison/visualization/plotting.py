@@ -1,570 +1,22 @@
 from pathlib import Path
-from typing import Sequence, Iterable
+from typing import Sequence
 
-import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 import pandas as pd
 
-from cryo_robust.comparison.domain.frc import FRCData, FRCThreshold
-from cryo_robust.comparison.domain.runs import AVERAGE_NAME
+from cryo_robust.comparison.visualization.fourier_plots import (
+    plot_fourier_ring_summary,
+    plot_method_fourier_ring_curves,
+    plot_report_frc_curves,
+)
+from cryo_robust.comparison.visualization.plot_utils import ALL_PLOT_TYPES, save_figure
+from cryo_robust.comparison.visualization.weight_plots import (
+    collect_weight_scores,
+    plot_weight_distributions,
+)
 from cryo_robust.domain import ImageSpace
-from cryo_robust.comparison.domain.enums import AggregationStrategy
-from cryo_robust.comparison.domain.metrics import ClassificationMetrics
-from cryo_robust.comparison.domain.reports import EvaluationReport, MethodEvaluation
-from cryo_robust.comparison.evaluation.frc import get_threshold
-
-# Helper for consistent coloring
-LABEL_MAP = {
-    0: {"name": "Genuine", "color": "#083DB0"},
-    1: {"name": "Misaligned", "color": "orange"},
-    2: {"name": "Misclassified", "color": "#F9290D"},
-    3: {"name": "Noise", "color": "darkorange"},
-}
-
-THRESHOLD_COLORS = {
-    FRCThreshold.ONE_OVER_SEVEN: "tomato",
-    FRCThreshold.ONE_HALF: "orange",
-    FRCThreshold.HALF_BIT: "seagreen",
-}
-
-BASE_PLOT_OPTIONS = {
-    "max_subplots": 3,
-    "density": False,
-    "dpi": 150,
-}
-
-WEIGHT_PLOT_TITLE_OPTIONS = {
-    "show_description": True,
-    "show_method": True,
-    "show_space": True,
-    "show_aggregation": False,
-}
-
-WEIGHT_HISTOGRAM_TYPE = "stepfilled"
-
-
-def _save_figure(fig: Figure, path: Path, dpi: int, **kwargs) -> Path:
-    fig.savefig(path, dpi=dpi, **kwargs)
-    plt.close()
-
-
-### ====================
-### Weight distributions
-### ====================
-
-
-def _plot_weight_histogram(
-    ax: Axes,
-    scores: np.ndarray,
-    title: str,
-    labels: np.ndarray | None,
-    density: bool,
-) -> None:
-    """
-    Render a single weight distribution histogram onto `ax`.
-
-    Parameters
-    ----------
-    ax : Axes
-        The axes to draw on.
-    scores : np.ndarray
-        Score values to histogram.
-    title : str
-        Axes title.
-    labels : np.ndarray | None
-        Per-sample class labels. If None, the overall distribution is plotted.
-    density : bool
-        Whether to normalise to probability density.
-    """
-    ax.set_title(title)
-
-    min_val, max_val = scores.min(), scores.max()
-    bins = (
-        np.linspace(min_val - 0.01, max_val + 0.01, 40)
-        if np.isclose(min_val, max_val)
-        else np.linspace(min_val, max_val, 40)
-    )
-
-    if labels is None:
-        ax.hist(
-            scores,
-            bins=bins,
-            alpha=0.7,
-            color="teal",
-            density=density,
-            histtype=WEIGHT_HISTOGRAM_TYPE,
-        )
-        return
-
-    for label_idx, config in LABEL_MAP.items():
-        mask = labels == label_idx
-        if mask.any():
-            ax.hist(
-                scores[mask],
-                bins=bins,
-                alpha=0.5,
-                label=config["name"],
-                color=config["color"],
-                edgecolor=config["color"],
-                linewidth=1.2,
-                density=density,
-                histtype=WEIGHT_HISTOGRAM_TYPE,
-            )
-    ax.legend()
-
-
-def _collect_weight_scores(
-    report: EvaluationReport,
-) -> dict[tuple[str, ImageSpace, AggregationStrategy], np.ndarray]:
-    """
-    Extract and flatten all (method, space, strategy) score arrays from a report.
-
-    The average method is excluded.
-
-    Parameters
-    ----------
-    report : EvaluationReport
-        Populated evaluation report.
-
-    Returns
-    -------
-    dict[str, np.ndarray]
-        Ordered mapping from a human-readable plot key to score array.
-    """
-    all_scores: dict[tuple[str, ImageSpace, AggregationStrategy], np.ndarray] = {}
-
-    for method_result in report.method_results:
-        if method_result.name == AVERAGE_NAME:
-            continue
-
-        for space, strategy_scores in method_result.scores.items():
-            for strategy, scores in strategy_scores.items():
-                key = (method_result.name, space, strategy)
-                all_scores[key] = scores
-
-    return all_scores
-
-
-def _build_weight_plot_title(
-    method: str,
-    space: ImageSpace,
-    strategy,
-    suffix: str | None = None,
-) -> str:
-    """Build a weight-distribution plot title from the configured components."""
-    parts = []
-
-    if WEIGHT_PLOT_TITLE_OPTIONS["show_description"]:
-        parts.append("Weight distribution")
-
-    if WEIGHT_PLOT_TITLE_OPTIONS["show_method"]:
-        parts.append(method)
-
-    if WEIGHT_PLOT_TITLE_OPTIONS["show_space"]:
-        parts.append(space.name)
-
-    if WEIGHT_PLOT_TITLE_OPTIONS["show_aggregation"]:
-        parts.append(str(strategy))
-
-    title = " — ".join(parts)
-
-    if suffix:
-        title = f"{title} — {suffix}" if title else suffix
-
-    return title
-
-
-def _plot_weight_distributions(
-    all_scores: dict[tuple[str, ImageSpace, AggregationStrategy], np.ndarray],
-    labels: np.ndarray | None,
-    max_subplots: int,
-    density: bool,
-    title_suffix: str | None = None,
-    fig_width: float = 4.0,
-    fig_height: float = 3.0,
-) -> list[Figure]:
-    """
-    Produce batched weight distribution figures.
-
-    Parameters
-    ----------
-    all_scores : dict[tuple[str, ImageSpace, AggregationStrategy], np.ndarray]
-        Mapping from plot key to score array, as returned by
-        `_collect_weight_scores`.
-    labels : np.ndarray | None
-        Per-sample class labels.
-    max_subplots : int
-        Maximum subplots per figure.
-    density : bool
-        Whether to normalise histograms to probability density.
-
-    Returns
-    -------
-    list[Figure]
-        One figure per batch.
-    """
-    figures = []
-    items = list(all_scores.items())
-
-    for batch_start in range(0, len(items), max_subplots):
-        chunk = items[batch_start : batch_start + max_subplots]
-        n = len(chunk)
-
-        fig, axes = plt.subplots(
-            n, 1, figsize=(fig_width, fig_height * n), sharex=False
-        )
-        if n == 1:
-            axes = [axes]
-
-        for ax, ((method, space, strategy), scores) in zip(axes, chunk):
-            title = _build_weight_plot_title(
-                method=method, space=space, strategy=strategy, suffix=title_suffix
-            )
-            _plot_weight_histogram(ax, scores, title, labels, density)
-
-        fig.tight_layout()
-        figures.append(fig)
-
-    return figures
-
-
-### ==========
-### FRC curves
-### ==========
-
-
-def _plot_frc_curves(
-    data_items: list[tuple[str, FRCData]],
-    frc_thresholds: list[FRCThreshold] = [],
-    title: str = "Resolution Estimates (FRC)",
-    x_axis_freqs: bool = True,
-) -> Figure | None:
-    """
-    Plot Fourier Ring Correlation (FRC) curves.
-
-    Parameters
-    ----------
-    data_items : list[tuple[str, FRCData]]
-        A list of tuples containing the method name and its corresponding FRC data.
-    frc_threshold : float | None, optional
-        A threshold value to draw as a horizontal dashed line. Default is None.
-    title : str, optional
-        The title of the axes. Default is "Resolution Estimates (FRC)".
-    x_axis_freqs: bool, optional.
-        Plot spatial frequencies instead of resolutions on the x-axis. Default is True.
-
-    Returns
-    -------
-    Figure | None
-        The generated figure, or None if `data_items` is empty.
-    """
-    # Early exit if no data is provided to avoid generating empty figures
-    if not data_items:
-        return None
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-
-    # Plot each curve with its corresponding method name as the legend label
-    for name, frc_data in data_items:
-        x = frc_data.freqs if x_axis_freqs else frc_data.spatial_resolutions
-        ax.plot(x, frc_data.frc, label=name)
-
-    frc_data = data_items[0][1]
-    x_thresh = frc_data.freqs if x_axis_freqs else frc_data.spatial_resolutions
-
-    # Optionally draw threshold lines
-    for threshold in frc_thresholds:
-        thr = get_threshold(frc_data, threshold)
-
-        ax.plot(
-            x_thresh,
-            thr,
-            linestyle="--",
-            label=threshold,
-            color=THRESHOLD_COLORS.get(threshold, "gray"),
-        )
-
-    xlabel = "Spatial Frequency (1/Å)" if x_axis_freqs else "Spatial Resolution"
-    ax.set_xlabel(xlabel)
-
-    ax.set_ylabel("Fourier Shell Correlation")
-    ax.set_title(title)
-    ax.set_ylim(-0.1, 1.1)
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-
-    return fig
-
-
-def plot_report_frc_curves(
-    report: EvaluationReport, x_axis_freqs: bool = True
-) -> tuple[Figure | None, Figure | None]:
-    """
-    Generate FRC curve figures for ground truth and half-set data from a report.
-
-    Parameters
-    ----------
-    report : EvaluationReport
-        The evaluation report containing the method results and FRC data.
-    x_axis_freqs: bool, optional.
-        Plot spatial frequencies instead of resolutions on the x-axis. Default is True.
-
-    Returns
-    -------
-    tuple[Figure | None, Figure | None]
-        A tuple containing the ground truth FRC figure and the half-set FRC figure.
-        Either or both can be `None` if the respective data is not present.
-    """
-    # Extract ground truth FRC data only for methods where it exists
-    gt_frc_items = [
-        (mr.name, mr.ground_truth_frc_data)
-        for mr in report.method_results
-        if mr.ground_truth_frc_data is not None
-    ]
-
-    # Extract half-set FRC data only for methods where it exists
-    hs_frc_items = [
-        (mr.name, mr.half_set_frc_data)
-        for mr in report.method_results
-        if mr.half_set_frc_data is not None
-    ]
-
-    # Plot both sets of curves
-    gt_fig = _plot_frc_curves(
-        gt_frc_items,
-        frc_thresholds=report.frc_thresholds,
-        title="Ground Truth Resolution Estimates (FRC)",
-        x_axis_freqs=x_axis_freqs,
-    )
-    hs_fig = _plot_frc_curves(
-        hs_frc_items,
-        frc_thresholds=report.frc_thresholds,
-        title="Half-set Resolution Estimates (FRC)",
-        x_axis_freqs=x_axis_freqs,
-    )
-
-    # Return the figures
-    return gt_fig, hs_fig
-
-
-### ===================================
-### Fourier ring classification metrics
-### ===================================
-
-
-def _extract_ring_data(
-    ring_metrics_dict: dict[int, ClassificationMetrics], pixel_size: float = 1.0
-) -> tuple[list[float], dict[str, list[float]]]:
-    """
-    Extract spatial frequencies and associated classification metrics from ring-based data.
-
-    This helper sorts the ring indices, converts them into spatial frequencies using
-    the inferred Fourier box size and pixel size, and collects selected metric values
-    into parallel lists for downstream analysis or plotting.
-
-    Parameters
-    ----------
-    ring_metrics_dict : dict[int, ClassificationMetrics]
-        Mapping of ring (spatial frequency index) to its corresponding
-        ``ClassificationMetrics`` object.
-    pixel_size : float, optional
-        Physical pixel size used to scale ring indices into spatial frequencies.
-        Frequencies are computed as::
-
-            frequency = ring / (box_size * pixel_size)
-
-        where ``box_size = 2 * max(ring_metrics_dict.keys())``. Defaults to 1.0.
-
-    Returns
-    -------
-    tuple[list[float], dict[str, list[float]]]
-        A tuple containing:
-
-        - ``freqs`` : list[float]
-            Spatial frequencies corresponding to the sorted ring indices.
-        - ``extracted`` : dict[str, list[float]]
-            Dictionary of metric values aligned with ``freqs``. Keys include:
-
-            - ``"ap"`` : Average precision values.
-            - ``"roc_auc"`` : ROC AUC values.
-            - ``"soft_precision"`` : Soft precision values.
-            - ``"soft_recall_ht"`` : Soft recall values for the
-              ``"huang_tagare"`` thresholding method.
-
-        Missing attributes or metric values default to ``0.0``.
-
-    Notes
-    -----
-    If ``ring_metrics_dict`` is empty, a fallback ``box_size`` of 1 is used and
-    both returned collections will be empty.
-    """
-    sorted_rings = sorted(ring_metrics_dict.keys())
-    box_size = 2 * max(sorted_rings) if sorted_rings else 1
-    freqs = [ring / (box_size * pixel_size) for ring in sorted_rings]
-
-    extracted = {"ap": [], "roc_auc": [], "soft_precision": [], "soft_recall_ht": []}
-    for r in sorted_rings:
-        m = ring_metrics_dict[r]
-        extracted["ap"].append(getattr(m, "ap", 0.0))
-        extracted["roc_auc"].append(getattr(m, "roc_auc", 0.0))
-        extracted["soft_precision"].append(getattr(m, "soft_precision", 0.0))
-        extracted["soft_recall_ht"].append(m.soft_recall.get("huang_tagare", 0.0))
-
-    return freqs, extracted
-
-
-def plot_method_fourier_ring_curves(
-    method_results: MethodEvaluation,
-    space: ImageSpace = ImageSpace.FOURIER_REAL,
-    pixel_size: float = 1.0,
-    figsize: tuple[float, float] = (11, 4.5),
-) -> Figure | None:
-    """
-    Generates one classification metrics vs. Fourier frequency for one estimation method.
-    Returns ``None`` if the estimator does not have valid weights in the requested space.
-
-    Parameters
-    ----------
-    method_results : MethodResults
-        MethodResults object containing the information about the requested method
-    space : Space, optional
-        Space to extract the weights from, by default Space.FOURIER_REAL
-    pixel_size : float, optional
-        Image pixel size, by default 1.0
-    figsize : tuple[float, float], optional
-        Figure size, by default (11, 4.5)
-
-    Returns
-    -------
-    Figure | None
-        Figure object containing the plot, or ``None`` if the estimation method
-        did not have valid weights for the requested space
-    """
-    ring_metrics_dict = getattr(method_results, "fourier_ring_metrics", {}).get(space)
-    if not ring_metrics_dict:
-        return None
-
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
-
-    freqs, data = _extract_ring_data(ring_metrics_dict, pixel_size=pixel_size)
-
-    # Left subplot: Precision & Recall
-    ax1.plot(freqs, data["soft_precision"], label="Soft Precision", color="teal", lw=2)
-    ax1.plot(
-        freqs,
-        data["soft_recall_ht"],
-        label="Soft Recall (Huang-Tagare)",
-        color="darkorange",
-        lw=2,
-        linestyle="--",
-    )
-    ax1.set_title(
-        f"Detection Metrics vs Frequency\n({method_results.name} - {space.label})"
-    )
-    ax1.set_xlabel(r"Spatial Frequency ($1/\mathrm{\AA}$)")
-    ax1.set_ylabel("Metric Score")
-    ax1.set_ylim(-0.05, 1.05)
-    ax1.grid(True, linestyle="--", alpha=0.5)
-    ax1.legend(loc="lower left")
-
-    # Right subplot: AP & ROC-AUC
-    ax2.plot(freqs, data["ap"], label="Average Precision (AP)", color="crimson", lw=2)
-    ax2.plot(
-        freqs, data["roc_auc"], label="ROC-AUC", color="royalblue", lw=2, linestyle="-."
-    )
-    ax2.set_title(f"Classification Capacity vs Frequency\n({method_results.name})")
-    ax2.set_xlabel(r"Spatial Frequency ($1/\mathrm{\AA}$)")
-    ax2.set_ylabel("Metric Score")
-    ax2.set_ylim(-0.05, 1.05)
-    ax2.grid(True, linestyle="--", alpha=0.5)
-    ax2.legend(loc="lower left")
-
-    plt.tight_layout()
-    return fig
-
-
-def plot_fourier_ring_summary(
-    all_method_results: Iterable[MethodEvaluation],
-    space: ImageSpace = ImageSpace.FOURIER_REAL,
-    pixel_size: float = 1.0,
-    figsize: tuple[int, int] = (8, 5),
-) -> Figure | None:
-    """
-    Generates a single summary plot comparing all models across the spectrum.
-    Solid line = Soft Precision, Dashed line = Soft Recall (Huang-Tagare).
-
-    Parameters
-    ----------
-    all_method_results : Iterable[MethodResults]
-        Iterable containing the MethodResults object for each of the estimation methods
-    space : Space, optional
-        Space from which weights will be extracted to calculate the metrics,
-        by default Space.FOURIER_REAL
-    pixel_size : float, optional
-        Image pixel size, by default 1.0
-    figsize : tuple[int, int], optional
-        Figure size, by default (8, 5)
-
-    Returns
-    -------
-    Figure | None
-        The Figure object containing the plot, or
-        ``None`` if no methods with valid weights for the requested space were provided.
-    """
-    fig, ax = plt.subplots(figsize=figsize)
-
-    # One color per method, same cmap as in plot_vs_snr
-    cmap = plt.get_cmap("tab10")
-
-    any_plots = False
-    for idx, method_results in enumerate(all_method_results):
-        ring_metrics_dict = getattr(method_results, "fourier_ring_metrics", {}).get(
-            space
-        )
-        if not ring_metrics_dict:
-            continue
-
-        any_plots = True
-
-        color = cmap(idx % cmap.N)
-        freqs, data = _extract_ring_data(ring_metrics_dict, pixel_size=pixel_size)
-
-        # Plot soft precision as solid line and soft recall as dashed line
-        ax.plot(
-            freqs,
-            data["soft_precision"],
-            label=f"{method_results.name}",
-            color=color,
-        )
-        ax.plot(freqs, data["soft_recall_ht"], color=color, linestyle="--")
-
-    if not any_plots:
-        return None
-
-    ax.set_title(f"Frequency evaluation comparison - {space.label}")
-    ax.set_xlabel(r"Spatial Frequency ($1 / \mathrm{\AA}$)")
-    ax.set_ylabel("Score")
-    ax.set_ylim(-0.05, 1.05)
-    ax.grid(True, linestyle="--", alpha=0.5)
-
-    # Add a custom helper legend text specifying line styles
-    ax.text(
-        0.02,
-        0.05,
-        "Solid = Precision\nDashed = Recall",
-        transform=ax.transAxes,
-        bbox=dict(facecolor="white", alpha=0.8, boxstyle="round,pad=0.3"),
-        fontsize=9,
-    )
-    ax.legend(loc="upper right", framealpha=0.9)
-
-    plt.tight_layout()
-    return fig
-
+from cryo_robust.comparison.domain.reports import EvaluationReport
 
 ### ========================
 ### Complete report plotting
@@ -599,8 +51,8 @@ def plot_report(
     `None`
     """
     if plot_weights:
-        all_scores = _collect_weight_scores(report)
-        _ = _plot_weight_distributions(all_scores, report.labels, max_subplots, density)
+        all_scores = collect_weight_scores(report)
+        _ = plot_weight_distributions(all_scores, report.labels, max_subplots, density)
         plt.show()
 
     if plot_frc:
@@ -689,9 +141,9 @@ def save_report_figures(
 
     # Weight distribution histograms
     if "weights" in plot_types:
-        all_scores = _collect_weight_scores(report)
+        all_scores = collect_weight_scores(report)
         for i, fig in enumerate(
-            _plot_weight_distributions(
+            plot_weight_distributions(
                 all_scores,
                 report.labels,
                 max_subplots,
@@ -700,7 +152,7 @@ def save_report_figures(
             )
         ):
             path = report_figure_path / f"weight_distribution_{i}.pdf"
-            _save_figure(fig=fig, path=path, dpi=dpi)
+            save_figure(fig=fig, path=path, dpi=dpi)
             saved["weight_distributions"].append(path)
 
     # FRC curves
@@ -710,11 +162,11 @@ def save_report_figures(
         )
         if gt_frc_fig is not None:
             path = report_figure_path / "gt_frc_curves.pdf"
-            _save_figure(fig=gt_frc_fig, path=path, dpi=dpi)
+            save_figure(fig=gt_frc_fig, path=path, dpi=dpi)
             saved["frc_curves"].append(path)
         if hs_frc_fig is not None:
             path = report_figure_path / "hs_frc_curves.pdf"
-            _save_figure(fig=hs_frc_fig, path=path, dpi=dpi)
+            save_figure(fig=hs_frc_fig, path=path, dpi=dpi)
             saved["frc_curves"].append(path)
 
     ## Fourier ring classification metrics
@@ -735,7 +187,7 @@ def save_report_figures(
                 fig_filename = f"fourier_{space_str}_rings_{clean_name}.pdf"
                 fig_save_path = report_figure_path / fig_filename
 
-                _save_figure(fig=fig, path=fig_save_path, dpi=dpi)
+                save_figure(fig=fig, path=fig_save_path, dpi=dpi)
 
                 saved["fourier_ring_classification"].append(fig_save_path)
 
@@ -750,7 +202,7 @@ def save_report_figures(
             summary_filename = f"fourier_{space_str}_rings_summary.pdf"
             summary_save_path = report_figure_path / summary_filename
 
-            _save_figure(fig=summary_fig, path=summary_save_path, dpi=dpi)
+            save_figure(fig=summary_fig, path=summary_save_path, dpi=dpi)
 
             saved["fourier_ring_summary"].append(summary_save_path)
 
@@ -1030,76 +482,6 @@ def plot_vs_snr(
 
     fig.tight_layout()
 
-    _save_figure(fig=fig, path=save_path, dpi=dpi, pad_inches=0.02)
+    save_figure(fig=fig, path=save_path, dpi=dpi, pad_inches=0.02)
 
     return save_path
-
-
-### =================================================================
-### Image generation and saving (for ground truth/estimated averages)
-### =================================================================
-
-
-def generate_image_plots(
-    images: Iterable[np.ndarray],
-    save_paths: Iterable[Path],
-    link_contrast: bool = True,
-    *,
-    figsize: tuple[int, int] = (6, 6),
-    dpi: int = 150,
-) -> list[Path]:
-    """
-    Generate and save individual plots for a sequence of images.
-
-    Parameters
-    ----------
-    images : Iterable[np.ndarray]
-        An iterable of 2D arrays representing the images to plot.
-    save_paths : Iterable[Path]
-        An iterable of file paths where the corresponding images should be saved.
-    link_contrast : bool, optional
-        If True, applies a global minimum and maximum contrast across all images.
-        Default is True.
-    figsize : tuple[int, int], optional
-        The dimensions of each generated figure in inches. Default is (6, 6).
-    dpi : int, optional
-        The resolution of the saved figures in dots per inch. Default is 150.
-
-    Returns
-    -------
-    list[Path]
-        A list of paths where the images were saved.
-
-    Raises
-    ------
-    ValueError
-        If the number of images and save paths do not match.
-    """
-    # Convert iterables to lists to safely calculate length and iterate multiple times
-    images = list(images)
-    save_paths = list(save_paths)
-
-    if len(images) != len(save_paths):
-        raise ValueError("images and save_paths must have the same length")
-
-    # Determine global contrast limits if requested
-    if link_contrast:
-        vmin = min([image.min() for image in images])
-        vmax = max([image.max() for image in images])
-    else:
-        vmin = None
-        vmax = None
-
-    for image, save_path in zip(images, save_paths):
-        fig, ax = plt.subplots(figsize=figsize)
-
-        ax.imshow(image, cmap="gray", interpolation="nearest", vmin=vmin, vmax=vmax)
-
-        # Remove axes and whitespace for a clean image output
-        ax.axis("off")
-        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-
-        # Save cleanly
-        _save_figure(fig=fig, path=save_path, dpi=dpi, pad_inches=0)
-
-    return save_paths

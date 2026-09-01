@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 
 from cryo_robust.comparison.domain.reports import EvaluationReport, EvaluationStudy
-from cryo_robust.comparison.visualization.plotting import generate_image_plots
+from cryo_robust.comparison.visualization.images import generate_image_plots
 from .figures import create_figure_block, create_figure_grid
 
 
