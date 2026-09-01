@@ -24,27 +24,6 @@ from cryo_robust.comparison.evaluation.reconstruction_metrics import (
 from cryo_robust.estimators.data import ImageBatch
 from cryo_robust.comparison.domain.runs import AVERAGE_NAME
 
-# # Minimal estimator used to exercise compute_reconstruction_metrics without
-# # depending on any robust-estimator internals.  It implements only the methods
-# # needed by that metric function.
-# class MeanEstimatorForMetricTest:
-#     """Minimal estimator used only to exercise reconstruction metric formulas."""
-
-#     def __init__(self):
-#         self.avg = None
-
-#     def fit(self, images: ImageBatch) -> EstimatorResult:
-#         self.avg = images.real.mean(dim=0)
-
-#         return EstimatorResult(
-#             average=self.avg,
-#             estimate=self.avg,
-#             weights=WeightSet()
-#         )
-
-#     def reconstruct_from_weights(self, images, weights):
-#         return images[ImageSpace.REAL].mean(dim=0)
-
 
 # Soft precision is the fraction of total score assigned to inliers.  The recall
 # variants use different normalizations, so this simple vector checks the two
