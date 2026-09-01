@@ -171,7 +171,7 @@ class ADMMSolver(Estimator):
         next_real = real_results.estimate
 
         # Update fourier space estimate
-        next_real_transformed = torch.fft.rfft2(next_real, norm="ortho")
+        next_real_transformed = torch.fft.rfft2(next_real, norm=batch.norm)
         fourier_results = self._fourier_update(
             batch=batch,
             next_real_transformed=next_real_transformed,
