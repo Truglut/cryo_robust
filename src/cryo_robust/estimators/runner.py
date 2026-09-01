@@ -18,7 +18,7 @@ def load_reference(
     path: str | Path | None, device: str | torch.device
 ) -> torch.Tensor | None:
     """
-    Loads the starting reference from the given path and on the given device, 
+    Loads the starting reference from the given path and on the given device,
     or returns None if the path is None.
     """
     if path is None:
@@ -136,16 +136,20 @@ def run_estimators(
 
     # Add results of sample average and median if requested
     if add_avg:
+        image_average = image_batch.ensure_real().mean(dim=0)
         average_result = EstimatorResult(
-            average=image_batch.ensure_real().mean(dim=0),
+            estimate=image_average,
+            average=image_average,
             weights=WeightSet(
                 real=torch.ones((image_batch.n_images, 1, 1), device=image_batch.device)
             ),
         )
         results[AVERAGE_NAME] = MethodRun(estimator=None, result=average_result)
     if add_median:
+        image_median = image_batch.ensure_real().median(dim=0).values
         median_result = EstimatorResult(
-            average=image_batch.ensure_real().median(dim=0).values,
+            estimate=image_median,
+            average=image_median,
         )
         results[MEDIAN_NAME] = MethodRun(estimator=None, result=median_result)
 
