@@ -43,7 +43,7 @@ def compute_report(
     ground_truth_img: np.ndarray | None = None,
     labels: np.ndarray | None = None,
     reapply_mask: bool = True,
-    mask: np.ndarray = np.array([1]),
+    mask: np.ndarray | None = None,
     frc_thresholds: list[FRCThreshold] | None = None,
     recall_methods: Iterable[str] = ALL_RECALL_METHODS,
     real_agg_strategies: Iterable[AggregationStrategy] = (AggregationStrategy.MEAN,),
@@ -67,9 +67,22 @@ def compute_report(
     if frc_thresholds is None:
         frc_thresholds = [FRCThreshold.ONE_OVER_SEVEN]
 
-    ref_real, ref_fourier = setup_energy_reference(
-        ground_truth_img, image_batch, energy_reference
+    # Set up energy aggregation references only if requested
+    needs_weight_scores = options.scores or options.classification
+    needs_energy_reference = needs_weight_scores and (
+        AggregationStrategy.ENERGY in real_agg_strategies
+        or AggregationStrategy.ENERGY in fourier_agg_strategies
     )
+    if needs_energy_reference:
+        ref_real, ref_fourier = setup_energy_reference(
+            ground_truth_img, image_batch, energy_reference
+        )
+    else:
+        ref_real = None
+        ref_fourier = None
+
+    # The image mask only needs to be reapplied if there actually was a mask
+    reapply_mask = reapply_mask and (mask is not None)
 
     # Generate split indices for half-set resolution
     real_images = image_batch.ensure_real()
