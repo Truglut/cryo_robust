@@ -20,11 +20,11 @@ from cryo_robust.comparison.visualization.printing import print_report
 from cryo_robust.comparison.visualization.plotting import plot_report
 from cryo_robust.comparison.latex import generate_latex_report
 
+from cryo_robust.estimators.runner import run_estimators
 from scripts.estimator_runs.cli import build_simulation_parser, parse_arguments
 from scripts.estimator_runs.common import (
     load_config,
     apply_mask,
-    run_estimators,
     process_and_save_subsets,
 )
 from scripts.estimator_runs.napari_visualization import visualize_results
@@ -77,7 +77,13 @@ def run_experiment(
     image_batch = ImageBatch.from_real(tensor_images)
 
     # Run the Estimation Methods
-    results = run_estimators(cfg, image_batch, args, add_avg=True, add_median=False)
+    results = run_estimators(
+        method_configs=cfg["experiment"]["methods"],
+        image_batch=image_batch,
+        plot_gmm="gmm" in args.plot,
+        add_avg=True,
+        add_median=False,
+    )
 
     # Identify and save requested subsets
     image_path = Path(cfg["data"]["reference_image_path"])

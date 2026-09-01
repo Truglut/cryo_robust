@@ -13,11 +13,11 @@ from cryo_robust.comparison.evaluation.report_building import compute_report
 from cryo_robust.comparison.visualization.printing import print_report
 from cryo_robust.comparison.visualization.plotting import plot_report
 
+from cryo_robust.estimators.runner import run_estimators
 from scripts.estimator_runs.cli import build_experimental_parser, parse_arguments
 from scripts.estimator_runs.common import (
     load_config,
     apply_mask,
-    run_estimators,
     process_and_save_subsets,
 )
 from scripts.estimator_runs.napari_visualization import visualize_results
