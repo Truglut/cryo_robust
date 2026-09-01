@@ -6,7 +6,7 @@ import napari
 
 from cryo_robust.comparison.dataset_builder import LABEL_TYPES
 
-from scripts.estimator_runs.common import AVERAGE_NAME
+from cryo_robust.comparison.domain.runs import AVERAGE_NAME
 
 
 def visualize_results(

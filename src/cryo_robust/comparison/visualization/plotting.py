@@ -9,6 +9,7 @@ from matplotlib.figure import Figure
 import pandas as pd
 
 from cryo_robust.comparison.domain.frc import FRCData, FRCThreshold
+from cryo_robust.comparison.domain.runs import AVERAGE_NAME
 from cryo_robust.domain import ImageSpace
 from cryo_robust.comparison.domain.enums import AggregationStrategy
 from cryo_robust.comparison.domain.metrics import ClassificationMetrics
@@ -28,9 +29,6 @@ THRESHOLD_COLORS = {
     FRCThreshold.ONE_HALF: "orange",
     FRCThreshold.HALF_BIT: "seagreen",
 }
-
-AVERAGE_NAME = "Media muestral"
-MEDIAN_NAME = "Mediana"
 
 BASE_PLOT_OPTIONS = {
     "max_subplots": 3,

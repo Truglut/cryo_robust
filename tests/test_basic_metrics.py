@@ -22,7 +22,7 @@ from cryo_robust.comparison.evaluation.reconstruction_metrics import (
     get_half_set_indices,
 )
 from cryo_robust.estimators.data import ImageBatch
-from cryo_robust.comparison.evaluation.reconstruction_metrics import AVERAGE_NAME
+from cryo_robust.comparison.domain.runs import AVERAGE_NAME
 
 # # Minimal estimator used to exercise compute_reconstruction_metrics without
 # # depending on any robust-estimator internals.  It implements only the methods

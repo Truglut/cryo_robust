@@ -8,7 +8,7 @@ from cryo_robust.estimators.data import ImageBatch
 
 from cryo_robust.domain import ImageSpace
 from cryo_robust.comparison.domain.metrics import ReconstructionMetrics
-from cryo_robust.comparison.domain.runs import MethodRun
+from cryo_robust.comparison.domain.runs import AVERAGE_NAME, MethodRun
 
 from ..domain.frc import FRCData, FRCThreshold
 from .frc import (
@@ -16,7 +16,7 @@ from .frc import (
     get_resolution,
     area_under_frc,
 )
-from cryo_robust.comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
+from cryo_robust.comparison.domain.runs import MEDIAN_NAME
 
 
 def get_half_set_indices(

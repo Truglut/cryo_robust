@@ -4,8 +4,8 @@ from typing import Iterable, Mapping, Any
 import mrcfile
 import torch
 
-from cryo_robust.comparison.domain.runs import MethodRun
-from cryo_robust.comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
+from cryo_robust.comparison.domain.runs import AVERAGE_NAME, MethodRun
+from cryo_robust.comparison.domain.runs import MEDIAN_NAME
 from cryo_robust.estimators.admm import ADMMSolver
 from cryo_robust.estimators.base import Estimator
 from cryo_robust.estimators.construction import build_estimator

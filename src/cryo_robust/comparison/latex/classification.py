@@ -2,10 +2,11 @@ from pathlib import Path
 
 import pandas as pd
 
+from cryo_robust.comparison.domain.runs import AVERAGE_NAME
 from cryo_robust.domain import ImageSpace
 from cryo_robust.comparison.domain.enums import AggregationStrategy
 from cryo_robust.comparison.domain.reports import EvaluationReport, EvaluationStudy
-from cryo_robust.comparison.visualization.plotting import AVERAGE_NAME, plot_vs_snr
+from cryo_robust.comparison.visualization.plotting import plot_vs_snr
 from .tables import format_dataframe
 from .figures import create_figure_block
 

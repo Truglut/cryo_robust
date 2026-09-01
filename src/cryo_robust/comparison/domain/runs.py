@@ -11,3 +11,7 @@ class MethodRun:
     estimator: Estimator | None
     result: EstimatorResult
     initial_reference: torch.Tensor | None = None
+
+
+AVERAGE_NAME = "Media muestral"
+MEDIAN_NAME = "Mediana"

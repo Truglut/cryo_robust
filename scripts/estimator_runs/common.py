@@ -9,10 +9,9 @@ import torch
 from cryo_robust.estimators.results import WeightSet
 
 from cryo_robust.comparison.domain.enums import AggregationStrategy
-from cryo_robust.comparison.domain.runs import MethodRun
+from cryo_robust.comparison.domain.runs import AVERAGE_NAME, MEDIAN_NAME, MethodRun
 
 from cryo_robust.comparison.evaluation.aggregation import aggregate_weights
-from cryo_robust.comparison.visualization.plotting import AVERAGE_NAME, MEDIAN_NAME
 
 from cryo_robust.utils.masks import create_circular_mask
 
