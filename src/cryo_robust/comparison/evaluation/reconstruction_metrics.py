@@ -54,7 +54,7 @@ def compute_reconstruction_metrics(
     ground_truth_img: np.ndarray | None,
     estimated_img: np.ndarray,
     frc_thresholds: list[FRCThreshold],
-    images_dict: dict[ImageSpace, torch.Tensor],
+    image_batch: ImageBatch,
     method_name: str,
     method_run: MethodRun,
     split_indices: tuple[torch.Tensor, torch.Tensor],
@@ -67,31 +67,25 @@ def compute_reconstruction_metrics(
     ## Half-set reconstruction resolution (always available)
     # Separate images and weights into two half-sets
     idx_A, idx_B = split_indices
-    images_A = images_dict[ImageSpace.REAL][idx_A]
-    images_B = images_dict[ImageSpace.REAL][idx_B]
-
-    batch_A = ImageBatch.from_real(images_A)
-    batch_B = ImageBatch.from_real(images_B)
-
-    images_A = batch_A.as_space_dict()
-    images_B = batch_B.as_space_dict()
+    batch_A = image_batch.subset(idx_A)
+    batch_B = image_batch.subset(idx_B)
 
     estimator = method_run.estimator
     weights = method_run.result.weights
 
     # Reconstruct image estimation for both half sets
     if method_name == AVERAGE_NAME:
-        reconstruction_A = batch_A.real.mean(dim=0)
-        reconstruction_B = batch_B.real.mean(dim=0)
+        reconstruction_A = batch_A.ensure_real().mean(dim=0)
+        reconstruction_B = batch_B.ensure_real().mean(dim=0)
     elif method_name == MEDIAN_NAME:
-        reconstruction_A = batch_A.real.median(dim=0).values
-        reconstruction_B = batch_B.real.median(dim=0).values
+        reconstruction_A = batch_A.ensure_real().median(dim=0).values
+        reconstruction_B = batch_B.ensure_real().median(dim=0).values
     elif independent_half_sets:
-        result_A = estimator.fit(batch_A)
-        result_B = estimator.fit(batch_B)
+        if estimator is None:
+            raise RuntimeError(f"Method {method_name!r} has no estimator.")
 
-        reconstruction_A = result_A.average
-        reconstruction_B = result_B.average
+        reconstruction_A = estimator.fit(batch_A).average
+        reconstruction_B = estimator.fit(batch_B).average
     else:
         weights_A = weights.subset(idx_A)
         weights_B = weights.subset(idx_B)
@@ -105,11 +99,13 @@ def compute_reconstruction_metrics(
                 batch_B, weights_B.as_space_dict()
             )
         else:
+            # TODO: adapt all estimators to take an ImageBatch in 
+            # reconstruct_from_weights and change this line
             reconstruction_A = estimator.reconstruct_from_weights(
-                images_A, weights_A.as_space_dict()
+                batch_A.as_space_dict(), weights_A.as_space_dict()
             )
             reconstruction_B = estimator.reconstruct_from_weights(
-                images_B, weights_B.as_space_dict()
+                batch_B.as_space_dict(), weights_B.as_space_dict()
             )
 
     reconstruction_A = reconstruction_A.detach().cpu().numpy()

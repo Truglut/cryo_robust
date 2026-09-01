@@ -133,14 +133,13 @@ def test_reconstruction_metrics_compute_basic_rmse_and_correlation():
         ]
     ).float()
     image_batch = ImageBatch.from_real(images)
-    images_dict = image_batch.as_space_dict()
     split_indices = (torch.tensor([0, 1]), torch.tensor([2, 3]))
 
     metrics, gt_frc_data, hs_frc_data = compute_reconstruction_metrics(
         ground_truth_img=ground_truth,
         estimated_img=estimated,
         frc_thresholds=[],
-        images_dict=images_dict,
+        image_batch=image_batch,
         method_name=AVERAGE_NAME,
         method_run=MethodRun(
             estimator=None,

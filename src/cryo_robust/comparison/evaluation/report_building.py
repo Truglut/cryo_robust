@@ -63,19 +63,17 @@ def compute_report(
     if options is None:
         options = ReportComputationOptions()
 
-    image_dict = image_batch.as_space_dict()
-
     if frc_thresholds is None:
         frc_thresholds = [FRCThreshold.ONE_OVER_SEVEN]
 
     ref_real, ref_fourier = setup_energy_reference(
-        ground_truth_img, image_dict, energy_reference
+        ground_truth_img, image_batch, energy_reference
     )
 
     # Generate split indices for half-set resolution
-    imgs = image_dict[ImageSpace.REAL]
+    real_images = image_batch.ensure_real()
     split_indices = (
-        get_half_set_indices(num_images=imgs.shape[0], device=imgs.device)
+        get_half_set_indices(num_images=image_batch.n_images, device=image_batch.device)
         if options.reconstruction
         else None
     )
@@ -85,19 +83,21 @@ def compute_report(
     # If a mask has been provided for real space images and no weight mask is provided, use that
     if masks_dict is None:
         if mask is not None and mask.ndim == 2:
-            torch_masks[ImageSpace.REAL] = torch.from_numpy(mask).to(imgs.device)
+            torch_masks[ImageSpace.REAL] = torch.from_numpy(mask).to(real_images.device)
     else:
         for space, m in masks_dict.items():
             if m is not None:
                 torch_masks[space] = (
-                    torch.from_numpy(m).to(imgs.device)
+                    torch.from_numpy(m).to(real_images.device)
                     if isinstance(m, np.ndarray)
-                    else m.to(imgs.device)
+                    else m.to(real_images.device)
                 )
         # Use real-space image mask as weight mask as fallback
         if masks_dict.get(ImageSpace.REAL, None) is None:
             if mask is not None and mask.ndim == 2:
-                torch_masks[ImageSpace.REAL] = torch.from_numpy(mask).to(imgs.device)
+                torch_masks[ImageSpace.REAL] = torch.from_numpy(mask).to(
+                    real_images.device
+                )
 
     all_results = []
     for method_name, run in results.items():
@@ -127,7 +127,7 @@ def compute_report(
                     comparison_ground_truth,
                     estimated_img,
                     frc_thresholds=frc_thresholds,
-                    images_dict=image_dict,
+                    image_batch=image_batch,
                     method_name=method_name,
                     method_run=run,
                     split_indices=split_indices,

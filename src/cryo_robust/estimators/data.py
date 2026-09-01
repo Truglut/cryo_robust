@@ -423,3 +423,31 @@ class ImageBatch:
             return self.ensure_fourier()
 
         raise ValueError(f"Unsupported IRLS space: {space}")
+
+    def subset(self, indices: torch.Tensor) -> ImageBatch:
+        """
+        Return a subset containing the selected images.
+
+        Cached batch-level variances are intentionally discarded because they
+        must be recomputed for the selected subset.
+
+        Parameters
+        ----------
+        indices : torch.Tensor
+            Image indices to select.
+
+        Returns
+        -------
+        ImageBatch
+            New image batch containing only the selected images.
+        """
+        return ImageBatch(
+            real=self.real[indices] if self.real is not None else None,
+            fourier=(self.fourier[indices] if self.fourier is not None else None),
+            ctf=self.ctf[indices] if self.ctf is not None else None,
+            real_variance_value=None,
+            fourier_variance_value=None,
+            real_shape=self.real_shape,
+            norm=self.norm,
+            eps=self.eps,
+        )

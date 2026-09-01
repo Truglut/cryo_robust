@@ -6,6 +6,7 @@ import torch
 
 from cryo_robust.comparison.domain.enums import AggregationStrategy, ImageSpace
 
+from cryo_robust.estimators.data import ImageBatch
 from cryo_robust.estimators.results import WeightSet
 
 
@@ -82,7 +83,7 @@ def aggregate_weights(
 
 def setup_energy_reference(
     ground_truth_img: np.ndarray | None,
-    images_dict: dict[ImageSpace, torch.Tensor],
+    image_batch: ImageBatch,
     energy_reference: str,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
@@ -93,8 +94,8 @@ def setup_energy_reference(
     ground_truth_img : np.ndarray or None
         Ground truth image array, shape `(H, W)`.
         `None` if ground truth is not available.
-    images_dict : dict of {Space: torch.Tensor}
-        Image tensors keyed by space; used to infer the target device.
+    image_batch : ImageBatch
+        Image data.
     energy_reference : {"ground_truth", "global_avg"}
         Strategy for building the real-space reference.  `"ground_truth"`
         uses the known clean image; `"global_avg"` uses the mean of all
@@ -114,24 +115,27 @@ def setup_energy_reference(
         If `energy_reference` is `'ground_truth'` but `ground_truth_img` is `None`.
         If `energy_reference` is not one of the accepted values.
     """
-    if ground_truth_img is not None:
-        gt_tensor = torch.from_numpy(ground_truth_img).to(
-            dtype=torch.float32, device=images_dict[ImageSpace.REAL].device
-        )
-    elif energy_reference == "ground_truth":
-        raise ValueError(
-            "ground_truth energy reference requested, but ground_truth_img is None"
-        )
+    real_images = image_batch.ensure_real()
 
     if energy_reference == "ground_truth":
-        ref_real = gt_tensor
+        if ground_truth_img is None:
+            raise ValueError(
+                "ground_truth energy reference requested, but ground_truth_img is None"
+            )
+
+        ref_real = torch.from_numpy(ground_truth_img).to(
+            dtype=real_images.dtype, device=real_images.device
+        )
+
     elif energy_reference == "global_avg":
-        ref_real = images_dict[ImageSpace.REAL].mean(dim=0)
+        ref_real = real_images.mean(dim=0)
+
     else:
         raise ValueError(
             "energy_reference must be one of 'ground_truth' or 'global_avg'"
         )
-    ref_fourier = torch.fft.rfft2(ref_real, norm="ortho")
+
+    ref_fourier = torch.fft.rfft2(ref_real, norm=image_batch.norm)
 
     return ref_real, ref_fourier
 
