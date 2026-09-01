@@ -46,6 +46,24 @@ def get_half_set_indices(
     return indices[:half_idx], indices[half_idx:]
 
 
+def reconstruct_baseline_half_sets(
+    method_name: str, batch_a: ImageBatch, batch_b: ImageBatch
+) -> tuple[torch.Tensor, torch.Tensor] | None:
+    if method_name == AVERAGE_NAME:
+        return (
+            batch_a.ensure_real().mean(dim=0),
+            batch_b.ensure_real().mean(dim=0),
+        )
+
+    if method_name == MEDIAN_NAME:
+        return (
+            batch_a.ensure_real().median(dim=0).values,
+            batch_b.ensure_real().median(dim=0).values,
+        )
+
+    return None
+
+
 ### All reconstruction metrics
 
 
@@ -73,13 +91,10 @@ def compute_reconstruction_metrics(
     weights = method_run.result.weights
 
     # Reconstruct image estimation for both half sets
-    if method_name == AVERAGE_NAME:
-        reconstruction_A = batch_A.ensure_real().mean(dim=0)
-        reconstruction_B = batch_B.ensure_real().mean(dim=0)
-
-    elif method_name == MEDIAN_NAME:
-        reconstruction_A = batch_A.ensure_real().median(dim=0).values
-        reconstruction_B = batch_B.ensure_real().median(dim=0).values
+    if (
+        baseline := reconstruct_baseline_half_sets(method_name, batch_A, batch_B)
+    ) is not None:
+        reconstruction_A, reconstruction_B = baseline
 
     # Independent reconstruction: fit estimators again on the half-sets
     elif independent_half_sets:
