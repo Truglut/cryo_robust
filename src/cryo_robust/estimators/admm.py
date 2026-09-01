@@ -266,20 +266,19 @@ class ADMMSolver(Estimator):
                         f"Dual: {dual_norm:.4f} (Tol: {eps_dual:.4f})"
                     )
 
+        # Store final estimate and weights
         weights = WeightSet(
             real=real_results.weights.real,
             fourier_real=fourier_results.weights.fourier_real,
             fourier_imag=fourier_results.weights.fourier_imag,
         )
-        # Store final estimate and weights
-        self.avg = (
+        average = 0.5 * (
             reference_real + torch.fft.irfft2(reference_fourier, norm=batch.norm)
-        ) / 2
-        self.final_weights = weights.as_space_dict()
+        )
 
         return EstimatorResult(
-            average=self.avg,
-            estimate=None,
+            average=average,
+            estimate=average,
             weights=weights,
             converged=real_results.converged and fourier_results.converged,
             n_iter=i + 1,

@@ -221,9 +221,7 @@ class RecursiveGMMEstimator(Estimator):
                 break
 
         # Save results using the existing gmm.py data model
-        self.avg = reference
         weight_set = WeightSet(real=weights, fourier_real=None, fourier_imag=None)
-        self.final_weights = weight_set.as_space_dict()
 
         # Plot final model fit
         if plot_fits:

@@ -150,8 +150,6 @@ class IRLSSolver(Estimator):
                 break
 
         weight_set = WeightSet.for_irls_space(self.space, weights)
-        self.final_weights = weight_set.as_space_dict()
-        self.avg = reference
 
         if self.space == ImageSpace.REAL:
             average = reference
@@ -283,16 +281,14 @@ class IRLSFourier(Estimator):
         )
 
         fourier_estimate = torch.complex(real_results.estimate, imag_results.estimate)
-        self.avg = torch.fft.irfft2(fourier_estimate, norm=batch.norm)
         weight_set = WeightSet(
             real=None,
             fourier_real=real_results.weights.fourier_real,
             fourier_imag=imag_results.weights.fourier_imag,
         )
-        self.final_weights = weight_set.as_space_dict()
 
         return EstimatorResult(
-            average=self.avg,
+            average=torch.fft.irfft2(fourier_estimate, norm=batch.norm),
             estimate=fourier_estimate,
             weights=weight_set,
             converged=real_results.converged and imag_results.converged,
@@ -398,11 +394,8 @@ class JointIRLSFourier(Estimator):
             max_iter_override=max_iter_override,
         )
 
-        self.final_weights = irls_result.weights.as_space_dict()
-        self.avg = torch.fft.irfft2(irls_result.estimate, norm="ortho")
-
         return EstimatorResult(
-            average=self.avg,
+            average=torch.fft.irfft2(irls_result.estimate, norm=batch.norm),
             estimate=irls_result.estimate,
             weights=irls_result.weights,
             converged=irls_result.converged,
@@ -543,10 +536,8 @@ class FlatteningIRLSFourier(Estimator):
         weights = weights.reshape(batch.n_images, 1, 1)
         weight_set = WeightSet(real=None, fourier_real=weights, fourier_imag=weights)
 
-        self.final_weights = weight_set.as_space_dict()
-        self.avg = torch.fft.irfft2(fourier_estimate, norm="ortho")
         return EstimatorResult(
-            average=self.avg,
+            average=torch.fft.irfft2(fourier_estimate, norm=batch.norm),
             estimate=fourier_estimate,
             weights=weight_set,
             converged=irls_results.converged,
