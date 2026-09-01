@@ -80,7 +80,7 @@ def save_report_figures(
     frc_x_axis_freqs: bool = True,
     pixel_size: float = 1.0,
     title_suffix: str | None = None,
-    plot_types: set[str] = {"weights", "frc", "fourier-rings"},
+    plot_types: set[str] | None = None,
 ) -> dict[str, list[Path]]:
     """
     Save all report figures to disk and return their paths.
@@ -138,6 +138,9 @@ def save_report_figures(
         "fourier_ring_classification": [],
         "fourier_ring_summary": [],
     }
+
+    if plot_types is None:
+        plot_types = ALL_PLOT_TYPES
 
     # Weight distribution histograms
     if "weights" in plot_types:
@@ -219,7 +222,7 @@ def save_snr_reports_figures(
     frc_x_axis_freqs: bool = True,
     pixel_size: float = 1.0,
     title_suffix: str | None = None,
-    plot_types: set[str] = {"weights", "frc", "fourier-rings"},
+    plot_types: set[str] | None = None,
 ) -> dict[float, dict[str, list[Path]]]:
     """
     Save all report figures to disk and return their paths.
@@ -242,7 +245,7 @@ def save_snr_reports_figures(
         Image pixel size. Default is 1.0.
     title_suffix : str, optional
         Suffix to append to weight plot titles.
-    content : set[str]
+    plot_types : set[str]
         Set of plots to include in the LaTeX report. This will also
         determine which plots get generated. The relevant options for this section
         are

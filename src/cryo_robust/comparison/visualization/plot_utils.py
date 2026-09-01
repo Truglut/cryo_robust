@@ -21,3 +21,10 @@ BASE_PLOT_OPTIONS = {
     "density": False,
     "dpi": 150,
 }
+ALL_PLOT_TYPES = frozenset(
+    {
+        "weights",
+        "frc",
+        "fourier-rings",
+    }
+)

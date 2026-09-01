@@ -6,7 +6,6 @@ from cryo_robust.comparison.domain.frc import FRCData, FRCThreshold
 from cryo_robust.comparison.domain.metrics import ClassificationMetrics
 from cryo_robust.comparison.domain.reports import EvaluationReport, MethodEvaluation
 from cryo_robust.comparison.evaluation.frc import get_threshold
-from cryo_robust.comparison.visualization.plotting import THRESHOLD_COLORS
 
 
 import matplotlib.pyplot as plt
@@ -14,10 +13,16 @@ from matplotlib.figure import Figure
 
 from cryo_robust.domain import ImageSpace
 
+THRESHOLD_COLORS = {
+    FRCThreshold.ONE_OVER_SEVEN: "tomato",
+    FRCThreshold.ONE_HALF: "orange",
+    FRCThreshold.HALF_BIT: "seagreen",
+}
+
 
 def _plot_frc_curves(
     data_items: list[tuple[str, FRCData]],
-    frc_thresholds: list[FRCThreshold] = [],
+    frc_thresholds: list[FRCThreshold] | None = None,
     title: str = "Resolution Estimates (FRC)",
     x_axis_freqs: bool = True,
 ) -> Figure | None:
@@ -28,7 +33,7 @@ def _plot_frc_curves(
     ----------
     data_items : list[tuple[str, FRCData]]
         A list of tuples containing the method name and its corresponding FRC data.
-    frc_threshold : float | None, optional
+    frc_threshold : list[FRCThreshold] | None, optional
         A threshold value to draw as a horizontal dashed line. Default is None.
     title : str, optional
         The title of the axes. Default is "Resolution Estimates (FRC)".
@@ -43,6 +48,9 @@ def _plot_frc_curves(
     # Early exit if no data is provided to avoid generating empty figures
     if not data_items:
         return None
+
+    if frc_thresholds is None:
+        frc_thresholds = []
 
     fig, ax = plt.subplots(figsize=(8, 5))
 
