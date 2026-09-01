@@ -18,7 +18,7 @@ from .distances import DistanceFunction
 from .data import ImageBatch
 from .results import EstimatorResult, WeightSet
 
-from cryo_robust.comparison.domain.enums import ImageSpace
+from cryo_robust.domain import ImageSpace
 
 
 class RecursiveGMMEstimator(Estimator):

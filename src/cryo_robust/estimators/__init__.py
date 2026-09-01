@@ -12,7 +12,7 @@ from .admm import ADMMSolver
 from .weights import get_weight_function
 from .distances import get_distance_function
 
-from cryo_robust.comparison.domain.enums import ImageSpace
+from cryo_robust.domain import ImageSpace
 
 TAGARE_CONSTANT = 1.0e-5
 

@@ -8,10 +8,12 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 import pandas as pd
 
-from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
+from cryo_robust.comparison.domain.frc import FRCData, FRCThreshold
+from cryo_robust.domain import ImageSpace
+from cryo_robust.comparison.domain.enums import AggregationStrategy
 from cryo_robust.comparison.domain.metrics import ClassificationMetrics
-from cryo_robust.comparison.domain.reports import EvaluationReport, MethodResults
-from cryo_robust.comparison.evaluation.frc import FRCData, FRCThreshold, get_threshold
+from cryo_robust.comparison.domain.reports import EvaluationReport, MethodEvaluation
+from cryo_robust.comparison.evaluation.frc import get_threshold
 
 # Helper for consistent coloring
 LABEL_MAP = {
@@ -418,7 +420,7 @@ def _extract_ring_data(
 
 
 def plot_method_fourier_ring_curves(
-    method_results: MethodResults,
+    method_results: MethodEvaluation,
     space: ImageSpace = ImageSpace.FOURIER_REAL,
     pixel_size: float = 1.0,
     figsize: tuple[float, float] = (11, 4.5),
@@ -488,7 +490,7 @@ def plot_method_fourier_ring_curves(
 
 
 def plot_fourier_ring_summary(
-    all_method_results: Iterable[MethodResults],
+    all_method_results: Iterable[MethodEvaluation],
     space: ImageSpace = ImageSpace.FOURIER_REAL,
     pixel_size: float = 1.0,
     figsize: tuple[int, int] = (8, 5),

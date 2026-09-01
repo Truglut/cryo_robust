@@ -5,7 +5,8 @@ import numpy as np
 from sklearn.metrics import average_precision_score, roc_auc_score
 import torch
 
-from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
+from cryo_robust.domain import ImageSpace
+from cryo_robust.comparison.domain.enums import AggregationStrategy
 from cryo_robust.comparison.domain.metrics import ClassificationMetrics
 
 # List of all implemented recall methods

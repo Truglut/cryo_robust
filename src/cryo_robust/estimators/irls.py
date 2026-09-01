@@ -16,7 +16,7 @@ from .results import WeightSet, EstimatorResult
 from .weights import weighted_average, WeightFunction
 from .data import ImageBatch, to_tensor
 
-from cryo_robust.comparison.domain.enums import ImageSpace
+from cryo_robust.domain import ImageSpace
 
 
 class IRLSSolver(Estimator):

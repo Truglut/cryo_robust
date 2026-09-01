@@ -18,7 +18,7 @@ from .irls import (
     IRLSFourier,
 )
 
-from cryo_robust.comparison.domain.enums import ImageSpace
+from cryo_robust.domain import ImageSpace
 
 ACCEPTED_FOURIER_SOLVERS = (
     IRLSSolver,

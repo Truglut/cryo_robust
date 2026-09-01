@@ -4,11 +4,12 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 
+from cryo_robust.domain import ImageSpace
 from cryo_robust.estimators.data import ImageBatch
 
-from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
+from cryo_robust.comparison.domain.enums import AggregationStrategy
 from cryo_robust.comparison.domain.metrics import MethodMetrics, ClassificationMetrics
-from cryo_robust.comparison.domain.reports import MethodResults, EvaluationReport
+from cryo_robust.comparison.domain.reports import MethodEvaluation, EvaluationReport
 from .aggregation import (
     compute_aggregated_weights,
     setup_energy_reference,
@@ -20,7 +21,7 @@ from .classification_metrics import (
     compute_classification_metrics,
     compute_fourier_ring_classification_metrics,
 )
-from .frc import FRCThreshold
+from ..domain.frc import FRCThreshold
 from .reconstruction_metrics import (
     compute_reconstruction_metrics,
     get_half_set_indices,
@@ -179,7 +180,7 @@ def compute_report(
             reconstruction_metrics=reconstruction_metrics, space_metrics=space_metrics
         )
         all_results.append(
-            MethodResults(
+            MethodEvaluation(
                 name=method_name,
                 metrics=method_metrics,
                 scores=aggregated_weights,

@@ -7,7 +7,7 @@
 import pytest
 import torch
 
-from cryo_robust.comparison.domain.enums import ImageSpace
+from cryo_robust.domain import ImageSpace
 from cryo_robust.estimators.admm import ADMMSolver
 from cryo_robust.estimators.data import ImageBatch
 from cryo_robust.estimators.distances import l2_norm
@@ -23,7 +23,9 @@ from cryo_robust.estimators.irls import (
 # Constant weights make the robust update equivalent to a plain weighted mean.
 # The shape is chosen to broadcast correctly for real, Fourier and flattened
 # representations.
-def unit_weights(images: torch.Tensor, reference: torch.Tensor, std: torch.Tensor | float):
+def unit_weights(
+    images: torch.Tensor, reference: torch.Tensor, std: torch.Tensor | float
+):
     """Broadcastable unit weights for real, Fourier and flattened estimators."""
     trailing_singletons = (1,) * (images.ndim - 1)
     return torch.ones(
@@ -38,7 +40,9 @@ def unit_weights(images: torch.Tensor, reference: torch.Tensor, std: torch.Tenso
 # failures.
 def make_small_images() -> torch.Tensor:
     base = torch.arange(16, dtype=torch.float32).reshape(4, 4) / 10.0 + 1.0
-    offsets = torch.tensor([-0.2, -0.1, 0.0, 0.1, 0.2], dtype=torch.float32).view(-1, 1, 1)
+    offsets = torch.tensor([-0.2, -0.1, 0.0, 0.1, 0.2], dtype=torch.float32).view(
+        -1, 1, 1
+    )
     return base.unsqueeze(0) + offsets
 
 

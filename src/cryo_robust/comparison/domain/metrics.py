@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 
-from .enums import ImageSpace, AggregationStrategy
-from cryo_robust.comparison.evaluation.frc import FRCThreshold
+from ...domain import ImageSpace
+from .enums import AggregationStrategy
+from cryo_robust.comparison.domain.frc import FRCThreshold
 
 
 @dataclass
@@ -58,26 +59,6 @@ class ReconstructionMetrics:
         if self.hs_aufrc is not None:
             record["AUFRC (HS)"] = self.hs_aufrc
         return record
-
-    def print_text(self) -> str:
-        s = ""
-        if self.rmse is not None:
-            s += f"RMSE:              {self.rmse:.4f}\n"
-        if self.pearson_corr is not None:
-            s += f"Correlation:       {self.pearson_corr:.4f}\n"
-        if self.gt_frc_resolutions is not None:
-            s += f"GT FRC Resolution:\n"
-            for threshold, value in self.gt_frc_resolutions.items():
-                s += f"\t{threshold}: {value:.4f}\n"
-        if self.hs_frc_resolutions is not None:
-            s += f"HS FRC Resolution:\n"
-            for threshold, value in self.hs_frc_resolutions.items():
-                s += f"\t{threshold}: {value:.4f}\n"
-        if self.gt_aufrc is not None:
-            s += f"AUFRC (GT): {self.gt_aufrc:.4f}\n"
-        if self.hs_aufrc is not None:
-            s += f"AUFRC (HS): {self.hs_aufrc:.4f}\n"
-        return s
 
 
 @dataclass
@@ -147,7 +128,7 @@ class MethodMetrics:
         """Serialize the global reconstruction metrics to a dictionary."""
         if self.reconstruction_metrics is None:
             return {}
-        
+
         return self.reconstruction_metrics.to_record()
 
     def classification_metrics_records(self) -> list[dict] | None:

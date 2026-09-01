@@ -5,12 +5,13 @@ import numpy as np
 import mrcfile
 import torch
 
+from cryo_robust.domain import ImageSpace
 from cryo_robust.estimators.data import ImageBatch
 
-from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
+from cryo_robust.comparison.domain.enums import AggregationStrategy
 from cryo_robust.comparison.domain.reports import EvaluationReport, EvaluationStudy
 from cryo_robust.comparison.dataset_builder import create_evaluation_dataset
-from cryo_robust.comparison.evaluation.frc import FRCThreshold
+from cryo_robust.comparison.domain.frc import FRCThreshold
 from cryo_robust.comparison.evaluation.report_building import compute_report
 from cryo_robust.comparison.visualization.printing import print_report
 from cryo_robust.comparison.visualization.plotting import plot_report
@@ -110,7 +111,7 @@ def run_experiment(
         energy_reference="ground_truth",
         independent_half_sets=args.independent_half_sets,
         masks_dict=weights_masks_dict,
-        options=report_options
+        options=report_options,
     )
 
     # Print report to terminal

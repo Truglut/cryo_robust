@@ -3,15 +3,18 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from .enums import ImageSpace, AggregationStrategy
+from cryo_robust.comparison.domain.frc import FRCThreshold
+
+from ...domain import ImageSpace
+from .enums import AggregationStrategy
 from .metrics import MethodMetrics, ClassificationMetrics
-from cryo_robust.comparison.evaluation.frc import FRCData, FRCThreshold
+from cryo_robust.comparison.domain.frc import FRCData
 
 ID_COLS = ["method", "space", "aggregation_strategy", "run"]
 
 
 @dataclass
-class MethodResults:
+class MethodEvaluation:
     """
     All outputs produced for a single estimation method.
 
@@ -91,7 +94,7 @@ class EvaluationReport:
         The FRC thresholds used to define resolution (e.g. 0.143 or 0.5).
     """
 
-    method_results: list[MethodResults]
+    method_results: list[MethodEvaluation]
     labels: np.ndarray | None
     frc_thresholds: list[FRCThreshold]
 
@@ -229,15 +232,11 @@ class EvaluationStudy:
 
     @property
     def has_classification_metrics(self) -> bool:
-        return any(
-            report.has_classification_metrics for report in self.reports
-        )
+        return any(report.has_classification_metrics for report in self.reports)
 
     @property
     def has_frc(self) -> bool:
-        return any(
-            report.has_frc for report in self.reports
-        )
+        return any(report.has_frc for report in self.reports)
 
     @property
     def has_fourier_ring_metrics(self) -> bool:

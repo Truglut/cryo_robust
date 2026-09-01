@@ -6,8 +6,9 @@ import numpy as np
 import pytest
 import torch
 
+from cryo_robust.domain import ImageSpace
 from cryo_robust.estimators.results import EstimatorResult, WeightSet
-from cryo_robust.comparison.domain.enums import AggregationStrategy, ImageSpace
+from cryo_robust.comparison.domain.enums import AggregationStrategy
 from cryo_robust.comparison.domain.runs import MethodRun
 
 from cryo_robust.comparison.evaluation.classification_metrics import (

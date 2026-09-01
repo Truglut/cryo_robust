@@ -5,9 +5,10 @@ import torch
 import mrcfile
 from sklearn.metrics import root_mean_squared_error
 
+from cryo_robust.domain import ImageSpace
 from cryo_robust.estimators.data import ImageBatch
 
-from cryo_robust.comparison.domain.enums import ImageSpace, AggregationStrategy
+from cryo_robust.comparison.domain.enums import AggregationStrategy
 from cryo_robust.comparison.evaluation.report_building import compute_report
 from cryo_robust.comparison.visualization.printing import print_report
 from cryo_robust.comparison.visualization.plotting import plot_report

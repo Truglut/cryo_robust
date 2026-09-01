@@ -4,7 +4,8 @@ import warnings
 import numpy as np
 import torch
 
-from cryo_robust.comparison.domain.enums import AggregationStrategy, ImageSpace
+from cryo_robust.domain import ImageSpace
+from cryo_robust.comparison.domain.enums import AggregationStrategy
 
 from cryo_robust.estimators.data import ImageBatch
 from cryo_robust.estimators.results import WeightSet

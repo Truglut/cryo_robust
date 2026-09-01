@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from cryo_robust.comparison.evaluation.frc import FRCThreshold
+from cryo_robust.comparison.domain.frc import FRCThreshold
 from cryo_robust.comparison.domain.reports import EvaluationReport, EvaluationStudy
 from cryo_robust.comparison.visualization.plotting import plot_vs_snr
 from .tables import format_dataframe
@@ -222,7 +222,7 @@ def generate_reconstruction_section_from_study(
             study.aggregate_reconstruction_metrics(),
             caption=f"Reconstruction metrics for each method at SNR {snr:.3f}",
         )
-        
+
         df = study.aggregate_reconstruction_metrics()
         df["snr"] = snr
         reconstruction_dfs.append(df)

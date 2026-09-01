@@ -1,4 +1,26 @@
 from cryo_robust.comparison.domain.reports import EvaluationReport
+from cryo_robust.comparison.domain.metrics import ReconstructionMetrics
+
+
+def format_reconstruction_metrics(metrics: ReconstructionMetrics) -> str:
+    s = ""
+    if metrics.rmse is not None:
+        s += f"RMSE:              {metrics.rmse:.4f}\n"
+    if metrics.pearson_corr is not None:
+        s += f"Correlation:       {metrics.pearson_corr:.4f}\n"
+    if metrics.gt_frc_resolutions is not None:
+        s += f"GT FRC Resolution:\n"
+        for threshold, value in metrics.gt_frc_resolutions.items():
+            s += f"\t{threshold}: {value:.4f}\n"
+    if metrics.hs_frc_resolutions is not None:
+        s += f"HS FRC Resolution:\n"
+        for threshold, value in metrics.hs_frc_resolutions.items():
+            s += f"\t{threshold}: {value:.4f}\n"
+    if metrics.gt_aufrc is not None:
+        s += f"AUFRC (GT): {metrics.gt_aufrc:.4f}\n"
+    if metrics.hs_aufrc is not None:
+        s += f"AUFRC (HS): {metrics.hs_aufrc:.4f}\n"
+    return s
 
 
 def print_report(report: EvaluationReport) -> None:
@@ -31,7 +53,7 @@ def print_report(report: EvaluationReport) -> None:
             continue
 
         if metrics.reconstruction_metrics is not None:
-            print(metrics.reconstruction_metrics.print_text())
+            print(format_reconstruction_metrics(metrics.reconstruction_metrics))
 
         if metrics.space_metrics is not None:
             for space, strategy_metrics in metrics.space_metrics.items():
