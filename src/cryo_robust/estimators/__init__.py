@@ -21,7 +21,7 @@ def build_estimator(
     method_cfg: dict,
     image_batch: ImageBatch,
     device: str = "cpu",
-    space: ImageSpace = ImageSpace.REAL
+    space: ImageSpace = ImageSpace.REAL,
 ):
     """
     Factory function that reads the YAML config block and returns
@@ -38,7 +38,7 @@ def build_estimator(
         weight_func = get_weight_function(
             params["weight_function"],
             params.get("weight_params", {}),
-            image_batch.select_space_images(space),
+            image_batch.select_space(space),
         )
         return IRLSSolver(
             weight_function=weight_func,
@@ -72,7 +72,7 @@ def build_estimator(
             },
             image_batch=image_batch,
             device=device,
-            space = ImageSpace.FOURIER_COMPLEX
+            space=ImageSpace.FOURIER_COMPLEX,
         )
 
         return JointIRLSFourier(solver, device)
@@ -94,7 +94,7 @@ def build_estimator(
         distance_func = get_distance_function(
             params["distance_function"],
             params.get("distance_params", {}),
-            image_batch.select_space_images(space),
+            image_batch.select_space(space),
         )
         return RecursiveGMMEstimator(
             distance_function=distance_func,

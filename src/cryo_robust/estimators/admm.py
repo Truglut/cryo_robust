@@ -30,6 +30,7 @@ ACCEPTED_FOURIER_SOLVERS = (
 
 class ADMMSolver(Estimator):
     """ADMM estimator coupling real-space and Fourier-space IRLS updates."""
+
     def __init__(
         self,
         irls_real: IRLSSolver,
@@ -268,10 +269,12 @@ class ADMMSolver(Estimator):
         weights = WeightSet(
             real=real_results.weights.real,
             fourier_real=fourier_results.weights.fourier_real,
-            fourier_imag=fourier_results.weights.fourier_imag
+            fourier_imag=fourier_results.weights.fourier_imag,
         )
         # Store final estimate and weights
-        self.avg = (reference_real + torch.fft.irfft2(reference_fourier, norm=batch.norm)) / 2
+        self.avg = (
+            reference_real + torch.fft.irfft2(reference_fourier, norm=batch.norm)
+        ) / 2
         self.final_weights = weights.as_space_dict()
 
         return EstimatorResult(
@@ -314,13 +317,7 @@ class ADMMSolver(Estimator):
 
         return primal_norm, dual_norm, eps_primal, eps_dual
 
-    def reconstruct_from_weights(
-        self,
-        images: ImageBatch | dict[ImageSpace, torch.Tensor],
-        weights: WeightSet | dict[ImageSpace, torch.Tensor | None],
-    ):
-        norm = images.norm if isinstance(images, ImageBatch) else "ortho"
-
+    def reconstruct_from_weights(self, images: ImageBatch, weights: WeightSet):
         ref_real = self.irls_real.reconstruct_from_weights(
             images, weights, space=ImageSpace.REAL
         )
@@ -333,7 +330,7 @@ class ADMMSolver(Estimator):
                 images, weights, space=ImageSpace.FOURIER_IMAG
             )
             ref_fourier = torch.complex(ref_fourier_real, ref_fourier_imag)
-            ref_inverse_fourier = torch.fft.irfft2(ref_fourier, norm=norm)
+            ref_inverse_fourier = torch.fft.irfft2(ref_fourier, norm=images.norm)
         else:
             ref_inverse_fourier = self.irls_fourier.reconstruct_from_weights(
                 images, weights, space=ImageSpace.FOURIER_COMPLEX

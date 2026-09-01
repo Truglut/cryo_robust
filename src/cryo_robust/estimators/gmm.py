@@ -87,14 +87,12 @@ class RecursiveGMMEstimator(Estimator):
         )
 
         # Initialize both components with the same empirical variance
-        variance = distances.reshape(-1).var(unbiased=False).clamp_min(
-            self.model.reg_covar
+        variance = (
+            distances.reshape(-1).var(unbiased=False).clamp_min(self.model.reg_covar)
         )
         component_precisions = (1.0 / variance).expand(2, 1, 1)
-        
-        self.model.means_init = (
-            component_means.reshape(2, 1).detach().cpu().numpy()
-        )
+
+        self.model.means_init = component_means.reshape(2, 1).detach().cpu().numpy()
         self.model.weights_init = component_weights.detach().cpu().numpy()
         self.model.precisions_init = component_precisions.detach().cpu().numpy()
 
@@ -302,11 +300,9 @@ class RecursiveGMMEstimator(Estimator):
         ax.set_title("Last iteration")
 
     def reconstruct_from_weights(
-        self,
-        images: dict[ImageSpace, torch.Tensor],
-        weights: dict[ImageSpace, torch.Tensor | None],
+        self, images: ImageBatch, weights: WeightSet
     ) -> torch.Tensor:
-        return weighted_average(images[ImageSpace.REAL], weights[ImageSpace.REAL])
+        return weighted_average(images.ensure_real(), weights.real)
 
 
 def plot_gmm_fit(

@@ -214,29 +214,17 @@ class IRLSSolver(Estimator):
 
     def reconstruct_from_weights(
         self,
-        images: ImageBatch | dict[ImageSpace, torch.Tensor | None] | torch.Tensor,
-        weights: dict[ImageSpace, torch.Tensor | None] | WeightSet | torch.Tensor,
+        images: ImageBatch | torch.Tensor,
+        weights: WeightSet | torch.Tensor,
         space: ImageSpace | None = None,
     ) -> torch.Tensor:
         if space is None:
             space = self.space
 
         if isinstance(images, ImageBatch):
-            images = images.select_space_images(space)
-        elif isinstance(images, dict):
-            if space == ImageSpace.FOURIER_COMPLEX:
-                images = torch.complex(
-                    images[ImageSpace.FOURIER_REAL], images[ImageSpace.FOURIER_IMAG]
-                )
-            else:
-                images = images[space]
+            images = images.select_space(space)
 
-        if isinstance(weights, dict):
-            if space == ImageSpace.FOURIER_COMPLEX:
-                weights = weights[ImageSpace.FOURIER_REAL]
-            else:
-                weights = weights[space]
-        elif isinstance(weights, WeightSet):
+        if isinstance(weights, WeightSet):
             weights = weights.select_space(space)
 
         if weights is None:
@@ -329,9 +317,9 @@ class IRLSFourier(Estimator):
 
     def reconstruct_from_weights(
         self,
-        images: dict[ImageSpace, torch.Tensor | None] | ImageBatch,
-        weights: dict[ImageSpace, torch.Tensor | None] | WeightSet,
-        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,
+        images: ImageBatch,
+        weights: WeightSet,
+        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,  # only present for API compatibility
     ) -> torch.Tensor:
         if space != ImageSpace.FOURIER_COMPLEX:
             raise ValueError(
@@ -346,10 +334,9 @@ class IRLSFourier(Estimator):
             images, weights, space=ImageSpace.FOURIER_IMAG
         )
 
-        norm = images.norm if isinstance(images, ImageBatch) else "ortho"
         return torch.fft.irfft2(
             torch.complex(reconstructed_fourier_real, reconstructed_fourier_imag),
-            norm=norm,
+            norm=images.norm,
         )
 
 
@@ -425,9 +412,9 @@ class JointIRLSFourier(Estimator):
     @torch.inference_mode()
     def reconstruct_from_weights(
         self,
-        images: dict[ImageSpace, torch.Tensor] | ImageBatch,
-        weights: dict[ImageSpace, torch.Tensor] | WeightSet,
-        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,
+        images: ImageBatch,
+        weights: WeightSet,
+        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,  # only present for API compatibility
     ):
         if space != ImageSpace.FOURIER_COMPLEX:
             raise ValueError(
@@ -438,8 +425,7 @@ class JointIRLSFourier(Estimator):
         fourier_reconstruction = self.solver.reconstruct_from_weights(
             images, weights, space=ImageSpace.FOURIER_COMPLEX
         )
-        norm = images.norm if isinstance(images, ImageBatch) else "ortho"
-        return torch.fft.irfft2(fourier_reconstruction, norm=norm)
+        return torch.fft.irfft2(fourier_reconstruction, norm=images.norm)
 
 
 def flatten_complex_batch(batch: torch.Tensor) -> torch.Tensor:
@@ -581,7 +567,7 @@ class FlatteningIRLSFourier(Estimator):
         torch.Tensor | None,  # flattened prior mean
         torch.Tensor | float | None,  # flattened prior variance
     ]:
-        fourier_images = batch.select_space_images(ImageSpace.FOURIER_COMPLEX)
+        fourier_images = batch.select_space(ImageSpace.FOURIER_COMPLEX)
         fourier_shape = tuple(fourier_images[0].shape)
         fourier_images_realimag = flatten_complex_batch(fourier_images)
 
@@ -625,9 +611,9 @@ class FlatteningIRLSFourier(Estimator):
     @torch.inference_mode()
     def reconstruct_from_weights(
         self,
-        images: dict[ImageSpace, torch.Tensor] | ImageBatch,
-        weights: dict[ImageSpace, torch.Tensor] | WeightSet,
-        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,
+        images: ImageBatch,
+        weights: WeightSet,
+        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,  # only present for API compatibility
     ):
         if space != ImageSpace.FOURIER_COMPLEX:
             raise ValueError(
@@ -635,21 +621,13 @@ class FlatteningIRLSFourier(Estimator):
                 f"got {space.name}"
             )
 
-        if isinstance(images, dict):
-            fourier_images = torch.complex(
-                images[ImageSpace.FOURIER_REAL], images[ImageSpace.FOURIER_IMAG]
-            )
-        else:
-            fourier_images = images.select_space_images(ImageSpace.FOURIER_COMPLEX)
+        fourier_images = images.select_space(ImageSpace.FOURIER_COMPLEX)
+        n = images.n_images
 
-        n = fourier_images.shape[0]
         fourier_shape = tuple(fourier_images.shape[1:])
         fourier_images_realimag = flatten_complex_batch(fourier_images)
 
-        if isinstance(weights, dict):
-            weights = weights[ImageSpace.FOURIER_REAL]
-        elif isinstance(weights, WeightSet):
-            weights = weights.fourier_real
+        weights = weights.fourier_real
 
         # Reshape weights from (n, 1, 1) convention to (n, 1) for weighted average
         weights = weights.reshape(n, 1)
@@ -657,5 +635,4 @@ class FlatteningIRLSFourier(Estimator):
         realimag_estimate = weighted_average(fourier_images_realimag, weights=weights)
         fourier_estimate = unflatten_complex_tensor(realimag_estimate, fourier_shape)
 
-        norm = images.norm if isinstance(images, ImageBatch) else "ortho"
-        return torch.fft.irfft2(fourier_estimate, norm=norm)
+        return torch.fft.irfft2(fourier_estimate, norm=images.norm)

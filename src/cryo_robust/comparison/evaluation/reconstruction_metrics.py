@@ -77,36 +77,26 @@ def compute_reconstruction_metrics(
     if method_name == AVERAGE_NAME:
         reconstruction_A = batch_A.ensure_real().mean(dim=0)
         reconstruction_B = batch_B.ensure_real().mean(dim=0)
+
     elif method_name == MEDIAN_NAME:
         reconstruction_A = batch_A.ensure_real().median(dim=0).values
         reconstruction_B = batch_B.ensure_real().median(dim=0).values
+
+    # Independent reconstruction: fit estimators again on the half-sets
     elif independent_half_sets:
         if estimator is None:
             raise RuntimeError(f"Method {method_name!r} has no estimator.")
 
         reconstruction_A = estimator.fit(batch_A).average
         reconstruction_B = estimator.fit(batch_B).average
+
+    # Not independent reconstruction: reconstruct from already available weights
     else:
         weights_A = weights.subset(idx_A)
         weights_B = weights.subset(idx_B)
 
-        # Handle IRLSSolver first because it is currently the only that takes ImageBatch
-        if isinstance(estimator, IRLSSolver):
-            reconstruction_A = estimator.reconstruct_from_weights(
-                batch_A, weights_A.as_space_dict()
-            )
-            reconstruction_B = estimator.reconstruct_from_weights(
-                batch_B, weights_B.as_space_dict()
-            )
-        else:
-            # TODO: adapt all estimators to take an ImageBatch in 
-            # reconstruct_from_weights and change this line
-            reconstruction_A = estimator.reconstruct_from_weights(
-                batch_A.as_space_dict(), weights_A.as_space_dict()
-            )
-            reconstruction_B = estimator.reconstruct_from_weights(
-                batch_B.as_space_dict(), weights_B.as_space_dict()
-            )
+        reconstruction_A = estimator.reconstruct_from_weights(batch_A, weights_A)
+        reconstruction_B = estimator.reconstruct_from_weights(batch_B, weights_B)
 
     reconstruction_A = reconstruction_A.detach().cpu().numpy()
     reconstruction_B = reconstruction_B.detach().cpu().numpy()

@@ -409,7 +409,7 @@ class ImageBatch:
 
         raise ValueError(f"Unsupported IRLS space: {space}")
 
-    def select_space_images(self, space: ImageSpace) -> torch.Tensor:
+    def select_space(self, space: ImageSpace) -> torch.Tensor:
         if space == ImageSpace.REAL:
             return self.ensure_real()
 
