@@ -235,8 +235,6 @@ class RecursiveGMMEstimator(Estimator):
             average=reference,
             estimate=reference,
             weights=weight_set,
-            converged=self.converged,
-            n_iter=i + 1,
         )
 
     def _produce_initial_diagnostics(

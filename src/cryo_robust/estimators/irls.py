@@ -31,7 +31,7 @@ class IRLSSolver(Estimator):
         min_weight: float | None = None,
         max_weight: float | None = None,
         eps: float = 1e-8,
-        space: ImageSpace | str = ImageSpace.REAL,
+        space: ImageSpace = ImageSpace.REAL,
     ):
         # Estimator configuration
         self.weight_function = weight_function
@@ -80,7 +80,7 @@ class IRLSSolver(Estimator):
         )
 
         # Calculate new point (update)
-        if prior_mean is None:
+        if prior_mean is None or prior_variance is None:
             update = s_1 / (s_2 + self.eps)
         else:
             safe_image_variance = image_variance + self.eps
@@ -122,7 +122,7 @@ class IRLSSolver(Estimator):
         if reference is None:
             reference = images.mean(dim=0)
         else:
-            reference = to_tensor(reference, device=images.device, dtype=images.dtype)
+            reference = reference.to(dtype=images.dtype, device=images.device)
 
         # Algorithm initialization
         weights = None
@@ -162,8 +162,6 @@ class IRLSSolver(Estimator):
             average=average,
             estimate=reference,
             weights=weight_set,
-            converged=self.converged,
-            n_iter=iteration + 1,
         )
 
     @torch.inference_mode()
@@ -225,11 +223,13 @@ class IRLSSolver(Estimator):
             images = images.select_space(space)
 
         if isinstance(weights, WeightSet):
-            weights = weights.select_space(space)
+            w = weights.select_space(space)
 
-        if weights is None:
-            raise ValueError(
-                f"No weights available for reconstruction in space {space}."
-            )
+            if w is None:
+                raise ValueError(
+                    f"No weights available for reconstruction in space {space}."
+                )
+
+            weights = w
 
         return weighted_average(images, weights, eps=self.eps)

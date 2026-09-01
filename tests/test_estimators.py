@@ -64,8 +64,7 @@ def assert_valid_real_result(result, expected_shape: tuple[int, int]):
     assert torch.isfinite(result.average).all()
     assert result.estimate is not None
     assert torch.isfinite(result.estimate).all()
-    assert result.n_iter is not None
-    assert result.n_iter >= 1
+
 
 
 # With unit weights, real-space IRLS should be indistinguishable from the sample

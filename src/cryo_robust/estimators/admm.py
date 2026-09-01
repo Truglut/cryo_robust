@@ -123,8 +123,6 @@ class ADMMSolver(Estimator):
                     fourier_real=real_weights,
                     fourier_imag=imag_weights,
                 ),
-                converged=real_results.converged and imag_results.converged,
-                n_iter=max(real_results.n_iter, imag_results.n_iter),
             )
 
         return self.irls_fourier.fit(
@@ -183,7 +181,7 @@ class ADMMSolver(Estimator):
         initial_reference_real: torch.Tensor | None = None,
         initial_reference_fourier: torch.Tensor | None = None,
         verbose: bool = True,
-    ):
+    ) -> EstimatorResult:
         """
         Executes the Alternating Direction Method of Multipliers (ADMM) optimization.
         """
@@ -272,8 +270,6 @@ class ADMMSolver(Estimator):
             average=average,
             estimate=average,
             weights=weights,
-            converged=real_results.converged and fourier_results.converged,
-            n_iter=i + 1,
         )
 
     def _mu_update(self, mu: float, primal_norm: float, dual_norm: float) -> float:

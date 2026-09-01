@@ -32,7 +32,7 @@ class IRLSFourier(Estimator):
         prior_mean: torch.Tensor | None = None,
         prior_variance: torch.Tensor | float | None = None,
         max_iter_override: int | None = None,
-    ):
+    ) -> EstimatorResult:
         if space != ImageSpace.FOURIER_COMPLEX:
             raise ValueError(
                 f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
@@ -68,8 +68,6 @@ class IRLSFourier(Estimator):
             average=torch.fft.irfft2(fourier_estimate, norm=batch.norm),
             estimate=fourier_estimate,
             weights=weight_set,
-            converged=real_results.converged and imag_results.converged,
-            n_iter=max(real_results.n_iter, imag_results.n_iter),
         )
 
     def _setup_reference(
@@ -155,7 +153,7 @@ class JointIRLSFourier(Estimator):
         prior_mean: torch.Tensor | None = None,
         prior_variance: torch.Tensor | float | None = None,
         max_iter_override: int | None = None,
-    ):
+    ) -> EstimatorResult:
         if space != ImageSpace.FOURIER_COMPLEX:
             raise ValueError(
                 f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
@@ -174,8 +172,6 @@ class JointIRLSFourier(Estimator):
             average=torch.fft.irfft2(irls_result.estimate, norm=batch.norm),
             estimate=irls_result.estimate,
             weights=irls_result.weights,
-            converged=irls_result.converged,
-            n_iter=irls_result.n_iter,
         )
 
     @torch.inference_mode()
@@ -267,7 +263,7 @@ class FlatteningIRLSFourier(Estimator):
         prior_mean: torch.Tensor | None = None,
         prior_variance: torch.Tensor | float | None = None,
         max_iter_override: int | None = None,
-    ):
+    ) -> EstimatorResult:
         if space != ImageSpace.FOURIER_COMPLEX:
             raise ValueError(
                 f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
@@ -314,8 +310,6 @@ class FlatteningIRLSFourier(Estimator):
             average=torch.fft.irfft2(fourier_estimate, norm=batch.norm),
             estimate=fourier_estimate,
             weights=weight_set,
-            converged=irls_results.converged,
-            n_iter=irls_results.n_iter,
         )
 
     def _setup_flat_data(
