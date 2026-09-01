@@ -12,7 +12,10 @@ from cryo_robust.comparison.domain.enums import AggregationStrategy
 from cryo_robust.comparison.domain.reports import EvaluationReport, EvaluationStudy
 from cryo_robust.comparison.dataset_builder import create_evaluation_dataset
 from cryo_robust.comparison.domain.frc import FRCThreshold
-from cryo_robust.comparison.evaluation.report_building import compute_report
+from cryo_robust.comparison.evaluation.report_building import (
+    compute_report,
+    get_report_computation_options,
+)
 from cryo_robust.comparison.visualization.printing import print_report
 from cryo_robust.comparison.visualization.plotting import plot_report
 from cryo_robust.comparison.latex import generate_latex_report
@@ -20,7 +23,6 @@ from cryo_robust.comparison.latex import generate_latex_report
 from scripts.estimator_runs.cli import build_simulation_parser, parse_arguments
 from scripts.estimator_runs.common import (
     load_config,
-    get_report_computation_options,
     apply_mask,
     run_estimators,
     process_and_save_subsets,
@@ -95,7 +97,9 @@ def run_experiment(
         ImageSpace.FOURIER_IMAG: fourier_weight_mask,
     }
 
-    report_options = get_report_computation_options(args)
+    report_options = get_report_computation_options(
+        report_sections=args.report_sections, plot_types=args.plot
+    )
     # Calculate complete report with classification and reconstruction metrics
     report = compute_report(
         results=results,
@@ -180,7 +184,11 @@ def main():
             output_path=args.report,
             cfg=cfg,
             ground_truth_image=ground_truth_image,
-            args=args,
+            plot_options=args.plot_options,
+            sections=args.report_sections,
+            standardize=args.standardize,
+            per_image_noise_std=args.per_image_noise_std,
+            fourier_weight_mask=args.fourier_weight_mask,
         )
 
 

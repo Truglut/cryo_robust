@@ -1,4 +1,4 @@
-from typing import Iterable, Mapping
+from typing import Iterable, Mapping, Collection
 from dataclasses import dataclass
 
 import numpy as np
@@ -15,6 +15,8 @@ from .aggregation import (
     setup_energy_reference,
 )
 from cryo_robust.comparison.domain.runs import MethodRun
+
+from cryo_robust.comparison.latex.sections import ReportSection
 
 from .classification_metrics import (
     ALL_RECALL_METHODS,
@@ -35,6 +37,41 @@ class ReportComputationOptions:
     classification: bool = True
     fourier_ring_metrics: bool = True
     store_estimated_images: bool = True
+
+
+def get_report_computation_options(
+    report_sections: Collection[ReportSection],
+    plot_types: Collection[str],
+) -> ReportComputationOptions:
+    """
+    Determine which evaluation outputs must be computed.
+
+    Parameters
+    ----------
+    report_sections : Collection[ReportSection]
+        Sections requested for the LaTeX report.
+    plot_types : Collection[str]
+        Interactive or standalone plots requested outside the report.
+
+    Returns
+    -------
+    ReportComputationOptions
+        Evaluation outputs required by the requested presentation layers.
+    """
+    sections = set(report_sections)
+    plots = set(plot_types)
+
+    return ReportComputationOptions(
+        reconstruction=(
+            ReportSection.RECONSTRUCTION in sections
+            or ReportSection.FRC in sections
+            or "frc" in plots
+        ),
+        scores=(ReportSection.WEIGHTS in sections or "weights" in plots),
+        classification=ReportSection.CLASSIFICATION in sections,
+        fourier_ring_metrics=ReportSection.FOURIER_RINGS in sections,
+        store_estimated_images=ReportSection.IMAGES in sections,
+    )
 
 
 def compute_report(

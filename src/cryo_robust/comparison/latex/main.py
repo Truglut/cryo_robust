@@ -1,10 +1,10 @@
-import argparse
 from pathlib import Path
-from typing import Any
+from typing import Any, Collection
 
 import numpy as np
 
 from cryo_robust.comparison.domain.reports import EvaluationReport, EvaluationStudy
+from .sections import ReportSection
 
 # Report sections
 from .preamble import generate_document_preamble
@@ -20,15 +20,6 @@ from .classification import (
 )
 from .images import generate_images_section
 
-REPORT_CONTENT_OPTIONS = {
-    "classification",
-    "reconstruction",
-    "weights",
-    "frc",
-    "fourier-rings",
-    "images",
-}
-
 
 def generate_latex_report(
     results: dict[float, EvaluationReport] | dict[float, EvaluationStudy],
@@ -38,16 +29,11 @@ def generate_latex_report(
     args: argparse.Namespace,
 ) -> None:
     """
-    Generate a complete LaTeX report document.
+    Generate a LaTeX report from evaluation results.
 
-    The generated report contains:
-    - Experiment configuration summary
-    - Classification metrics section (tables and vs-SNR plots)
-    - Reconstruction metrics section (tables and vs-SNR plots)
-    - Diagnostic plots section (weight distributions and FRC curves)
-
-    The report is written to `report.tex` inside the specified
-    output directory.
+    The report contains only the sections explicitly requested through
+    ``sections``. Figures and tables required by those sections are generated
+    and written alongside the LaTeX source in the output directory.
 
     Parameters
     ----------
@@ -83,7 +69,6 @@ def generate_latex_report(
     # Preamble: document class, packages and setup
     document_preamble = generate_document_preamble()
 
-    reports = results.values()
     # Classification section: recall, precision, etc.
     class_section = (
         generate_classification_section(
@@ -92,7 +77,7 @@ def generate_latex_report(
             figures_path=figures_path,
             dpi=plot_options["dpi"],
         )
-        if any(report.has_classification_metrics for report in reports)
+        if ReportSection.CLASSIFICATION in sections
         else ""
     )
 
@@ -104,24 +89,28 @@ def generate_latex_report(
             figures_path=figures_path,
             dpi=plot_options["dpi"],
         )
-        if any(report.has_reconstruction_metrics for report in reports)
+        if ReportSection.RECONSTRUCTION in sections
         else ""
     )
 
     # Save figures and generate the plots section
     plot_types = set()
-    if any(report.has_weights for report in reports):
+    if ReportSection.WEIGHTS in sections:
         plot_types.add("weights")
-    if any(report.has_frc for report in reports):
+    if ReportSection.FRC in sections:
         plot_types.add("frc")
-    if any(report.has_fourier_ring_metrics for report in reports):
+    if ReportSection.FOURIER_RINGS in sections:
         plot_types.add("fourier-rings")
-    plots_section = generate_weight_and_frc_plots_section(
-        results=results,
-        output_path=output_path,
-        figures_path=figures_path,
-        plot_options=plot_options,
-        plot_types=plot_types,
+    plots_section = (
+        generate_weight_and_frc_plots_section(
+            results=results,
+            output_path=output_path,
+            figures_path=figures_path,
+            plot_options=plot_options,
+            plot_types=plot_types,
+        )
+        if plot_types
+        else ""
     )
 
     # Images section with ground truth and estimation
@@ -133,7 +122,7 @@ def generate_latex_report(
             figures_path=figures_path,
             plot_options=plot_options,
         )
-        if any(report.has_estimated_images for report in reports)
+        if ReportSection.IMAGES in sections
         else ""
     )
 

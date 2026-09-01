@@ -46,21 +46,6 @@ def load_config(
     return cfg
 
 
-def get_report_computation_options(args: Namespace) -> ReportComputationOptions:
-    sections = set(args.report_content or [])
-
-    if "all" in sections:
-        return ReportComputationOptions()
-
-    return ReportComputationOptions(
-        reconstruction=bool({"reconstruction", "frc"} & sections or "frc" in args.plot),
-        scores="weights" in sections or "weights" in args.plot,
-        classification="classification" in sections,
-        fourier_ring_metrics="fourier-rings" in sections,
-        store_estimated_images="images" in sections,
-    )
-
-
 def load_reference(
     path: str | Path | None, device: str | torch.device
 ) -> torch.Tensor | None:

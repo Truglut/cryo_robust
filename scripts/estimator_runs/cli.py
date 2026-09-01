@@ -2,7 +2,10 @@ import argparse
 from pathlib import Path
 
 from cryo_robust.comparison.visualization.plotting import BASE_PLOT_OPTIONS
-from cryo_robust.comparison.latex.main import REPORT_CONTENT_OPTIONS
+from cryo_robust.comparison.latex.sections import (
+    REPORT_SECTION_CHOICES,
+    resolve_report_sections,
+)
 
 ALL_PLOTS = ["weights", "gmm", "frc"]
 
@@ -146,16 +149,16 @@ def build_simulation_parser() -> argparse.ArgumentParser:
         "--report", type=Path, help="Generate a LaTeX report at the provided path"
     )
 
-    report_content_options = REPORT_CONTENT_OPTIONS | {"all"}
     saving_group.add_argument(
         "--report-content",
-        help=(
-            "Content to include in the LaTeX report. This will also determine "
-            f"which figures get generated. Options are {report_content_options}."
-        ),
         nargs="+",
-        choices=report_content_options,
-        default=[],
+        dest="report_sections",
+        choices=REPORT_SECTION_CHOICES,
+        default=None,
+        help=(
+            "Sections to include in the LaTeX report. "
+            f"Options are {REPORT_SECTION_CHOICES}."
+        ),
     )
 
     simulation_group = parser.add_argument_group("Simulation")
@@ -234,11 +237,6 @@ def parse_arguments(parser: argparse.ArgumentParser) -> argparse.Namespace:
     if args.save_thresholds and not args.thresholds:
         parser.error("--save-thresholds requires --thresholds")
 
-    # Preserve the historical behaviour of --report: if no sections are selected,
-    # generate the complete report. Without --report, do not request report-only work.
-    if hasattr(args, "report") and args.report is not None and not args.report_content:
-        args.report_content = ["all"]
-
     # Standardize args.plot to always be a list
     if args.plot is None:
         args.plot = []
@@ -252,6 +250,16 @@ def parse_arguments(parser: argparse.ArgumentParser) -> argparse.Namespace:
         "dpi": args.dpi,
         "title_suffix": args.plot_title_suffix,
     }
+
+    if hasattr(args, "report"):
+        if args.report is None:
+            if args.report_sections is not None:
+                parser.error("--report-content requires --report")
+
+            args.report_sections = frozenset()
+
+        else:
+            args.report_sections = resolve_report_sections(args.report_sections)
 
     return args
 
