@@ -6,7 +6,7 @@ import numpy as np
 import mrcfile
 import torch
 
-from cryo_robust.estimators import build_estimator
+from cryo_robust.estimators.construction import build_estimator
 from cryo_robust.estimators.data import ImageBatch
 from cryo_robust.estimators.results import EstimatorResult, WeightSet
 from cryo_robust.estimators.base import Estimator
