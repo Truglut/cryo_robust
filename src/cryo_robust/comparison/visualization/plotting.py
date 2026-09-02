@@ -232,6 +232,8 @@ def save_report_figures(
 
             save_figure(fig=fig, path=save_path, dpi=dpi)
 
+            saved["gmm"].append(save_path)
+
     return saved
 
 
@@ -277,6 +279,7 @@ def save_snr_reports_figures(
         - "frc": FRC curves with ground-truth at each set of experimental conditions
         - "fourier-rings": classification metrics by Fourier ring for fourier-space
         methods.
+        - "gmm": GMM fit plots
 
     Returns
     -------

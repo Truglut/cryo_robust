@@ -12,6 +12,7 @@ class ReportSection(str, Enum):
     FRC = "frc"
     FOURIER_RINGS = "fourier-rings"
     IMAGES = "images"
+    GMM = "gmm"
 
 
 ALL_REPORT_SECTIONS = frozenset(ReportSection)

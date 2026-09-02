@@ -20,6 +20,7 @@ from .classification import (
     generate_classification_section,
 )
 from .images import generate_images_section
+from .gmm_fits import generate_gmm_fits_section
 
 
 def generate_latex_report(
@@ -108,6 +109,8 @@ def generate_latex_report(
         plot_types.add("frc")
     if ReportSection.FOURIER_RINGS in sections:
         plot_types.add("fourier-rings")
+    if ReportSection.GMM in sections:
+        plot_types.add("gmm")
 
     # If results are EvaluationStudy, take the first report for each snr for plotting
     report = list(results.values())[0]
@@ -130,7 +133,13 @@ def generate_latex_report(
             plots=plots,
             output_path=output_path,
         )
-        if plot_types
+        if (plot_types & {"weights", "frc", "fourier-rings"})
+        else ""
+    )
+
+    gmm_section = (
+        generate_gmm_fits_section(plots=plots, output_path=output_path)
+        if "gmm" in plot_types
         else ""
     )
 
@@ -168,6 +177,8 @@ def generate_latex_report(
         f.write(reconstruction_section)
 
         f.write(plots_section)
+
+        f.write(gmm_section)
 
         f.write(images_section)
 
