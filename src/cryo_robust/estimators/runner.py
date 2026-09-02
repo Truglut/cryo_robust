@@ -10,7 +10,6 @@ from cryo_robust.estimators.admm import ADMMSolver
 from cryo_robust.estimators.base import Estimator
 from cryo_robust.estimators.construction import build_estimator
 from cryo_robust.estimators.data import ImageBatch
-from cryo_robust.estimators.gmm import RecursiveGMMEstimator
 from cryo_robust.estimators.results import EstimatorResult, WeightSet
 
 
@@ -27,12 +26,7 @@ def load_reference(
 
 
 def fit_estimator(
-    estimator: Estimator,
-    image_batch: ImageBatch,
-    reference: torch.Tensor | None = None,
-    *,
-    plot_gmm: bool = False,
-    method_name: str = "GMM",
+    estimator: Estimator, image_batch: ImageBatch, reference: torch.Tensor | None = None
 ) -> EstimatorResult:
     """
     Fits the estimator on the given image batch, starting from the specified
@@ -48,12 +42,6 @@ def fit_estimator(
     reference: torch.Tensor, optional
         Initial reference for the estimation process. If set to None, the estimator
         will choose its own default (generally the mean of all images). Default is None.
-    plot_gmm : bool
-        If ``plot_gmm`` is True and ``estimator`` is of type ``RecursiveGMMEstimator``,
-        then plots of the GMM fits will be generated and shown during the estimation
-        process. Default is False.
-    method_name : str
-        Name of the method, used for the GMM plots in case they are requested.
     """
     # Handle ADMM separately because it needs two references
     if isinstance(estimator, ADMMSolver):
@@ -67,15 +55,6 @@ def fit_estimator(
             ),
         )
 
-    # Handle GMM separately because it has plotting logic
-    elif isinstance(estimator, RecursiveGMMEstimator):
-        return estimator.fit(
-            image_batch,
-            reference=reference,
-            plot_fits=plot_gmm,
-            plot_title=method_name,
-        )
-
     # Otherwise just fit the estimator
     return estimator.fit(image_batch, reference=reference)
 
@@ -84,7 +63,6 @@ def run_estimators(
     method_configs: Iterable[Mapping[str, Any]],
     image_batch: ImageBatch,
     *,
-    plot_gmm: bool = False,
     add_avg: bool = False,
     add_median: bool = False,
 ) -> dict[str, MethodRun]:
@@ -97,8 +75,6 @@ def run_estimators(
         Estimator configuration blocks.
     image_batch : ImageBatch
         Images on which the estimators are fitted.
-    plot_gmm : bool, optional
-        Whether to show GMM fit diagnostics.
     add_average : bool, optional
         Include the sample average as a baseline.
     add_median : bool, optional
@@ -122,13 +98,7 @@ def run_estimators(
             method_cfg.get("initial_reference"), image_batch.device
         )
 
-        estimator_result = fit_estimator(
-            estimator,
-            image_batch,
-            reference,
-            plot_gmm=plot_gmm,
-            method_name=method_name,
-        )
+        estimator_result = fit_estimator(estimator, image_batch, reference)
 
         results[method_name] = MethodRun(
             estimator=estimator, result=estimator_result, initial_reference=reference

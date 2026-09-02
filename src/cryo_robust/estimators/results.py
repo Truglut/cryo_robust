@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Mapping
 
 import torch
 
@@ -109,9 +109,62 @@ class WeightSet:
 
 
 @dataclass
+class GMMDiagnostics:
+    """
+    Additional information on the GMM state on a given iteration
+
+    Attributes
+    ----------
+    initial_reference : torch.Tensor
+        Tensor of shape ``(h, w)`` containing the initial reference used for
+        this iteration.
+    distances : torch.Tensor
+        Tensor of shape ``(n,)``, where each element is the distance from the
+        corresponding image to the initial reference of this iteration.
+        These are the original distances even if the estimator then standardized
+        them before fitting the GMM.
+    standardized_distances: torch.Tensor
+        Whether the original distances were standardized before fitting the GMM.
+    component_weights : tuple[float, float]
+        Weight of each of the two components of the GMM after fitting.
+    means : tuple[float, float]
+        Mean of each of the two components of the GMM after fitting.
+    vars : tuple[float, float]
+        Variance of each of the two components of the GMM after fitting.
+    converged : bool
+        Whether the GMM reached its tolerance for the change in reference on this
+        iteration.
+    weights : torch.Tensor, optional
+        Tensor of shape ``(n,)`` containing the weight each image received after
+        the GMM fit.
+        The weights are computed as the posterior probability of the image belonging
+        to the GMM component with a lower mean distance, given the distance of said
+        image to the initial reference. This means the ``weights`` tensor can be
+        computed from the information in ``distances``, ``component_weights``,
+        ``means`` and ``stds``.
+        Default is None.
+    weighted_average : torch.Tensor, optional
+        Tensor of shape ``(h, w)`` containing the average of all the images weighted
+        according to ``weights``. This would be the output of the estimator on the
+        present iteration.
+    """
+
+    initial_reference: torch.Tensor
+    distances: torch.Tensor
+    standardized_distances: bool
+    component_weights: tuple[float, float]
+    means: tuple[float, float]
+    vars: tuple[float, float]
+    converged: bool
+    weights: torch.Tensor | None = None
+    weighted_average: torch.Tensor | None = None
+
+
+@dataclass
 class EstimatorResult:
     """Standard output returned by estimators."""
 
     estimate: torch.Tensor
     average: torch.Tensor | None = None
     weights: WeightSet = field(default_factory=WeightSet)
+    gmm_diagnostics: GMMDiagnostics | None = None
