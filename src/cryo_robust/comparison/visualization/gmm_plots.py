@@ -4,7 +4,7 @@ from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 import scipy.stats as stats
 
-from .plot_utils import GOOD_BAD_PLOT_COLORS, HISTOGRAM_TYPE
+from .plot_utils import GOOD_BAD_PLOT_OPTIONS, HISTOGRAM_TYPE
 
 from cryo_robust.estimators.results import GMMDiagnostics
 from cryo_robust.comparison.domain.reports import EvaluationReport
@@ -64,11 +64,12 @@ def _plot_gmm_fit(
                 bins=bins,
                 density=True,
                 histtype=HISTOGRAM_TYPE,
-                color=GOOD_BAD_PLOT_COLORS[image_type],
+                color=GOOD_BAD_PLOT_OPTIONS[image_type]["color"],
+                label=GOOD_BAD_PLOT_OPTIONS[image_type]["label"],
                 alpha=0.4,
             )
     else:
-        plt.hist(distances_np, density=True, alpha=0.7)
+        plt.hist(distances_np, density=True, alpha=0.7, bins=bins)
 
     for i in range(2):
         mean = diagnostics.means[i]
@@ -89,17 +90,25 @@ def _plot_gmm_fit(
     if title is not None:
         plt.title(title)
 
+    plt.legend()
+
     return fig
 
 
 def plot_report_gmm_fits(
     report: EvaluationReport,
-    idx_good: np.ndarray | None = None,
-    idx_bad: np.ndarray | None = None,
+    labels: np.ndarray | None = None,
 ) -> list[Figure]:
     method_evaluations = report.method_results
 
     gmm_figures: list[Figure] = []
+
+    if labels is not None:
+        idx_good = labels == 0
+        idx_bad = ~idx_good
+    else:
+        idx_good = None
+        idx_bad = None
 
     for evaluation in method_evaluations:
         name = evaluation.name

@@ -19,7 +19,10 @@ LABEL_MAP = {
 }
 
 # For plots with only good vs. bad images
-GOOD_BAD_PLOT_COLORS = {"good": "#083DB0", "bad": "#F9290D"}
+GOOD_BAD_PLOT_OPTIONS = {
+    "good": {"name": "Inliers", "color": "#083DB0"},
+    "bad": {"name": "Outliers", "color": "#F9290D"},
+}
 
 BASE_PLOT_OPTIONS = {
     "max_subplots": 3,

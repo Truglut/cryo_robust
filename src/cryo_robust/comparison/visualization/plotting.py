@@ -224,7 +224,7 @@ def save_report_figures(
             saved["fourier_ring_summary"].append(summary_save_path)
 
     if "gmm" in plot_types:
-        gmm_figures = plot_report_gmm_fits(report=report, idx_good=None, idx_bad=None)
+        gmm_figures = plot_report_gmm_fits(report=report, labels=report.labels)
 
         for i, fig in enumerate(gmm_figures):
             save_name = f"gmm_fit_{i}.pdf"
