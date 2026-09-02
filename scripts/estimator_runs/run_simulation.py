@@ -80,7 +80,6 @@ def run_experiment(
     results = run_estimators(
         method_configs=cfg["experiment"]["methods"],
         image_batch=image_batch,
-        plot_gmm="gmm" in args.plot,
         add_avg=True,
         add_median=False,
     )
@@ -135,6 +134,7 @@ def run_experiment(
         plot_weights="weights" in args.plot,
         density=args.density,
         plot_frc="frc" in args.plot,
+        plot_gmm="gmm" in args.plot
     )
 
     # Show images (averages and original images) with napari

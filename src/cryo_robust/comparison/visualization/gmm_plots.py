@@ -10,12 +10,12 @@ from cryo_robust.estimators.results import GMMDiagnostics
 from cryo_robust.comparison.domain.reports import EvaluationReport
 
 
-def plot_gmm_fit(
+def _plot_gmm_fit(
     diagnostics: GMMDiagnostics,
     idx_good: np.ndarray | None = None,
     idx_bad: np.ndarray | None = None,
     title: str | None = None,
-) -> tuple[Figure, Axes]:
+) -> Figure:
     """
     Produce a plot of the GMM state given in the diagnostics object. The plot shows
     the distribution of distances from each image to the reference with the GMM
@@ -37,17 +37,21 @@ def plot_gmm_fit(
 
     Returns
     -------
-    tuple[Figure, Axes]
-        Figure and Axes objects containing the plot.
+    Figure
+        Figure object containing the plot.
     """
-    fig, ax = plt.subplots(1, 1)
+    fig = plt.figure()
 
     distances_np = diagnostics.distances.detach().cpu().numpy()
 
-    x = np.linspace(distances_np.min() * 0.9, distances_np.max() * 1.1, 1000)
+    dist_min = distances_np.min()
+    dist_max = distances_np.max()
+    length = dist_max - dist_min
+
+    x = np.linspace(dist_min - 0.1 * length, dist_max + 0.1 * length, 1000)
     if diagnostics.standardized_distances:
-        multiplier = distances_np.std()
-        x_for_model = (x - distances_np.mean()) / multiplier
+        multiplier = 1.0 / distances_np.std()
+        x_for_model = (x - distances_np.mean()) * multiplier
     else:
         multiplier = 1.0
         x_for_model = x
@@ -55,7 +59,7 @@ def plot_gmm_fit(
     bins = 40
     if idx_good is not None and idx_bad is not None:
         for idx, image_type in ((idx_good, "good"), (idx_bad, "bad")):
-            ax.hist(
+            plt.hist(
                 distances_np[idx],
                 bins=bins,
                 density=True,
@@ -64,7 +68,7 @@ def plot_gmm_fit(
                 alpha=0.4,
             )
     else:
-        ax.hist(distances_np, density=True)
+        plt.hist(distances_np, density=True, alpha=0.7)
 
     for i in range(2):
         mean = diagnostics.means[i]
@@ -74,7 +78,7 @@ def plot_gmm_fit(
         # Calculate the component's density over the grid, accounting for the
         # possible change of variables when standardizing
         pdf = multiplier * weight * stats.norm.pdf(x_for_model, mean, np.sqrt(var))
-        ax.plot(
+        plt.plot(
             x,
             pdf,
             linestyle="--",
@@ -83,9 +87,9 @@ def plot_gmm_fit(
         )
 
     if title is not None:
-        ax.set_title(title)
+        plt.title(title)
 
-    return fig, ax
+    return fig
 
 
 def plot_report_gmm_fits(
@@ -105,7 +109,7 @@ def plot_report_gmm_fits(
         if not isinstance(diagnostics, GMMDiagnostics):
             continue
 
-        gmm_fig, _ = plot_gmm_fit(
+        gmm_fig = _plot_gmm_fit(
             diagnostics, idx_good=idx_good, idx_bad=idx_bad, title=name
         )
 

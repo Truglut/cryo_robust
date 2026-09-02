@@ -71,11 +71,8 @@ def plot_report(
             plt.show()
 
     if plot_gmm:
-        gmm_figures = plot_report_gmm_fits(report)
-
-        for fig in gmm_figures:
-            fig.show()
-            plt.show()
+        _ = plot_report_gmm_fits(report)
+        plt.show()
 
 
 ### ===============================
