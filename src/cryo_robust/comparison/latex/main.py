@@ -113,6 +113,8 @@ def generate_latex_report(
     report = list(results.values())[0]
     if isinstance(report, EvaluationStudy):
         results_for_plotting = {snr: study.reports[0] for snr, study in results.items()}
+    else:
+        results_for_plotting = results
 
     plots = save_snr_reports_figures(
         results_for_plotting,
