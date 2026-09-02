@@ -3,14 +3,20 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from cryo_robust.comparison.domain.frc import FRCThreshold
+from cryo_robust.domain import ImageSpace
+from cryo_robust.estimators.results import GMMDiagnostics
 
-from ...domain import ImageSpace
+from .frc import FRCThreshold, FRCData
 from .enums import AggregationStrategy
 from .metrics import MethodMetrics, ClassificationMetrics
-from cryo_robust.comparison.domain.frc import FRCData
 
 ID_COLS = ["method", "space", "aggregation_strategy", "run"]
+
+
+@dataclass
+class ComputedResult:
+    estimated_img: np.ndarray
+    diagnostics: GMMDiagnostics
 
 
 @dataclass
@@ -29,6 +35,9 @@ class MethodEvaluation:
         Aggregated per-image scalar weights, keyed by space then aggregation
         strategy.  Shape of each array is `(n_images,)`.  Used directly by
         plotting and report-generation code.
+    result : ComputedResult
+        ComputedResult object containing the estimated image, and diagnostics for
+        GMM estimators.
     ground_truth_frc_data : FRCData or None
         Computed by comparing the estimated class average against ground truth.
         `FRCData` returned by `compute_frc`.
@@ -37,8 +46,6 @@ class MethodEvaluation:
         Computed by comparing the weighted averages resulting from splitting the
         images into two half-sets.
         Returned by `compute_frc`.
-    estimated_img : np.ndarray
-        The reconstructed average image produced by this method.
     fourier_ring_metrics: dict[Space, dict[int, ClassificationMetrics]]
         Dict mapping Space.FOURIER_REAL and Space.FOURIER_IMAG to a dict that maps
         each integer key to the classification metrics obtained using the weights
@@ -48,12 +55,12 @@ class MethodEvaluation:
     name: str
     metrics: MethodMetrics | None
     scores: dict[ImageSpace, dict[AggregationStrategy, np.ndarray]]
+    result: ComputedResult
     fourier_ring_metrics: dict[ImageSpace, dict[int, ClassificationMetrics]] | None = (
         None
     )
     ground_truth_frc_data: FRCData | None = None
     half_set_frc_data: FRCData | None = None
-    estimated_img: np.ndarray | None = None
 
     def reconstruction_metrics_record(self) -> dict:
         if self.metrics is None:
@@ -145,7 +152,7 @@ class EvaluationReport:
 
     @property
     def has_estimated_images(self) -> bool:
-        return any(mr.estimated_img is not None for mr in self.method_results)
+        return any(mr.result.estimated_img is not None for mr in self.method_results)
 
 
 @dataclass

@@ -130,7 +130,7 @@ def main():
     original_average = tensor_images.mean(dim=0).detach().cpu().numpy()
     for method in report.method_results:
         print(method.name + ":", end="")
-        rmse = root_mean_squared_error(method.estimated_img, original_average)
+        rmse = root_mean_squared_error(method.result.estimated_img, original_average)
         print(f"{rmse:.4f}")
 
 

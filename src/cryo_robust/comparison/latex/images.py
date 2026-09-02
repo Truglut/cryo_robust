@@ -82,7 +82,7 @@ def generate_images_section(
         snr_images_dir.mkdir(parents=True, exist_ok=True)
 
         method_names = [mr.name for mr in report.method_results]
-        images = [mr.estimated_img for mr in report.method_results]
+        images = [mr.result.estimated_img for mr in report.method_results]
         save_paths = [
             snr_images_dir / (mr.name + ".png") for mr in report.method_results
         ]

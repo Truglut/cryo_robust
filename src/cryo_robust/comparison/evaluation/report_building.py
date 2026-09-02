@@ -9,7 +9,11 @@ from cryo_robust.estimators.data import ImageBatch
 
 from cryo_robust.comparison.domain.enums import AggregationStrategy
 from cryo_robust.comparison.domain.metrics import MethodMetrics, ClassificationMetrics
-from cryo_robust.comparison.domain.reports import MethodEvaluation, EvaluationReport
+from cryo_robust.comparison.domain.reports import (
+    ComputedResult,
+    MethodEvaluation,
+    EvaluationReport,
+)
 from .aggregation import (
     compute_aggregated_weights,
     setup_energy_reference,
@@ -229,6 +233,10 @@ def compute_report(
         method_metrics = MethodMetrics(
             reconstruction_metrics=reconstruction_metrics, space_metrics=space_metrics
         )
+
+        computed_result = ComputedResult(
+            estimated_img=estimated_img, diagnostics=result.gmm_diagnostics
+        )
         all_results.append(
             MethodEvaluation(
                 name=method_name,
@@ -236,8 +244,8 @@ def compute_report(
                 scores=aggregated_weights,
                 ground_truth_frc_data=gt_frc_data,
                 half_set_frc_data=hs_frc_data,
-                estimated_img=estimated_img,
                 fourier_ring_metrics=fourier_ring_metrics,
+                result=computed_result,
             )
         )
 
