@@ -1,4 +1,4 @@
-from typing import Any
+from argparse import Namespace
 
 import torch
 import numpy as np
@@ -6,15 +6,16 @@ import napari
 
 from cryo_robust.comparison.dataset_builder import LABEL_TYPES
 
-from cryo_robust.comparison.domain.runs import AVERAGE_NAME
+from cryo_robust.comparison.domain.runs import AVERAGE_NAME, MethodRun
 
 
 def visualize_results(
-    results: dict[str, Any],
+    results: dict[str, MethodRun],
     tensor_images: torch.Tensor,
-    args,
+    args: Namespace,
     ground_truth: np.ndarray | None = None,
     labels: np.ndarray | None = None,
+    subset_averages: bool = False,
 ) -> None:
     """Sets up and launches the napari viewer with all of the images"""
     # Initialize viewer
@@ -41,72 +42,26 @@ def visualize_results(
         )
 
     # Iterate over methods to show: estimated average, reference and quantile subsets
-    for method_name, data in results.items():
+    for method_name, run in results.items():
         # Skip the average
         if method_name == AVERAGE_NAME:
             continue
 
         # Show the estimated representative
-        avg_np = data["avg"].detach().cpu().numpy()
+        avg_np = run.result.average.detach().cpu().numpy()
         viewer.add_image(avg_np, name=f"Estimation with {method_name}", visible=False)
 
         # Show the reference if needed
-        if data["reference"] is not None:
-            ref_np = (
-                data["reference"].detach().cpu().numpy()
-                if isinstance(data["reference"], torch.Tensor)
-                else data["reference"]
-            )
+        reference = run.initial_reference
+        if reference is not None:
+            ref_np = reference.detach().cpu().numpy()
             viewer.add_image(ref_np, name=f"{method_name}: reference", visible=False)
 
-        # Show quantile-defined subsets if requested
-        for q in args.quantiles or []:
-            mask_good = torch.from_numpy(data["idx_good"]["quantile"][q]).to(
-                tensor_images.device
+        # Show quantile and threshold-defined subset averages if requested
+        if subset_averages:
+            show_quantile_and_threshold_averages(
+                tensor_images, args, viewer, method_name
             )
-            mask_bad = torch.from_numpy(data["idx_bad"]["quantile"][q]).to(
-                tensor_images.device
-            )
-
-            if mask_good.sum() > 0:
-                good_mean = tensor_images[mask_good].mean(dim=0).detach().cpu().numpy()
-                viewer.add_image(
-                    good_mean,
-                    name=f"{100*q}% best ({method_name})",
-                    visible=False,
-                )
-            if mask_bad.sum() > 0:
-                bad_mean = tensor_images[mask_bad].mean(dim=0).detach().cpu().numpy()
-                viewer.add_image(
-                    bad_mean,
-                    name=f"{100*q}% worst ({method_name})",
-                    visible=False,
-                )
-
-        # Show threshold-defined subsets if requested
-        for thr in args.thresholds or []:
-            mask_good = torch.from_numpy(data["idx_good"]["fixed_threshold"][thr]).to(
-                tensor_images.device
-            )
-            mask_bad = torch.from_numpy(data["idx_bad"]["fixed_threshold"][thr]).to(
-                tensor_images.device
-            )
-
-            if mask_good.sum() > 0:
-                good_mean = tensor_images[mask_good].mean(dim=0).detach().cpu().numpy()
-                viewer.add_image(
-                    good_mean,
-                    name=f"Average of good (weight >= {thr}) images (method: {method_name}).",
-                    visible=False,
-                )
-
-            if mask_bad.sum() > 0:
-                bad_mean = tensor_images[mask_bad].mean(dim=0).detach().cpu().numpy()
-                viewer.add_image(
-                    bad_mean,
-                    name=f"Average of bad (weight < {thr}) images (method: {method_name}).",
-                    visible=False,
-                )
 
     # Adjust contrast limits
     global_min = float(min(layer.data.min() for layer in viewer.layers))
@@ -141,3 +96,56 @@ def visualize_results(
 
     # Run the viewer
     napari.run()
+
+
+def show_quantile_and_threshold_averages(
+    tensor_images: torch.Tensor,
+    args: Namespace,
+    viewer: napari.Viewer,
+    method_name: str,
+    quantile_indices_good: dict[float, np.ndarray],
+    quantile_indices_bad: dict[float, np.ndarray],
+    threshold_indices_good: dict[float, np.ndarray],
+    threshold_indices_bad: dict[float, np.ndarray],
+):
+    for q in args.quantiles or []:
+        mask_good = torch.from_numpy(quantile_indices_good[q]).to(tensor_images.device)
+        mask_bad = torch.from_numpy(quantile_indices_bad[q]).to(tensor_images.device)
+
+        if mask_good.sum() > 0:
+            good_mean = tensor_images[mask_good].mean(dim=0).detach().cpu().numpy()
+            viewer.add_image(
+                good_mean,
+                name=f"{100*q}% best ({method_name})",
+                visible=False,
+            )
+        if mask_bad.sum() > 0:
+            bad_mean = tensor_images[mask_bad].mean(dim=0).detach().cpu().numpy()
+            viewer.add_image(
+                bad_mean,
+                name=f"{100*q}% worst ({method_name})",
+                visible=False,
+            )
+
+    # Show threshold-defined subsets if requested
+    for thr in args.thresholds or []:
+        mask_good = torch.from_numpy(threshold_indices_good[thr]).to(
+            tensor_images.device
+        )
+        mask_bad = torch.from_numpy(threshold_indices_bad[thr]).to(tensor_images.device)
+
+        if mask_good.sum() > 0:
+            good_mean = tensor_images[mask_good].mean(dim=0).detach().cpu().numpy()
+            viewer.add_image(
+                good_mean,
+                name=f"Average of good (weight >= {thr}) images (method: {method_name}).",
+                visible=False,
+            )
+
+        if mask_bad.sum() > 0:
+            bad_mean = tensor_images[mask_bad].mean(dim=0).detach().cpu().numpy()
+            viewer.add_image(
+                bad_mean,
+                name=f"Average of bad (weight < {thr}) images (method: {method_name}).",
+                visible=False,
+            )

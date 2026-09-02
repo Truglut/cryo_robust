@@ -165,7 +165,7 @@ def main():
     seed = cfg.get("seed", None)
     rng = np.random.default_rng(seed=seed)
 
-    snr_results = dict()
+    snr_results: dict[float, EvaluationReport] | dict[float, EvaluationStudy] = dict()
 
     # Run simulations with every specified snr
     for snr in args.snr:
