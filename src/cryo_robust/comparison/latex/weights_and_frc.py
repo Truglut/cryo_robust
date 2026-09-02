@@ -1,9 +1,6 @@
 from pathlib import Path
-from typing import Any
 
-from cryo_robust.comparison.domain.reports import EvaluationReport, EvaluationStudy
 from .figures import create_figure_section
-from cryo_robust.comparison.visualization.plotting import save_snr_reports_figures
 
 
 def weights_and_frc_plots_latex(
@@ -45,42 +42,18 @@ def weights_and_frc_plots_latex(
 
 
 def generate_weight_and_frc_plots_section(
-    results: dict[float, EvaluationReport] | dict[float, EvaluationStudy],
-    output_path: Path,
-    figures_path: Path,
-    plot_options: dict[str, Any],
-    frc_x_axis_freqs: bool = True,
-    plot_types: set[str] = {"weights", "frc", "fourier-rings"},
+    plots: dict[float, dict[str, list[Path]]], output_path: Path
 ) -> str:
     """
     Generates the LaTeX text for the plots section.
 
     Parameters
     ----------
-    results : dict[float, EvaluationReport]
-        Dict mapping every SNR level to its evaluation report or dict mapping
-        each SNR level to its evaluation study containing one report per simulation
-        run.
+    plots : dict[float, dict[str, list[Path]]]
+        Dict mapping every SNR level to a dict which maps every figure type
+        to a list of paths to its corresponding figures.
     output_path : Path
         Path to the directory where the `report.tex` will be generated.
-    figures_path : Path
-        Path to the directory where the figures will be saved.
-    plot_options : dict[str, Any]
-        Dict containing the following keyword arguments for figure generation:
-            - max_subplots: int
-            - density: bool
-            - dpi: int
-    frc_x_axis_freqs: bool, optional
-        Plot frequencies instead of spatial resolution on the x-axis in FRC plots.
-    plot_types : set[str]
-        Set of plots to include in the LaTeX report. This will also
-        determine which plots get generated. The relevant options for this section
-        are
-        - "weights": weight histograms for each estimator and set of experimental
-        conditions
-        - "frc": FRC curves with ground-truth at each set of experimental conditions
-        - "fourier-rings": classification metrics by Fourier ring for fourier-space
-        methods.
 
     Returns
     -------
@@ -90,23 +63,9 @@ def generate_weight_and_frc_plots_section(
             - Weight distribution histograms, for each method, space and aggregation strategy.
             - One plot representing the FRC curves for all methods.
     """
-    # If results are EvaluationStudy, take the first report for each snr
-    report = list(results.values())[0]
-    if isinstance(report, EvaluationStudy):
-        results = {snr: study.reports[0] for snr, study in results.items()}
-
-    plots = save_snr_reports_figures(
-        results,
-        output_path=output_path,
-        figures_path=figures_path,
-        frc_x_axis_freqs=frc_x_axis_freqs,
-        plot_types=plot_types,
-        **plot_options,
-    )
-
     text = "\n\\section{Diagnostic plots}\n"
 
-    for snr in results:
+    for snr in plots:
         text += f"\n\\subsection{{SNR {snr:.3f}}}\n"
         text += weights_and_frc_plots_latex(
             saved_figures=plots[snr], output_path=output_path

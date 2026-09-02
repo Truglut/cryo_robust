@@ -4,9 +4,10 @@ from typing import Any, Collection
 import numpy as np
 
 from cryo_robust.comparison.domain.reports import EvaluationReport, EvaluationStudy
-from .sections import ReportSection
+from cryo_robust.comparison.visualization.plotting import save_snr_reports_figures
 
 # Report sections
+from .sections import ReportSection
 from .preamble import generate_document_preamble
 from .experiment_info import write_experiment_info
 from .weights_and_frc import (
@@ -107,13 +108,25 @@ def generate_latex_report(
         plot_types.add("frc")
     if ReportSection.FOURIER_RINGS in sections:
         plot_types.add("fourier-rings")
+
+    # If results are EvaluationStudy, take the first report for each snr for plotting
+    report = list(results.values())[0]
+    if isinstance(report, EvaluationStudy):
+        results_for_plotting = {snr: study.reports[0] for snr, study in results.items()}
+
+    plots = save_snr_reports_figures(
+        results_for_plotting,
+        output_path=output_path,
+        figures_path=figures_path,
+        frc_x_axis_freqs=True,
+        plot_types=plot_types,
+        **plot_options,
+    )
+
     plots_section = (
         generate_weight_and_frc_plots_section(
-            results=results,
+            plots=plots,
             output_path=output_path,
-            figures_path=figures_path,
-            plot_options=plot_options,
-            plot_types=plot_types,
         )
         if plot_types
         else ""
