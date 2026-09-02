@@ -32,6 +32,7 @@ def plot_report(
     density: bool = False,
     plot_frc: bool = True,
     plot_gmm: bool = True,
+    gmm_initial_reference: bool = True,
 ) -> None:
     """
     Produce all diagnostic plots for an `EvaluationReport`.
@@ -50,6 +51,9 @@ def plot_report(
         Whether to render the FRC curve comparison plot. Default is True.
     plot_gmm : bool, optional
         Whether to render the GMM distribution plots. Default is True.
+    gmm_initial_reference : bool, optional
+        Whether to add the initial reference to GMM distribution plots. Default is True.
+        Will not do anything if ``plot_gmm`` is False.
 
     Returns
     -------
@@ -71,7 +75,9 @@ def plot_report(
             plt.show()
 
     if plot_gmm:
-        _ = plot_report_gmm_fits(report, labels=report.labels)
+        _ = plot_report_gmm_fits(
+            report, labels=report.labels, plot_initial_reference=gmm_initial_reference
+        )
         plt.show()
 
 
@@ -90,6 +96,7 @@ def save_report_figures(
     pixel_size: float = 1.0,
     title_suffix: str | None = None,
     plot_types: set[str] | None = None,
+    gmm_initial_reference: bool = True,
 ) -> dict[str, list[Path]]:
     """
     Save all report figures to disk and return their paths.
@@ -122,6 +129,10 @@ def save_report_figures(
         - "fourier-rings": classification metrics by Fourier ring for fourier-space
         methods.
         - "gmm": Plots of GMM fits
+    gmm_initial_reference : bool, optional
+        Whether to add the initial reference to GMM distribution plots. Default is True.
+        Will not do anything if ``"gmm""`` is not in ``plot_types``, since
+        the GMM plots will not be generated in that case.
 
     Returns
     -------
@@ -225,7 +236,9 @@ def save_report_figures(
 
     if "gmm" in plot_types:
         gmm_figures = plot_report_gmm_fits(
-            report=report, labels=report.labels, plot_initial_reference=True
+            report=report,
+            labels=report.labels,
+            plot_initial_reference=gmm_initial_reference,
         )
 
         for i, fig in enumerate(gmm_figures):
@@ -250,6 +263,7 @@ def save_snr_reports_figures(
     pixel_size: float = 1.0,
     title_suffix: str | None = None,
     plot_types: set[str] | None = None,
+    gmm_initial_reference: bool = True,
 ) -> dict[float, dict[str, list[Path]]]:
     """
     Save all report figures to disk and return their paths.
@@ -282,6 +296,10 @@ def save_snr_reports_figures(
         - "fourier-rings": classification metrics by Fourier ring for fourier-space
         methods.
         - "gmm": GMM fit plots
+    gmm_initial_reference : bool, optional
+        Whether to add the initial reference to GMM distribution plots. Default is True.
+        Will not do anything if ``"gmm"`` is not in ``plot_types``, since
+        the GMM plots will not be generated in that case.
 
     Returns
     -------
@@ -306,6 +324,7 @@ def save_snr_reports_figures(
             pixel_size=pixel_size,
             title_suffix=title_suffix,
             plot_types=plot_types,
+            gmm_initial_reference=gmm_initial_reference,
         )
 
     return saved

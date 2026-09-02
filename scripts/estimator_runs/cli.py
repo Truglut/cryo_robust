@@ -74,6 +74,12 @@ def build_base_parser() -> tuple[
         help="Optional suffix appended to plot titles",
     )
     visualization_group.add_argument(
+        "--gmm-initial-reference",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Add initial reference to GMM fit plots"
+    )
+    visualization_group.add_argument(
         "--show-images",
         action="store_true",
         help="Show generated images",

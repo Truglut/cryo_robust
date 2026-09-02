@@ -34,6 +34,7 @@ def generate_latex_report(
     standardize: str,
     per_image_noise_std: bool,
     fourier_weight_mask: str,
+    gmm_initial_reference: bool,
 ) -> None:
     """
     Generate a LaTeX report from evaluation results.
@@ -63,6 +64,10 @@ def generate_latex_report(
         image.
     fourier_weight_mask : str
         Fourier weight mask configuration used during evaluation.
+    gmm_initial_reference : bool, optional
+        Whether to add the initial reference to GMM distribution plots. Default is True.
+        Will not do anything if ``ReportSection.GMM`` is not in ``sections``, since
+        the GMM plots will not be generated in that case.
 
     Returns
     -------
@@ -125,6 +130,7 @@ def generate_latex_report(
         figures_path=figures_path,
         frc_x_axis_freqs=True,
         plot_types=plot_types,
+        gmm_initial_reference=gmm_initial_reference,
         **plot_options,
     )
 
