@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from .figures import create_figure_grid
+from .figures import create_figure_section
 
 
 def generate_gmm_fits_section(
@@ -15,12 +15,9 @@ def generate_gmm_fits_section(
         gmm_figure_paths = [
             p.relative_to(output_path) for p in plots[snr].get("gmm", [])
         ]
-        n = len(gmm_figure_paths)
 
-        text += create_figure_grid(
-            figure_paths=gmm_figure_paths,
-            captions=[f"GMM Fit {i + 1}" for i in range(n)],
-            figures_per_row=3,
+        text += create_figure_section(
+            figure_paths=gmm_figure_paths, caption_prefix="GMM Fit"
         )
 
     return text

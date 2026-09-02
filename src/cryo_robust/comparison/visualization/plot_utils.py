@@ -20,8 +20,8 @@ LABEL_MAP = {
 
 # For plots with only good vs. bad images
 GOOD_BAD_PLOT_OPTIONS = {
-    "good": {"name": "Inliers", "color": "#083DB0"},
-    "bad": {"name": "Outliers", "color": "#F9290D"},
+    "good": {"label": "Inliers", "color": "#083DB0"},
+    "bad": {"label": "Outliers", "color": "#F9290D"},
 }
 
 BASE_PLOT_OPTIONS = {

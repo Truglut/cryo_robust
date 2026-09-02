@@ -15,6 +15,7 @@ def _plot_gmm_fit(
     idx_good: np.ndarray | None = None,
     idx_bad: np.ndarray | None = None,
     title: str | None = None,
+    plot_initial_reference: bool = False,
 ) -> Figure:
     """
     Produce a plot of the GMM state given in the diagnostics object. The plot shows
@@ -34,14 +35,49 @@ def _plot_gmm_fit(
         Indices of the outlier images, by default None.
     title : str, optional
         Plot title, by default None.
+    plot_initial_reference: bool, optional
+        If True, make two subplots: one shows the initial reference, the other shows
+        the distance distribution. Default is False.
 
     Returns
     -------
     Figure
         Figure object containing the plot.
     """
-    fig = plt.figure()
+    ncols = 2 if plot_initial_reference else 1
+    fig, axes = plt.subplots(nrows=1, ncols=ncols, squeeze=False)
 
+    col = 0
+    if plot_initial_reference:
+        initial_reference = diagnostics.initial_reference.detach().cpu().numpy()
+
+        ax = axes[0, col]
+        ax.imshow(initial_reference, cmap="gray")
+        ax.set_title("Initial reference")
+        ax.set_axis_off()
+
+        col += 1
+
+    plot_gmm_distances_fit(
+        diagnostics,
+        idx_good,
+        idx_bad,
+        title="Distances and GMM components",
+        ax=axes[0, col],
+    )
+
+    fig.suptitle(title)
+
+    return fig
+
+
+def plot_gmm_distances_fit(
+    diagnostics: GMMDiagnostics,
+    idx_good: np.ndarray | None,
+    idx_bad: np.ndarray | None,
+    title: str | None,
+    ax: Axes,
+):
     distances_np = diagnostics.distances.detach().cpu().numpy()
 
     dist_min = distances_np.min()
@@ -59,7 +95,7 @@ def _plot_gmm_fit(
     bins = 40
     if idx_good is not None and idx_bad is not None:
         for idx, image_type in ((idx_good, "good"), (idx_bad, "bad")):
-            plt.hist(
+            ax.hist(
                 distances_np[idx],
                 bins=bins,
                 density=True,
@@ -69,7 +105,7 @@ def _plot_gmm_fit(
                 alpha=0.4,
             )
     else:
-        plt.hist(distances_np, density=True, alpha=0.7, bins=bins)
+        ax.hist(distances_np, density=True, alpha=0.7, bins=bins)
 
     for i in range(2):
         mean = diagnostics.means[i]
@@ -79,7 +115,7 @@ def _plot_gmm_fit(
         # Calculate the component's density over the grid, accounting for the
         # possible change of variables when standardizing
         pdf = multiplier * weight * stats.norm.pdf(x_for_model, mean, np.sqrt(var))
-        plt.plot(
+        ax.plot(
             x,
             pdf,
             linestyle="--",
@@ -88,16 +124,15 @@ def _plot_gmm_fit(
         )
 
     if title is not None:
-        plt.title(title)
+        ax.set_title(title)
 
-    plt.legend()
-
-    return fig
+    ax.legend()
 
 
 def plot_report_gmm_fits(
     report: EvaluationReport,
     labels: np.ndarray | None = None,
+    plot_initial_reference: bool = False,
 ) -> list[Figure]:
     method_evaluations = report.method_results
 
@@ -119,7 +154,11 @@ def plot_report_gmm_fits(
             continue
 
         gmm_fig = _plot_gmm_fit(
-            diagnostics, idx_good=idx_good, idx_bad=idx_bad, title=name
+            diagnostics,
+            idx_good=idx_good,
+            idx_bad=idx_bad,
+            title=name,
+            plot_initial_reference=plot_initial_reference,
         )
 
         gmm_figures.append(gmm_fig)
