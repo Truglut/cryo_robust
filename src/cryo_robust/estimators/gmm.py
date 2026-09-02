@@ -225,3 +225,8 @@ class RecursiveGMMEstimator(Estimator):
         )
 
         return estimator_result
+
+    def reconstruct_from_weights(
+        self, images: ImageBatch, weights: WeightSet
+    ) -> torch.Tensor:
+        return weighted_average(images.ensure_real(), weights.real)
