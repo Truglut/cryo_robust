@@ -236,10 +236,17 @@ def create_evaluation_dataset(
             data_cfg["misclassified_path"], n_misc, rng=rng
         )
         if rotate_misclassified:
+            min_angle = gen_cfg.get(
+                "min_rotation_misclassified", gen_cfg["min_rotation_very_rotated"]
+            )
+            max_angle = gen_cfg.get(
+                "max_rotation_misclassified", gen_cfg["max_rotation_very_rotated"]
+            )
+
             misclassified_images = apply_random_rotations(
                 images=misclassified_images,
-                min_angle=gen_cfg["min_rotation_very_rotated"],
-                max_angle=gen_cfg["max_rotation_very_rotated"],
+                min_angle=min_angle,
+                max_angle=max_angle,
                 rng=rng,
                 output_images=misclassified_images,
             )
