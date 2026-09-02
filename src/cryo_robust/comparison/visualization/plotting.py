@@ -5,16 +5,18 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import pandas as pd
 
+from cryo_robust.comparison.visualization.plot_utils import ALL_PLOT_TYPES, save_figure
 from cryo_robust.comparison.visualization.fourier_plots import (
     plot_fourier_ring_summary,
     plot_method_fourier_ring_curves,
     plot_report_frc_curves,
 )
-from cryo_robust.comparison.visualization.plot_utils import ALL_PLOT_TYPES, save_figure
 from cryo_robust.comparison.visualization.weight_plots import (
     collect_weight_scores,
     plot_weight_distributions,
 )
+from cryo_robust.comparison.visualization.gmm_plots import plot_report_gmm_fits
+
 from cryo_robust.domain import ImageSpace
 from cryo_robust.comparison.domain.reports import EvaluationReport
 
@@ -29,6 +31,7 @@ def plot_report(
     plot_weights: bool = True,
     density: bool = False,
     plot_frc: bool = True,
+    plot_gmm: bool = True,
 ) -> None:
     """
     Produce all diagnostic plots for an `EvaluationReport`.
@@ -45,6 +48,8 @@ def plot_report(
         If True, normalise histograms to probability density. Default is False.
     plot_frc : bool, optional
         Whether to render the FRC curve comparison plot. Default is True.
+    plot_gmm : bool, optional
+        Whether to render the GMM distribution plots. Default is True.
 
     Returns
     -------
@@ -63,6 +68,13 @@ def plot_report(
         if hs_fig is not None:
             hs_fig.show()
         if gt_fig is not None or hs_fig is not None:
+            plt.show()
+
+    if plot_gmm:
+        gmm_figures = plot_report_gmm_fits(report)
+
+        for fig in gmm_figures:
+            fig.show()
             plt.show()
 
 
@@ -112,6 +124,7 @@ def save_report_figures(
         - "frc": FRC curves with ground-truth at each set of experimental conditions
         - "fourier-rings": classification metrics by Fourier ring for fourier-space
         methods.
+        - "gmm": Plots of GMM fits
 
     Returns
     -------
@@ -119,8 +132,9 @@ def save_report_figures(
         Keys are
         - ``"weight_distributions"``,
         - ``"frc_curves"``,
-        - ``"fourier_ring_classification"``, and
-        - ``"fourier_ring_summary"``.
+        - ``"fourier_ring_classification"``,
+        - ``"fourier_ring_summary"``, and
+        - ``"gmm"``.
 
         Values are lists of saved file paths.
 
@@ -130,6 +144,8 @@ def save_report_figures(
         - Fourier ring classification list has one entry per valid fourier-space (real or
         imaginary) and method combination.
         - Fourier ring summary has 0, 1 or 2 entries (real and/or imaginary or none)
+        - GMM plot list has one entry per estimator in the experiment that returned
+         a valid GMMDiagnostics object (should be every gmm estimator).
     """
     report_figure_path.mkdir(parents=True, exist_ok=True)
     saved: dict[str, list[Path]] = {
@@ -137,6 +153,7 @@ def save_report_figures(
         "frc_curves": [],
         "fourier_ring_classification": [],
         "fourier_ring_summary": [],
+        "gmm": [],
     }
 
     if plot_types is None:
@@ -208,6 +225,15 @@ def save_report_figures(
             save_figure(fig=summary_fig, path=summary_save_path, dpi=dpi)
 
             saved["fourier_ring_summary"].append(summary_save_path)
+
+    if "gmm" in plot_types:
+        gmm_figures = plot_report_gmm_fits(report=report, idx_good=None, idx_bad=None)
+
+        for i, fig in enumerate(gmm_figures):
+            save_name = f"gmm_fit_{i}.pdf"
+            save_path = report_figure_path / save_name
+
+            save_figure(fig=fig, path=save_path, dpi=dpi)
 
     return saved
 

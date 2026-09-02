@@ -10,18 +10,25 @@ def save_figure(fig: Figure, path: Path, dpi: int, **kwargs) -> Path:
     return path
 
 
-# Helper for consistent coloring
+# Helper for consistent coloring in plots with different types of outliers
 LABEL_MAP = {
     0: {"name": "Genuine", "color": "#083DB0"},
     1: {"name": "Misaligned", "color": "orange"},
     2: {"name": "Misclassified", "color": "#F9290D"},
     3: {"name": "Noise", "color": "darkorange"},
 }
+
+# For plots with only good vs. bad images
+GOOD_BAD_PLOT_COLORS = {"good": "#083DB0", "bad": "#F9290D"}
+
 BASE_PLOT_OPTIONS = {
     "max_subplots": 3,
     "density": False,
     "dpi": 150,
 }
+
+HISTOGRAM_TYPE = "stepfilled"
+
 ALL_PLOT_TYPES = frozenset(
     {
         "weights",

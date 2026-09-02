@@ -6,7 +6,10 @@ from matplotlib.figure import Figure
 from cryo_robust.comparison.domain.enums import AggregationStrategy
 from cryo_robust.comparison.domain.reports import EvaluationReport
 from cryo_robust.comparison.domain.runs import AVERAGE_NAME
-from cryo_robust.comparison.visualization.plot_utils import LABEL_MAP
+from cryo_robust.comparison.visualization.plot_utils import (
+    LABEL_MAP,
+    HISTOGRAM_TYPE,
+)
 
 
 import numpy as np
@@ -20,7 +23,6 @@ WEIGHT_PLOT_TITLE_OPTIONS = {
     "show_space": True,
     "show_aggregation": False,
 }
-WEIGHT_HISTOGRAM_TYPE = "stepfilled"
 
 
 def _plot_weight_histogram(
@@ -62,7 +64,7 @@ def _plot_weight_histogram(
             alpha=0.7,
             color="teal",
             density=density,
-            histtype=WEIGHT_HISTOGRAM_TYPE,
+            histtype=HISTOGRAM_TYPE,
         )
         return
 
@@ -78,7 +80,7 @@ def _plot_weight_histogram(
                 edgecolor=config["color"],
                 linewidth=1.2,
                 density=density,
-                histtype=WEIGHT_HISTOGRAM_TYPE,
+                histtype=HISTOGRAM_TYPE,
             )
     ax.legend()
 
