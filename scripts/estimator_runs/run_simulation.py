@@ -53,25 +53,31 @@ def run_experiment(
         standardize_reference=args.standardize_reference,
     )
 
-    if args.standardize in ["after", "both"]:
-        images = (images - images.mean(axis=(1, 2), keepdims=True)) / images.std(
-            axis=(1, 2), keepdims=True
-        )
-        ground_truth = (ground_truth - ground_truth.mean()) / ground_truth.std()
-
     # Move images to torch
     tensor_images = torch.from_numpy(images).to(dtype=torch.float32, device=args.device)
 
     # Apply mask to images
-    mask = cfg.get("mask") or {}
-    params = mask.get("params") or {}
-    mask_radius = params.get("radius")
-    if mask_radius is None:
-        h, w = images.shape[1:]
-        mask_radius = max(h // 2, w // 2)
-    tensor_images, mask_tensor = apply_mask(tensor_images, mask_radius, inplace=True)
-    mask = mask_tensor.detach().cpu().numpy()
-    ground_truth *= mask
+    mask_cfg = cfg.get("mask", None)
+    if not (mask_cfg is False):
+        print("Applying mask to images...")
+        mask_cfg = mask_cfg or {}
+        params = mask_cfg.get("params") or {}
+        mask_radius = params.get("radius")
+        if mask_radius is None:
+            h, w = images.shape[1:]
+            mask_radius = max(h // 2, w // 2)
+        tensor_images, mask_tensor = apply_mask(tensor_images, mask_radius, inplace=True)
+        mask = mask_tensor.detach().cpu().numpy()
+        ground_truth *= mask
+    else:
+        mask_tensor = None
+        mask = None
+
+    if args.standardize in ["after", "both"]:
+        tensor_images = (
+            tensor_images - tensor_images.mean(dim=(1, 2), keepdim=True)
+        ) / tensor_images.std(dim=(1, 2), keepdim=True)
+        ground_truth = (ground_truth - ground_truth.mean()) / ground_truth.std()
 
     # Prepare image dict for estimation models
     image_batch = ImageBatch.from_real(tensor_images)
