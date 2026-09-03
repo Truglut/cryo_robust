@@ -6,14 +6,11 @@ from pathlib import Path
 
 import napari
 import numpy as np
-import torch
 
-from cryo_robust.comparison.dataset_builder import (
-    LABEL_TYPES,
-    create_evaluation_dataset,
-)
+from cryo_robust.comparison.dataset_builder import LABEL_TYPES
 from scripts.estimator_runs.cli import build_simulation_parser
-from scripts.estimator_runs.common import apply_mask, load_config
+from scripts.estimator_runs.common import load_config
+from scripts.estimator_runs.run_simulation import prepare_simulation_dataset
 
 # ---------------------------------------------------------------------------
 # Viewer defaults
@@ -102,6 +99,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=simulation_parser.get_default("per_image_noise_std"),
         help=(
             "Use an image-specific noise standard deviation for the base dataset. "
+            "The default is inherited from run_simulation."
+        ),
+    )
+    parser.add_argument(
+        "--standardize-reference",
+        action=argparse.BooleanOptionalAction,
+        default=simulation_parser.get_default("standardize_reference"),
+        help=(
+            "Use the same reference-standardization option as run_simulation. "
             "The default is inherited from run_simulation."
         ),
     )
@@ -200,68 +206,35 @@ def resolve_seed(cfg: dict, cli_seed: int | None) -> int:
     return int(np.random.SeedSequence().generate_state(1, dtype=np.uint32)[0])
 
 
-def standardize_after_noise(
-    images: np.ndarray, ground_truth: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
-    """Apply the same post-noise standardization used in run_simulation."""
-    images = (images - images.mean(axis=(1, 2), keepdims=True)) / images.std(
-        axis=(1, 2), keepdims=True
-    )
-    ground_truth = (ground_truth - ground_truth.mean()) / ground_truth.std()
-    return images, ground_truth
-
-
-def apply_simulation_mask(
-    images: np.ndarray, ground_truth: np.ndarray, cfg: dict
-) -> tuple[np.ndarray, np.ndarray]:
-    """Apply the same spatial mask used before estimators in run_simulation."""
-    tensor_images = torch.from_numpy(images).to(dtype=torch.float32, device="cpu")
-
-    mask_cfg = cfg.get("mask") or {}
-    params = mask_cfg.get("params") or {}
-    mask_radius = params.get("radius")
-
-    if mask_radius is None:
-        h, w = images.shape[1:]
-        mask_radius = max(h // 2, w // 2)
-
-    tensor_images, mask_tensor = apply_mask(tensor_images, mask_radius, inplace=True)
-    mask = mask_tensor.detach().cpu().numpy()
-
-    return tensor_images.detach().cpu().numpy(), ground_truth * mask
-
-
 def generate_variant(
     cfg: dict,
     variant: DatasetVariant,
     seed: int,
     *,
+    standardize_reference: bool,
     keep_unmasked: bool,
 ) -> GeneratedDataset:
-    """Generate one dataset and reproduce run_simulation preprocessing."""
+    """Generate one dataset through the run_simulation preprocessing pipeline."""
     # Restarting the RNG for each variant makes comparisons much easier:
     # rotations, selected outliers and Gaussian draws stay aligned.
     rng = np.random.default_rng(seed)
 
-    images, ground_truth, labels = create_evaluation_dataset(
-        cfg=cfg,
-        rng=rng,
+    prepared = prepare_simulation_dataset(
+        cfg,
         snr=variant.snr,
-        standardize_before_noise=variant.standardize in ("before", "both"),
+        rng=rng,
+        standardize=variant.standardize,
         per_image_noise_std=variant.per_image_noise_std,
+        standardize_reference=standardize_reference,
+        device="cpu",
+        keep_unmasked=keep_unmasked,
     )
 
-    if variant.standardize in ("after", "both"):
-        images, ground_truth = standardize_after_noise(images, ground_truth)
-
-    unmasked_images = images.copy() if keep_unmasked else None
-    images, ground_truth = apply_simulation_mask(images, ground_truth, cfg)
-
     return GeneratedDataset(
-        images=images,
-        ground_truth=ground_truth,
-        labels=labels,
-        unmasked_images=unmasked_images,
+        images=prepared.estimator_images.detach().cpu().numpy(),
+        ground_truth=prepared.ground_truth,
+        labels=prepared.labels,
+        unmasked_images=prepared.unmasked_images,
     )
 
 
@@ -413,6 +386,7 @@ def main() -> None:
             cfg,
             variant,
             seed,
+            standardize_reference=args.standardize_reference,
             keep_unmasked=args.show_unmasked,
         )
         print_dataset_summary(variant, dataset)

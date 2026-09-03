@@ -1,5 +1,6 @@
 from pathlib import Path
 from argparse import Namespace
+from dataclasses import dataclass
 
 import numpy as np
 import mrcfile
@@ -35,6 +36,76 @@ FRC_THRESHOLDS = [FRCThreshold.ONE_HALF, FRCThreshold.HALF_BIT]
 RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
 
 
+@dataclass
+class PreparedSimulationDataset:
+    """Data generated and preprocessed for one simulated experiment."""
+
+    images: np.ndarray
+    estimator_images: torch.Tensor
+    ground_truth: np.ndarray
+    labels: np.ndarray
+    mask: np.ndarray | None
+    unmasked_images: np.ndarray | None = None
+
+
+def prepare_simulation_dataset(
+    cfg: dict,
+    *,
+    snr: float,
+    rng: np.random.Generator,
+    standardize: str,
+    per_image_noise_std: bool,
+    standardize_reference: bool,
+    device: str,
+    keep_unmasked: bool = False,
+) -> PreparedSimulationDataset:
+    """Generate and preprocess the dataset passed to the estimators."""
+    images, ground_truth, labels = create_evaluation_dataset(
+        cfg=cfg,
+        rng=rng,
+        snr=snr,
+        standardize_before_noise=standardize in ["before", "both"],
+        per_image_noise_std=per_image_noise_std,
+        standardize_reference=standardize_reference,
+    )
+
+    unmasked_images = images.copy() if keep_unmasked else None
+
+    tensor_images = torch.from_numpy(images).to(dtype=torch.float32, device=device)
+
+    mask_cfg = cfg.get("mask", None)
+    if mask_cfg is not False:
+        print("Applying mask to images...")
+        mask_cfg = mask_cfg or {}
+        params = mask_cfg.get("params") or {}
+        mask_radius = params.get("radius")
+        if mask_radius is None:
+            h, w = images.shape[1:]
+            mask_radius = max(h // 2, w // 2)
+        tensor_images, mask_tensor = apply_mask(
+            tensor_images, mask_radius, inplace=True
+        )
+        mask = mask_tensor.detach().cpu().numpy()
+        ground_truth *= mask
+    else:
+        mask = None
+
+    if standardize in ["after", "both"]:
+        tensor_images -= tensor_images.mean(dim=(1, 2), keepdim=True)
+        tensor_images /= tensor_images.std(dim=(1, 2), keepdim=True)
+
+        ground_truth = (ground_truth - ground_truth.mean()) / ground_truth.std()
+
+    return PreparedSimulationDataset(
+        images=images,
+        estimator_images=tensor_images,
+        ground_truth=ground_truth,
+        labels=labels,
+        mask=mask,
+        unmasked_images=unmasked_images,
+    )
+
+
 def run_experiment(
     cfg: dict, args: Namespace, snr: float, rng: np.random.Generator
 ) -> EvaluationReport:
@@ -43,41 +114,21 @@ def run_experiment(
     Generates the image set, the runs all of the estimation methods specified through
     the ``cfg`` dict and returns a report with the results.
     """
-    # Generate the data
-    images, ground_truth, labels = create_evaluation_dataset(
-        cfg=cfg,
-        rng=rng,
+    dataset = prepare_simulation_dataset(
+        cfg,
         snr=snr,
-        standardize_before_noise=args.standardize in ["before", "both"],
+        rng=rng,
+        standardize=args.standardize,
         per_image_noise_std=args.per_image_noise_std,
         standardize_reference=args.standardize_reference,
+        device=args.device,
     )
 
-    # Move images to torch
-    tensor_images = torch.from_numpy(images).to(dtype=torch.float32, device=args.device)
-
-    # Apply mask to images
-    mask_cfg = cfg.get("mask", None)
-    if not (mask_cfg is False):
-        print("Applying mask to images...")
-        mask_cfg = mask_cfg or {}
-        params = mask_cfg.get("params") or {}
-        mask_radius = params.get("radius")
-        if mask_radius is None:
-            h, w = images.shape[1:]
-            mask_radius = max(h // 2, w // 2)
-        tensor_images, mask_tensor = apply_mask(tensor_images, mask_radius, inplace=True)
-        mask = mask_tensor.detach().cpu().numpy()
-        ground_truth *= mask
-    else:
-        mask_tensor = None
-        mask = None
-
-    if args.standardize in ["after", "both"]:
-        tensor_images = (
-            tensor_images - tensor_images.mean(dim=(1, 2), keepdim=True)
-        ) / tensor_images.std(dim=(1, 2), keepdim=True)
-        ground_truth = (ground_truth - ground_truth.mean()) / ground_truth.std()
+    images = dataset.images
+    tensor_images = dataset.estimator_images
+    ground_truth = dataset.ground_truth
+    labels = dataset.labels
+    mask = dataset.mask
 
     # Prepare image dict for estimation models
     image_batch = ImageBatch.from_real(tensor_images)
