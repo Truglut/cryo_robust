@@ -256,11 +256,8 @@ def create_evaluation_dataset(
 
     # Standardize images with respect to the reference (before adding noise, and before adding "pure noise" images)
     if standardize_reference:
-        ref_mean = ref_image.mean()
         ref_std = ref_image.std()
-
-        ref_image = (ref_image - ref_mean) / ref_std
-        dataset -= ref_mean
+        ref_image /= ref_std
         dataset /= ref_std
 
     # Add images with no signal (all zeros, noise will be added later)
