@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Collection
+from typing import Any, Collection, Literal
 
 import numpy as np
 
@@ -35,6 +35,9 @@ def generate_latex_report(
     per_image_noise_std: bool,
     fourier_weight_mask: str,
     gmm_initial_reference: bool,
+    gmm_distance_plot_type: Literal[
+        "stacked", "overlayed-full", "overlayed-proportional"
+    ] = "overlayed-proportional",
 ) -> None:
     """
     Generate a LaTeX report from evaluation results.
@@ -131,6 +134,7 @@ def generate_latex_report(
         frc_x_axis_freqs=True,
         plot_types=plot_types,
         gmm_initial_reference=gmm_initial_reference,
+        gmm_distance_plot_type=gmm_distance_plot_type,
         **plot_options,
     )
 

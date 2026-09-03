@@ -2,6 +2,10 @@ import argparse
 from pathlib import Path
 
 from cryo_robust.comparison.visualization.plot_utils import BASE_PLOT_OPTIONS
+from cryo_robust.comparison.visualization.gmm_plots import (
+    GMM_DISTANCE_PLOT_TYPE_DEFAULT,
+    GMM_PLOT_FUNCTIONS,
+)
 from cryo_robust.comparison.latex.sections import (
     REPORT_SECTION_CHOICES,
     resolve_report_sections,
@@ -77,7 +81,14 @@ def build_base_parser() -> tuple[
         "--gmm-initial-reference",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Add initial reference to GMM fit plots"
+        help="Add initial reference to GMM fit plots",
+    )
+    visualization_group.add_argument(
+        "--gmm-distance-plot-type",
+        type=str,
+        choices=list(GMM_PLOT_FUNCTIONS.keys()),
+        default=GMM_DISTANCE_PLOT_TYPE_DEFAULT,
+        help="Type of plot for the GMM initial distances",
     )
     visualization_group.add_argument(
         "--show-images",

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, Literal
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -33,6 +33,9 @@ def plot_report(
     plot_frc: bool = True,
     plot_gmm: bool = True,
     gmm_initial_reference: bool = True,
+    gmm_distance_plot_type: Literal[
+        "stacked", "overlayed-full", "overlayed-proportional"
+    ] = "overlayed-proportional",
 ) -> None:
     """
     Produce all diagnostic plots for an `EvaluationReport`.
@@ -76,7 +79,10 @@ def plot_report(
 
     if plot_gmm:
         _ = plot_report_gmm_fits(
-            report, labels=report.labels, plot_initial_reference=gmm_initial_reference
+            report,
+            labels=report.labels,
+            plot_initial_reference=gmm_initial_reference,
+            gmm_distance_plot_type=gmm_distance_plot_type,
         )
         plt.show()
 
@@ -97,6 +103,9 @@ def save_report_figures(
     title_suffix: str | None = None,
     plot_types: set[str] | None = None,
     gmm_initial_reference: bool = True,
+    gmm_distance_plot_type: Literal[
+        "stacked", "overlayed-full", "overlayed-proportional"
+    ] = "overlayed-proportional",
 ) -> dict[str, list[Path]]:
     """
     Save all report figures to disk and return their paths.
@@ -239,6 +248,7 @@ def save_report_figures(
             report=report,
             labels=report.labels,
             plot_initial_reference=gmm_initial_reference,
+            gmm_distance_plot_type=gmm_distance_plot_type,
         )
 
         for i, fig in enumerate(gmm_figures):
@@ -264,6 +274,9 @@ def save_snr_reports_figures(
     title_suffix: str | None = None,
     plot_types: set[str] | None = None,
     gmm_initial_reference: bool = True,
+    gmm_distance_plot_type: Literal[
+        "stacked", "overlayed-full", "overlayed-proportional"
+    ] = "overlayed-proportional",
 ) -> dict[float, dict[str, list[Path]]]:
     """
     Save all report figures to disk and return their paths.
@@ -325,6 +338,7 @@ def save_snr_reports_figures(
             title_suffix=title_suffix,
             plot_types=plot_types,
             gmm_initial_reference=gmm_initial_reference,
+            gmm_distance_plot_type=gmm_distance_plot_type,
         )
 
     return saved

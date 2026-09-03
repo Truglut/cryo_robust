@@ -1,3 +1,5 @@
+from typing import Sequence, Literal
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
@@ -9,13 +11,21 @@ from .plot_utils import GOOD_BAD_PLOT_OPTIONS, HISTOGRAM_TYPE
 from cryo_robust.estimators.results import GMMDiagnostics
 from cryo_robust.comparison.domain.reports import EvaluationReport
 
+PLOT_COMPONENT_PDFS = True
+PLOT_FULL_MODEL_PDF = False
+PLOT_INITIAL_REFERENCE = True
+GMM_DISTANCE_PLOT_TYPE_DEFAULT = "overlayed-proportional"
+
 
 def _plot_gmm_fit(
     diagnostics: GMMDiagnostics,
-    idx_good: np.ndarray | None = None,
-    idx_bad: np.ndarray | None = None,
+    idx_good: np.ndarray | None,
+    idx_bad: np.ndarray | None,
+    plot_initial_reference: bool,
+    distance_plot_type: Literal["stacked", "overlayed-full", "overlayed-proportional"],
+    plot_component_pdfs: bool,
+    plot_full_model_pdf: bool,
     title: str | None = None,
-    plot_initial_reference: bool = False,
 ) -> Figure:
     """
     Produce a plot of the GMM state given in the diagnostics object. The plot shows
@@ -45,7 +55,11 @@ def _plot_gmm_fit(
         Figure object containing the plot.
     """
     ncols = 2 if plot_initial_reference else 1
-    fig, axes = plt.subplots(nrows=1, ncols=ncols, squeeze=False)
+
+    # figsize default is (6.4, 4.8), and it is (width, height)
+    figsize = (ncols * 5.6, 4.0)
+
+    fig, axes = plt.subplots(nrows=1, ncols=ncols, figsize=figsize, squeeze=False)
 
     col = 0
     if plot_initial_reference:
@@ -58,12 +72,19 @@ def _plot_gmm_fit(
 
         col += 1
 
-    plot_gmm_distances_fit(
-        diagnostics,
-        idx_good,
-        idx_bad,
-        title="Distances and GMM components",
+    _plot_gmm_distances_fit(
         ax=axes[0, col],
+        distances_np=diagnostics.distances.detach().cpu().numpy(),
+        standardized_distances=diagnostics.standardized_distances,
+        model_means=diagnostics.means,
+        model_vars=diagnostics.vars,
+        model_component_weights=diagnostics.component_weights,
+        idx_good=idx_good,
+        idx_bad=idx_bad,
+        title="Distances and GMM components",
+        distance_plot_type=distance_plot_type,
+        plot_component_pdfs=plot_component_pdfs,
+        plot_full_model_pdf=plot_full_model_pdf,
     )
 
     fig.suptitle(title)
@@ -71,57 +92,74 @@ def _plot_gmm_fit(
     return fig
 
 
-def plot_gmm_distances_fit(
-    diagnostics: GMMDiagnostics,
+def _plot_gmm_distances_fit(
+    ax: Axes,
+    distances_np: np.ndarray,
+    *,
+    standardized_distances: bool,
+    model_means: Sequence[float],
+    model_vars: Sequence[float],
+    model_component_weights: Sequence[float],
     idx_good: np.ndarray | None,
     idx_bad: np.ndarray | None,
     title: str | None,
-    ax: Axes,
+    bins: int = 30,
+    distance_plot_type: Literal["stacked", "overlayed_full", "overlayed_proportional"],
+    plot_full_model_pdf: bool,
+    plot_component_pdfs: bool,
 ):
-    distances_np = diagnostics.distances.detach().cpu().numpy()
-
     dist_min = distances_np.min()
     dist_max = distances_np.max()
     length = dist_max - dist_min
 
     x = np.linspace(dist_min - 0.1 * length, dist_max + 0.1 * length, 1000)
-    if diagnostics.standardized_distances:
+    if standardized_distances:
         multiplier = 1.0 / distances_np.std()
         x_for_model = (x - distances_np.mean()) * multiplier
     else:
         multiplier = 1.0
         x_for_model = x
 
-    bins = 40
-    if idx_good is not None and idx_bad is not None:
-        for idx, image_type in ((idx_good, "good"), (idx_bad, "bad")):
-            ax.hist(
-                distances_np[idx],
-                bins=bins,
-                density=True,
-                histtype=HISTOGRAM_TYPE,
-                color=GOOD_BAD_PLOT_OPTIONS[image_type]["color"],
-                label=GOOD_BAD_PLOT_OPTIONS[image_type]["label"],
-                alpha=0.4,
-            )
+    if idx_good is None or idx_bad is None:
+        ax.hist(distances_np, bins=bins, density=True, alpha=0.7)
     else:
-        ax.hist(distances_np, density=True, alpha=0.7, bins=bins)
+        plot_distances_function = GMM_PLOT_FUNCTIONS[distance_plot_type]
 
-    for i in range(2):
-        mean = diagnostics.means[i]
-        var = diagnostics.vars[i]
-        weight = diagnostics.component_weights[i]
-
-        # Calculate the component's density over the grid, accounting for the
-        # possible change of variables when standardizing
-        pdf = multiplier * weight * stats.norm.pdf(x_for_model, mean, np.sqrt(var))
-        ax.plot(
-            x,
-            pdf,
-            linestyle="--",
-            linewidth=2,
-            label=f"Gaussian {i+1} (w={weight:.2f})",
+        plot_distances_function(
+            ax,
+            distances_np,
+            dist_min=dist_min,
+            dist_max=dist_max,
+            idx_good=idx_good,
+            idx_bad=idx_bad,
+            bins=bins,
         )
+
+    if plot_full_model_pdf or plot_component_pdfs:
+        means = np.asarray(model_means)[:, None]
+        stds = np.sqrt(model_vars)[:, None]
+        weights = np.asarray(model_component_weights)[:, None]
+
+        # Calculate densities for all components simultaneously (shape: [num_components, len(x_for_model)])
+        component_matrix = (
+            multiplier * weights * stats.norm.pdf(x_for_model, loc=means, scale=stds)
+        )
+
+        if plot_component_pdfs:
+            for i, (pdf, w) in enumerate(
+                zip(component_matrix, model_component_weights), start=1
+            ):
+                ax.plot(
+                    x,
+                    pdf,
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Gaussian {i} (w={w:.2f})",
+                )
+
+        if plot_full_model_pdf:
+            full_pdf = component_matrix.sum(axis=0)
+            ax.plot(x, full_pdf, linestyle="--", linewidth=2, label="Full GMM density")
 
     if title is not None:
         ax.set_title(title)
@@ -133,6 +171,9 @@ def plot_report_gmm_fits(
     report: EvaluationReport,
     labels: np.ndarray | None = None,
     plot_initial_reference: bool = False,
+    gmm_distance_plot_type: Literal[
+        "stacked", "overlayed-full", "overlayed-proportional"
+    ] = GMM_DISTANCE_PLOT_TYPE_DEFAULT,
 ) -> list[Figure]:
     method_evaluations = report.method_results
 
@@ -159,8 +200,106 @@ def plot_report_gmm_fits(
             idx_bad=idx_bad,
             title=name,
             plot_initial_reference=plot_initial_reference,
+            distance_plot_type=gmm_distance_plot_type,
+            plot_component_pdfs=PLOT_COMPONENT_PDFS,
+            plot_full_model_pdf=PLOT_FULL_MODEL_PDF,
         )
 
         gmm_figures.append(gmm_fig)
 
     return gmm_figures
+
+
+### ===========================
+### Types of GMM distances plot
+### ===========================
+
+
+def _plot_gmm_distances_stacked(
+    ax: Axes,
+    distances_np: np.ndarray,
+    *,
+    dist_min: float,
+    dist_max: float,
+    idx_good: np.ndarray,
+    idx_bad: np.ndarray,
+    bins: int,
+) -> None:
+    # Define explicit bin boundaries so both classes share identical edges
+    bin_edges = np.linspace(dist_min, dist_max, bins + 1)
+
+    ax.hist(
+        [distances_np[idx_good], distances_np[idx_bad]],
+        bins=bin_edges,
+        density=True,
+        stacked=True,
+        color=[
+            GOOD_BAD_PLOT_OPTIONS["good"]["color"],
+            GOOD_BAD_PLOT_OPTIONS["bad"]["color"],
+        ],
+        label=[
+            GOOD_BAD_PLOT_OPTIONS["good"]["label"],
+            GOOD_BAD_PLOT_OPTIONS["bad"]["label"],
+        ],
+        alpha=0.7,
+    )
+
+
+def _plot_gmm_distances_overlayed_full_density(
+    ax: Axes,
+    distances_np: np.ndarray,
+    *,
+    dist_min: float,  # unused, maintained for consistency
+    dist_max: float,  # unused, maintained for consistency
+    idx_good: np.ndarray,
+    idx_bad: np.ndarray,
+    bins: int,
+) -> None:
+    for idx, image_type in ((idx_good, "good"), (idx_bad, "bad")):
+        ax.hist(
+            distances_np[idx],
+            bins=bins,
+            density=True,
+            histtype=HISTOGRAM_TYPE,
+            color=GOOD_BAD_PLOT_OPTIONS[image_type]["color"],
+            label=GOOD_BAD_PLOT_OPTIONS[image_type]["label"],
+            alpha=0.5,
+        )
+
+
+def _plot_gmm_distances_overlayed_proportional_density(
+    ax: Axes,
+    distances_np: np.ndarray,
+    *,
+    dist_min: float,
+    dist_max: float,
+    idx_good: np.ndarray,
+    idx_bad: np.ndarray,
+    bins: int,
+) -> None:
+    bin_edges = np.linspace(dist_min, dist_max, bins + 1)
+    bin_width = bin_edges[1] - bin_edges[0]
+    total_n = len(distances_np)
+
+    for idx, image_type in ((idx_good, "good"), (idx_bad, "bad")):
+        sub_data = distances_np[idx]
+        # Weights scale each subgroup relative to total dataset count and bin width
+        weights = np.ones_like(sub_data) / (total_n * bin_width)
+
+        ax.hist(
+            sub_data,
+            bins=bin_edges,
+            weights=weights,
+            density=False,  # Disable density since weights handle scaling
+            histtype=HISTOGRAM_TYPE,
+            color=GOOD_BAD_PLOT_OPTIONS[image_type]["color"],
+            label=GOOD_BAD_PLOT_OPTIONS[image_type]["label"],
+            alpha=0.5,
+        )
+
+
+GMM_PLOT_FUNCTIONS = {
+    "stacked": _plot_gmm_distances_stacked,
+    "overlayed-full": _plot_gmm_distances_overlayed_full_density,
+    "overlayed-proportional": _plot_gmm_distances_overlayed_proportional_density,
+}

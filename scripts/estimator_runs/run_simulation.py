@@ -142,6 +142,7 @@ def run_experiment(
         plot_frc="frc" in args.plot,
         plot_gmm="gmm" in args.plot,
         gmm_initial_reference=args.gmm_initial_reference,
+        gmm_distance_plot_type=args.gmm_distance_plot_type,
     )
 
     # Show images (averages and original images) with napari
@@ -203,6 +204,7 @@ def main():
             per_image_noise_std=args.per_image_noise_std,
             fourier_weight_mask=args.fourier_weight_mask,
             gmm_initial_reference=args.gmm_initial_reference,
+            gmm_distance_plot_type=args.gmm_distance_plot_type,
         )
 
 

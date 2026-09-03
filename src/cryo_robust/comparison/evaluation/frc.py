@@ -236,11 +236,11 @@ def get_resolution(
 
     if len(sign_changes) == 0:
         # FRC never crosses threshold — resolution is at/beyond Nyquist
-        warnings.warn(
-            f"FRC curve never crosses the {threshold} threshold. "
-            "Returning Nyquist resolution.",
-            stacklevel=2,
-        )
+        # warnings.warn(
+        #     f"FRC curve never crosses the {threshold} threshold. "
+        #     "Returning Nyquist resolution.",
+        #     stacklevel=2,
+        # )
         res = 2.0 * frc_data.pixel_size  # Nyquist
         return res
 
