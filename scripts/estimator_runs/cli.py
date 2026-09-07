@@ -161,6 +161,21 @@ def build_simulation_parser() -> argparse.ArgumentParser:
     """
     parser, _, _, saving_group, _ = build_base_parser()
 
+    parser.add_argument(
+        "--initialization-strategy",
+        type=str,
+        choices=["average", "median", "average-good", "ground-truth"],
+        help=(
+            "Initialization to use for the estimators that take an initial reference. "
+            "'average' means taking the average of all the input images. "
+            "'median' means taking the median of all input images. "
+            "'average-good' means taking the average of only the good input images. "
+            "'ground-truth' means using the ground truth image as the initial reference. "
+            "'average-good' and 'ground-truth' exist for testing purposes, but "
+            "are clearly not realistic."
+        ),
+    )
+
     # Add reports to saving group
     saving_group.add_argument(
         "--report", type=Path, help="Generate a LaTeX report at the provided path"

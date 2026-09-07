@@ -106,6 +106,30 @@ def prepare_simulation_dataset(
     )
 
 
+def prepare_initial_reference(
+    dataset: PreparedSimulationDataset,
+    image_batch: ImageBatch,
+    initialization_strategy: str,
+) -> torch.Tensor | None:
+    if initialization_strategy == "average":
+        return image_batch.ensure_real().mean(dim=0)
+
+    if initialization_strategy == "median":
+        return image_batch.ensure_real().median(dim=0).values
+
+    if initialization_strategy == "average-good":
+        idx_good = dataset.labels == 0
+        avg = dataset.images[idx_good].mean(axis=0)
+        return torch.from_numpy(avg).to(
+            dtype=image_batch.ensure_real().dtype, device=image_batch.device
+        )
+
+    if initialization_strategy == "ground-truth":
+        return torch.from_numpy(dataset.ground_truth).to(
+            dtype=image_batch.ensure_real().dtype, device=image_batch.device
+        )
+
+
 def run_experiment(
     cfg: dict, args: Namespace, snr: float, rng: np.random.Generator
 ) -> EvaluationReport:
@@ -133,12 +157,20 @@ def run_experiment(
     # Prepare image dict for estimation models
     image_batch = ImageBatch.from_real(tensor_images)
 
+    # Prepare the initial reference
+    initial_reference = prepare_initial_reference(
+        dataset=dataset,
+        image_batch=image_batch,
+        initialization_strategy=args.initialization_strategy,
+    )
+
     # Run the Estimation Methods
     results = run_estimators(
         method_configs=cfg["experiment"]["methods"],
         image_batch=image_batch,
         add_avg=True,
         add_median=False,
+        initial_reference=initial_reference,
     )
 
     # Identify and save requested subsets

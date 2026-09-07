@@ -65,6 +65,7 @@ def run_estimators(
     *,
     add_avg: bool = False,
     add_median: bool = False,
+    initial_reference: torch.Tensor | None = None,
 ) -> dict[str, MethodRun]:
     """
     Build and run the configured estimation methods.
@@ -79,6 +80,10 @@ def run_estimators(
         Include the sample average as a baseline.
     add_median : bool, optional
         Include the sample median as a baseline.
+    initial_reference: torch.Tensor, optional
+        Initial reference for the estimators. If provided, it will override
+        the initial reference that can be given in the ``method_cfg`` as a path
+        to a .mrc file. Default is None.
 
     Returns
     -------
@@ -94,9 +99,13 @@ def run_estimators(
 
         # Build and fit the estimator
         estimator = build_estimator(method_cfg, image_batch)
-        reference = load_reference(
-            method_cfg.get("initial_reference"), image_batch.device
-        )
+
+        if initial_reference is None:
+            reference = load_reference(
+                method_cfg.get("initial_reference"), image_batch.device
+            )
+        else:
+            reference = initial_reference
 
         estimator_result = fit_estimator(estimator, image_batch, reference)
 
