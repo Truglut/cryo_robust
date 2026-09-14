@@ -1,3 +1,5 @@
+from typing import Literal, Callable, get_args
+
 from cryo_robust.domain import ImageSpace
 from cryo_robust.estimators.base import Estimator
 from cryo_robust.estimators.admm import ADMMSolver
@@ -16,6 +18,120 @@ from cryo_robust.estimators.weights import get_weight_function
 
 from copy import deepcopy
 
+EstimatorTypeName = Literal[
+    "m_estimator",
+    "fourier_m_estimator",
+    "joint_fourier",
+    "flattening_fourier",
+    "recursive_gmm",
+    "admm",
+    "masked_fourier",
+    "three_masks_fourier",
+]
+
+
+def _build_m_estimator(
+    params: dict, image_batch: ImageBatch, space: ImageSpace
+) -> IRLSSolver:
+    weight_func = get_weight_function(
+        name=params["weight_function"],
+        params=params.get("weight_params", {}),
+        imgs=image_batch.select_space(space),
+    )
+    params["solver_params"]["space"] = space
+    return IRLSSolver(weight_function=weight_func, **params.get("solver_params", {}))
+
+
+def _build_fourier_m_estimator(
+    params: dict, image_batch: ImageBatch, space: ImageSpace
+) -> IRLSFourier:
+    # Build real part estimator
+    config_real = params["real_estimator"]
+    irls_real = build_estimator(config_real, image_batch, ImageSpace.FOURIER_REAL)
+
+    # Build imaginary part estimator
+    config_imag = params["imag_estimator"]
+    irls_imag = build_estimator(config_imag, image_batch, ImageSpace.FOURIER_IMAG)
+
+    # Build global Fourier estimator
+    return IRLSFourier(irls_real, irls_imag)
+
+
+def _build_joint_fourier(
+    params: dict, image_batch: ImageBatch, space: ImageSpace
+) -> JointIRLSFourier:
+    # Build IRLSSolver estimator
+    params["solver_params"]["space"] = ImageSpace.FOURIER_COMPLEX
+    solver = _build_m_estimator(params, image_batch, ImageSpace.FOURIER_COMPLEX)
+    return JointIRLSFourier(solver)
+
+
+def _build_flattening_fourier(
+    params: dict, image_batch: ImageBatch, space: ImageSpace
+) -> FlatteningIRLSFourier:
+    solver = _build_m_estimator(params, image_batch, ImageSpace.FOURIER_REAL)
+    return FlatteningIRLSFourier(solver)
+
+
+def _build_recursive_gmm(
+    params: dict, image_batch: ImageBatch, space: ImageSpace
+) -> RecursiveGMMEstimator:
+    distance_func = get_distance_function(
+        name=params["distance_function"],
+        params=params.get("distance_params", {}),
+        imgs=image_batch.select_space(space),
+    )
+    return RecursiveGMMEstimator(
+        distance_function=distance_func,
+        random_state=params.get("random_state", None),
+        max_iter=params.get("max_iter", 10),
+        tol=params.get("tol", 1e-3),
+    )
+
+
+def _build_admm(params: dict, image_batch: ImageBatch, space: ImageSpace) -> ADMMSolver:
+    irls_real = build_estimator(params["real_estimator"], image_batch, ImageSpace.REAL)
+    irls_fourier = build_estimator(
+        params["fourier_estimator"], image_batch, ImageSpace.FOURIER_COMPLEX
+    )
+    return ADMMSolver(
+        irls_real=irls_real,
+        irls_fourier=irls_fourier,
+        **params.get("solver_params", {}),
+    )
+
+
+def _build_masked_fourier(
+    params: dict, image_batch: ImageBatch, space: ImageSpace
+) -> MaskedIRLSFourier:
+    solver = _build_m_estimator(params, image_batch, ImageSpace.FOURIER_COMPLEX)
+    return MaskedIRLSFourier(solver=solver)
+
+
+def _build_three_masks_fourier(
+    params: dict, image_batch: ImageBatch, space: ImageSpace
+) -> ThreeMasksFourier:
+    solver = _build_masked_fourier(params, image_batch, ImageSpace.FOURIER_COMPLEX)
+    return ThreeMasksFourier(
+        low_cutoff=params["low_cutoff"],
+        high_cutoff=params["high_cutoff"],
+        solver=solver,
+    )
+
+
+BUILDER_REGISTRY: dict[
+    EstimatorTypeName, Callable[[dict, ImageBatch, ImageSpace], Estimator]
+] = {
+    "m_estimator": _build_m_estimator,
+    "fourier_m_estimator": _build_fourier_m_estimator,
+    "joint_fourier": _build_joint_fourier,
+    "flattening_fourier": _build_flattening_fourier,
+    "recursive_gmm": _build_recursive_gmm,
+    "admm": _build_admm,
+    "masked_fourier": _build_masked_fourier,
+    "three_masks_fourier": _build_three_masks_fourier,
+}
+
 
 def build_estimator(
     method_cfg: dict,
@@ -26,119 +142,13 @@ def build_estimator(
     Factory function that reads the YAML config block and returns
     the instantiated Estimator object on the specified device.
     """
-    est_type = method_cfg["type"]
+    estimator_type = method_cfg["type"]
     params = deepcopy(method_cfg.get("params", {}))
 
-    params["solver_params"] = params.get("solver_params", {})
-    params["solver_params"]["space"] = space
-
-    if est_type == "m_estimator":
-        # Get weight function with given parameters
-        weight_func = get_weight_function(
-            params["weight_function"],
-            params.get("weight_params", {}),
-            image_batch.select_space(space),
-        )
-        return IRLSSolver(
-            weight_function=weight_func,
-            **params.get("solver_params", {}),
+    if estimator_type not in BUILDER_REGISTRY:
+        raise ValueError(
+            f"Unknown estimator type: {estimator_type}. "
+            f"Valid types are {get_args(EstimatorTypeName)}"
         )
 
-    elif est_type == "fourier_m_estimator":
-        # Build real part estimator
-        config_real = params["real_estimator"]
-        irls_real = build_estimator(
-            config_real, image_batch, space=ImageSpace.FOURIER_REAL
-        )
-
-        # Build imaginary part estimator
-        config_imag = params["imag_estimator"]
-        irls_imag = build_estimator(
-            config_imag, image_batch, space=ImageSpace.FOURIER_IMAG
-        )
-
-        # Build global Fourier estimator
-        return IRLSFourier(irls_real, irls_imag)
-
-    elif est_type == "joint_fourier":
-        # Build IRLSSolver estimator
-        params["solver_params"]["space"] = ImageSpace.FOURIER_COMPLEX
-        solver = build_estimator(
-            {
-                "type": "m_estimator",
-                "params": params,
-            },
-            image_batch=image_batch,
-            space=ImageSpace.FOURIER_COMPLEX,
-        )
-
-        return JointIRLSFourier(solver)
-
-    elif est_type == "flattening_fourier":
-        solver = build_estimator(
-            {
-                "type": "m_estimator",
-                "params": params,
-            },
-            image_batch=image_batch,
-            space=ImageSpace.FOURIER_REAL,
-        )
-
-        return FlatteningIRLSFourier(solver)
-
-    elif est_type == "recursive_gmm":
-        distance_func = get_distance_function(
-            params["distance_function"],
-            params.get("distance_params", {}),
-            image_batch.select_space(space),
-        )
-        return RecursiveGMMEstimator(
-            distance_function=distance_func,
-            random_state=params.get("random_state", None),
-            max_iter=params.get("max_iter", 10),
-            tol=params.get("tol", 1e-3),
-        )
-
-    elif est_type == "admm":
-        params["solver_params"].pop("space")
-        irls_real = build_estimator(
-            params["real_estimator"], image_batch, space=ImageSpace.REAL
-        )
-        irls_fourier = build_estimator(
-            params["fourier_estimator"],
-            image_batch,
-            space=ImageSpace.FOURIER_COMPLEX,
-        )
-        return ADMMSolver(
-            irls_real=irls_real,
-            irls_fourier=irls_fourier,
-            **params.get("solver_params", {}),
-        )
-
-    elif est_type == "masked_fourier":
-        params["solver_params"].pop("space")
-        solver = build_estimator(
-            {
-                "type": "m_estimator",
-                "params": params,
-            },
-            image_batch=image_batch,
-            space=ImageSpace.FOURIER_COMPLEX,
-        )
-        return MaskedIRLSFourier(solver=solver)
-
-    elif est_type == "three_masks_fourier":
-        params["solver_params"].pop("space")
-        solver = build_estimator(
-            {"type": "masked_fourier", "params": params},
-            image_batch,
-            space=ImageSpace.FOURIER_COMPLEX,
-        )
-        return ThreeMasksFourier(
-            low_cutoff=params["low_cutoff"],
-            high_cutoff=params["high_cutoff"],
-            solver=solver,
-        )
-
-    else:
-        raise ValueError(f"Unknown estimator type: {est_type}")
+    return BUILDER_REGISTRY[estimator_type](params, image_batch, space)
