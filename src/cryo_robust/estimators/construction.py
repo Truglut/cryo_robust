@@ -10,6 +10,7 @@ from cryo_robust.estimators.fourier_irls import (
     JointIRLSFourier,
 )
 from cryo_robust.estimators.gmm import RecursiveGMMEstimator
+from cryo_robust.estimators.fourier_masked import MaskedIRLSFourier, ThreeMasksFourier
 from cryo_robust.estimators.weights import get_weight_function
 
 
@@ -112,6 +113,31 @@ def build_estimator(
             irls_real=irls_real,
             irls_fourier=irls_fourier,
             **params.get("solver_params", {}),
+        )
+
+    elif est_type == "masked_fourier":
+        params["solver_params"].pop("space")
+        solver = build_estimator(
+            {
+                "type": "m_estimator",
+                "params": params,
+            },
+            image_batch=image_batch,
+            space=ImageSpace.FOURIER_COMPLEX,
+        )
+        return MaskedIRLSFourier(solver=solver)
+
+    elif est_type == "three_masks_fourier":
+        params["solver_params"].pop("space")
+        solver = build_estimator(
+            {"type": "masked_fourier", "params": params},
+            image_batch,
+            space=ImageSpace.FOURIER_COMPLEX,
+        )
+        return ThreeMasksFourier(
+            low_cutoff=params["low_cutoff"],
+            high_cutoff=params["high_cutoff"],
+            solver=solver,
         )
 
     else:

@@ -11,6 +11,10 @@ from cryo_robust.domain import ImageSpace
 ArrayLike = torch.Tensor | np.ndarray
 
 
+def rfft2_shape(image_shape: tuple[int, int]) -> tuple[int, int]:
+    return (image_shape[0], image_shape[1] // 2 + 1)
+
+
 def to_tensor(
     x: ArrayLike | None,
     *,
@@ -255,6 +259,10 @@ class ImageBatch:
             if self.real is not None
             else self.ensure_fourier().device
         )
+
+    @property
+    def rfft2_shape(self) -> tuple[int, int]:
+        return rfft2_shape(self.real_shape)
 
     def ensure_real(self) -> torch.Tensor:
         """Return real-space images, computing them from Fourier images if needed."""

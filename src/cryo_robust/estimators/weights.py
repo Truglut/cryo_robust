@@ -54,6 +54,21 @@ def weighted_average(
     return (weights * images).sum(dim=dim) / (weight_sum + eps)
 
 
+def image_batch_mean_norm(
+    batch_tensor: torch.Tensor, keepdim: bool = True
+) -> torch.Tensor:
+    if batch_tensor.ndim <= 1:
+        return torch.vdot(batch_tensor, batch_tensor) / batch_tensor.numel()
+
+    dims = tuple(range(1, batch_tensor.ndim))
+
+    elements_per_sample = batch_tensor[0].numel()
+
+    sq_norm = torch.linalg.vector_norm(batch_tensor, dim=dims, keepdim=keepdim)
+    sq_norm /= elements_per_sample
+    return sq_norm
+
+
 @torch.no_grad()
 def huber_weights(
     images: torch.Tensor,
@@ -88,6 +103,43 @@ def huber_weights(
     """
     abs_residuals = torch.abs(sigma_f * (images - reference) / (std + eps))
     return torch.where(abs_residuals > delta, delta / abs_residuals, 1.0)
+
+
+@torch.no_grad()
+def norm_huber_weights(
+    images: torch.Tensor,
+    reference: torch.Tensor,
+    std: torch.Tensor | float,
+    delta: float,
+    sigma_f: float = 1.0,
+    eps: float = 1.0e-8,
+) -> torch.Tensor:
+    """
+    Calculates robust M-estimator weight updates based on the Huber loss criterion.
+
+    Parameters
+    ----------
+    images : torch.Tensor
+        Images tensor of shape (n, h, w).
+    reference : torch.Tensor
+        Reference template tensor of shape (h, w).
+    std : torch.Tensor | float
+        Standard deviation scale factor for normalizing residuals.
+    delta : float
+        The clipping threshold separating L2-like and L1-like optimization regions.
+    sigma_f : float, optional
+        Global scaling factor applied to residuals, by default 1.0.
+    eps : float, optional
+        Small stabilization constant, by default 1.0e-8.
+
+    Returns
+    -------
+    torch.Tensor
+        Tensor of shape (n, h, w) containing Huber sample weights.
+    """
+    residuals = (images - reference) / (std + eps)
+    residual_norm = image_batch_mean_norm(residuals, keepdim=True)
+    return torch.where(residual_norm > delta, delta / residual_norm, 1.0)
 
 
 @torch.no_grad()
@@ -130,6 +182,52 @@ def smooth_redescending_weights(
 
     sq_residuals = abs_residuals.square_()
     scaled_exponent = sq_residuals.neg_().div_(variance_scale).exp_()
+
+    if not normalize:
+        return (2.0 / (variance_scale)) * scaled_exponent
+    return scaled_exponent
+
+
+@torch.no_grad()
+def norm_smooth_redescending_weights(
+    images: torch.Tensor,
+    reference: torch.Tensor,
+    std: float | torch.Tensor,
+    delta: float,
+    sigma_f: float = 1.0,
+    normalize: bool = True,
+    eps: float = 1.0e-8,
+) -> torch.Tensor:
+    """
+    Computes smooth redescending M-estimator weights using a Gaussian-like influence metric.
+
+    Parameters
+    ----------
+    images : torch.Tensor
+        Images tensor of shape (n, h, w).
+    reference : torch.Tensor
+        Reference template tensor of shape (h, w).
+    std : torch.Tensor | float
+        Standard deviation scale factor.
+    delta : float
+        Tuning parameter governing the rejection scale threshold of outlier features.
+    sigma_f : float, optional
+        Residual modifier scale, by default 1.0.
+    normalize : bool, optional
+        If True, bounds the maximum weight value to 1.0, by default True.
+    eps : float, optional
+        Stabilizing denominator offset, by default 1.0e-8.
+
+    Returns
+    -------
+    torch.Tensor
+        Tensor of shape (n, 1, 1) containing the smooth redescending weights.
+    """
+    residuals = (images - reference) / (std + eps)
+    residual_norm_sq = image_batch_mean_norm(residuals, keepdim=True).square_()
+    variance_scale = delta**2
+
+    scaled_exponent = residual_norm_sq.neg_().div_(variance_scale).exp_()
 
     if not normalize:
         return (2.0 / (variance_scale)) * scaled_exponent
@@ -343,6 +441,40 @@ def cauchy_weights(
 
 
 @torch.no_grad()
+def norm_cauchy_weights(
+    images: torch.Tensor,
+    reference: torch.Tensor,
+    std: torch.Tensor | float,
+    c: float,
+    eps: float = 1.0e-8,
+) -> torch.Tensor:
+    """
+    Calculates heavy-tailed robust weights derived from a Cauchy distribution profile.
+    Parameters
+    ----------
+    images : torch.Tensor
+        Input images tensor of shape (n, h, w).
+    reference : torch.Tensor
+        Reference template tensor of shape (h, w).
+    std : torch.Tensor | float
+        Standard deviation scale metrics utilized to normalize raw spatial residuals.
+    c : float
+        Scale tuning parameter adapting the distribution tail width and tuning outlier
+        damping thresholds.
+    eps : float, optional
+        Small stabilizer tracking denominator operations, by default 1.0e-8.
+
+    Returns
+    -------
+    torch.Tensor
+        Tensor of shape (n, 1, 1) containing the computed Cauchy weights.
+    """
+    residuals = (images - reference) / (std + eps)
+    residual_norm_sq = image_batch_mean_norm(residuals, keepdim=True).square_()
+    return c**2 / (c**2 + residual_norm_sq)
+
+
+@torch.no_grad()
 def student_weights(
     images: torch.Tensor,
     reference: torch.Tensor,
@@ -376,6 +508,43 @@ def student_weights(
     """
     abs_residuals = torch.abs(sigma_f * (images - reference) / (std + eps))
     return (df + 1) / (df + abs_residuals.square())
+
+
+@torch.no_grad()
+def norm_student_weights(
+    images: torch.Tensor,
+    reference: torch.Tensor,
+    std: torch.Tensor | float,
+    df: float,
+    sigma_f: float = 1.0,
+    eps: float = 1.0e-8,
+) -> torch.Tensor:
+    """
+    Calculates robust weights based on Student's t-distribution influence curves.
+    Parameters
+    ----------
+    images : torch.Tensor
+        Input images tensor of shape (n, h, w).
+    reference : torch.Tensor
+        Reference template tensor of shape (h, w).
+    std : torch.Tensor | float
+        Standard deviation metrics optimizing scaling constraints over raw spatial residuals.
+    df : float
+        Degrees of freedom parameter specifying the heavy-tailed shape properties
+        of the target distribution.
+    sigma_f : float, optional
+        Residual modifier scale multiplier parameter, by default 1.0.
+    eps : float, optional
+        Numerical denominator stabilization constant, by default 1.0e-8.
+
+    Returns
+    -------
+    torch.Tensor
+        Tensor of shape (n, h, w) mapping Student's t distribution calculation outputs.
+    """
+    residuals = (images - reference) / (std + eps)
+    residual_norm_sq = image_batch_mean_norm(residuals, keepdim=True).square_()
+    return (df + 1) / (df + sigma_f**2 * residual_norm_sq)
 
 
 @torch.no_grad()
@@ -415,17 +584,60 @@ def q_norm_weights(
     return abs_residuals.clamp_min_(min=1).pow_(q - 2)
 
 
+@torch.no_grad()
+def norm_q_norm_weights(
+    images: torch.Tensor,
+    reference: torch.Tensor,
+    std: torch.Tensor | float,
+    q: float,
+    sigma_f: float = 1.0,
+    eps: float = 1.0e-8,
+) -> torch.Tensor:
+    """
+    Computes robust weight matrices matching minimization metrics for custom
+    sub-Gaussian L_q norm losses.
+
+    Parameters
+    ----------
+    images : torch.Tensor
+        Input images tensor of shape (n, h, w).
+    reference : torch.Tensor
+        Reference template tensor of shape (h, w).
+    std : torch.Tensor | float
+        Standard deviation matrix parameters optimizing scaling constraints.
+    q : float
+        The exponent degree metric defining the target sub-Gaussian L_q optimization objective.
+    sigma_f : float, optional
+        Residual tracking scale multiplier parameter, by default 1.0.
+    eps : float, optional
+        Small structural stabilization parameter constant, by default 1.0e-8.
+
+    Returns
+    -------
+    torch.Tensor
+        Tensor of shape (n, h, w) holding the corresponding L_q weight updates.
+    """
+    residuals = (images - reference) / (std + eps)
+    residual_norm_sq = image_batch_mean_norm(residuals, keepdim=True).square_()
+    return (sigma_f**2 * residual_norm_sq).clamp_min_(min=1).pow_((q - 2) / 2)
+
+
 # Global weight configuration mappings
 FUNCTION_REGISTRY: dict[str, Callable[..., torch.Tensor]] = {
     "huber": huber_weights,
+    "norm_huber": norm_huber_weights,
     "smooth": smooth_redescending_weights,
+    "norm_smooth": norm_smooth_redescending_weights,
+    "cauchy": cauchy_weights,
+    "norm_cauchy": norm_cauchy_weights,
+    "student": student_weights,
+    "norm_student": norm_student_weights,
+    "q_norm": q_norm_weights,
+    "norm_q_norm": norm_q_norm_weights,
     "global": tagare_weights,
     "cosine": cosine_similarity,
     "correlation": cross_correlation,
     "cc_tagare": cc_tagare_weights,
-    "cauchy": cauchy_weights,
-    "student": student_weights,
-    "q_norm": q_norm_weights,
 }
 
 # Set of functions that need the beta parameter, including distance functions
