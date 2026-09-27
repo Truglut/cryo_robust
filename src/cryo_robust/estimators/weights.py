@@ -194,9 +194,6 @@ def norm_smooth_redescending_weights(
     reference: torch.Tensor,
     std: float | torch.Tensor,
     delta: float,
-    sigma_f: float = 1.0,
-    normalize: bool = True,
-    eps: float = 1.0e-8,
 ) -> torch.Tensor:
     """
     Computes smooth redescending M-estimator weights using a Gaussian-like influence metric.
@@ -223,15 +220,19 @@ def norm_smooth_redescending_weights(
     torch.Tensor
         Tensor of shape (n, 1, 1) containing the smooth redescending weights.
     """
-    residuals = (images - reference) / (std + eps)
-    residual_norm_sq = image_batch_mean_norm(residuals, keepdim=True).square_()
-    variance_scale = delta**2
+    residuals = (images - reference) / std
 
-    scaled_exponent = residual_norm_sq.neg_().div_(variance_scale).exp_()
+    dims = tuple(range(1, residuals.ndim))
+    mean_squared_residual = (
+        residuals.abs()
+        .square()
+        .mean(
+            dim=dims,
+            keepdim=True,
+        )
+    )
 
-    if not normalize:
-        return (2.0 / (variance_scale)) * scaled_exponent
-    return scaled_exponent
+    return torch.exp(-mean_squared_residual / delta**2)
 
 
 @torch.no_grad()
