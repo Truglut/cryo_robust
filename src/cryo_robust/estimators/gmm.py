@@ -295,7 +295,9 @@ class RecursiveGMMEstimator(Estimator):
         )
 
     @torch.inference_mode()
-    def solve(self, images: ImageBatch | torch.Tensor, reference: torch.Tensor | None):
+    def solve(
+        self, images: ImageBatch | torch.Tensor, reference: torch.Tensor | None
+    ) -> tuple[torch.Tensor, GMMDiagnostics]:
         # Reset the GMM to avoid carrying over state from previous solve() calls
         self.model = self._new_model()
 
@@ -351,7 +353,7 @@ class RecursiveGMMEstimator(Estimator):
     @torch.inference_mode()
     def fit(
         self, images: ImageBatch | torch.Tensor, reference: torch.Tensor | None = None
-    ) -> tuple[EstimatorResult, GMMDiagnostics]:
+    ) -> EstimatorResult:
         """Fit the recursive estimator and return its result."""
         reference, diagnostics = self.solve(images, reference)
 
