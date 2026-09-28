@@ -134,12 +134,12 @@ def _build_fourier_gmm(params: dict, image_batch: ImageBatch, space: ImageSpace)
         cutoff=LOWPASS_NORMALIZED_CUTOFF,
         unit="normalized",
     )
-    std = image_batch.real_variance().sqrt()[lowpass_mask]
+    std = image_batch.fourier_modulus_std()[lowpass_mask]
     delta = params.pop("delta", DEFAULT_FOURIER_GMM_DELTA)
 
     def distance_function(images, reference):
         weights = norm_smooth_redescending_weights(
-            images[lowpass_mask], reference[lowpass_mask], std=std, delta=delta
+            images[:, lowpass_mask], reference[lowpass_mask], std=std, delta=delta
         )
         return -weights.reshape(images.shape[0], 1)
 

@@ -161,7 +161,7 @@ class RecursiveGMMEstimator(Estimator):
         good_component = np.argmin(means)
 
         return (
-            bool(separation < self.min_component_sepration),
+            bool(separation < self.min_component_separation),
             bool(self.model.weights_[good_component] < self.min_good_component_weight),
         )
 
@@ -176,8 +176,12 @@ class RecursiveGMMEstimator(Estimator):
     ) -> GMMDiagnostics:
         """Keep the existing diagnostics schema, including on fallback paths."""
         missing = np.full(2, np.nan)
+        if torch.is_complex(reference):
+            initial_reference = torch.fft.irfft2(reference)
+        else:
+            initial_reference = reference
         return GMMDiagnostics(
-            initial_reference=reference,
+            initial_reference=initial_reference,
             distances=distances,
             standardized_distances=self.standardize_distances,
             component_weights=(
@@ -202,6 +206,10 @@ class RecursiveGMMEstimator(Estimator):
     ) -> GMMDiagnostics:
         """Perform one iteration of the recursive GMM estimation procedure."""
         distances = self.distance_function(images, reference)
+        if distances.is_complex() or distances.numel() != images.shape[0]:
+            raise ValueError(
+                "The distance function must return one real distance per image"
+            )
         weight_shape = (images.shape[0],) + (1,) * (images.ndim - 1)
 
         def fallback(reason: str, model_valid: bool = False) -> GMMDiagnostics:
@@ -257,7 +265,7 @@ class RecursiveGMMEstimator(Estimator):
         raw_responsibilities, weights = self._responsibility_weights(
             self.model,
             distances_np,
-            dtype=images.dtype,
+            dtype=torch.float32,
             device=images.device,
         )
 
@@ -386,15 +394,15 @@ class FourierGMM(Estimator):
         self,
         images: ImageBatch,
         reference: torch.Tensor,
-        initialize_params: bool = True,
     ) -> EstimatorResult:
-        if not torch.is_complex(reference):
+        fourier_images = images.ensure_fourier()
+        if reference is None:
+            reference = fourier_images.mean(dim=0)
+        elif not torch.is_complex(reference):
             reference = torch.fft.rfft2(reference, norm=images.norm)
 
-        fourier_estimate, diagnostics = self.solver.solve(
-            images.ensure_fourier(), reference, initialize_params
-        )
-        estimate = torch.fft.rfft2(fourier_estimate, norm=images.norm)
+        fourier_estimate, diagnostics = self.solver.solve(fourier_images, reference)
+        estimate = torch.fft.irfft2(fourier_estimate, norm=images.norm)
 
         # Save results using the existing data model
         weight_set = WeightSet(
