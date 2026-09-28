@@ -18,9 +18,24 @@ from .results import EstimatorResult, WeightSet, GMMDiagnostics
 
 from cryo_robust.domain import ImageSpace
 
+MIN_ELEMENTS_FOR_GMM = 50
+GMM_MIN_SEPARATION = 0.20
+GMM_MIN_GOOD_COMPONENT_WEIGHT = 0.50
+
 
 class RecursiveGMMEstimator(Estimator):
-    """Recursive robust averaging estimator based on GMM responsibilities."""
+    """Recursive robust averaging with peak-corrected GMM responsibilities.
+
+    Unusable iterations stop the recursion and return the ordinary image mean
+    with unit weights. ``fallback_reason`` records why this happened; it is
+    ``None`` after a successful fit. GMM parameters in the diagnostics are NaN
+    when the final attempted iteration did not produce a valid model.
+
+    The good component has the lower mean distance. By default, reject models
+    whose mean separation divided by ``sqrt(var_1 + var_2)`` is below a certain
+    threshold (``GMM_MIN_SEPARATION``), or whose good component has mixture
+    weight below ``GMM_MIN_GOOD_COMPONENT_WEIGHT``.
+    """
 
     def __init__(
         self,
@@ -32,6 +47,10 @@ class RecursiveGMMEstimator(Estimator):
         random_state: int | None = None,
         gmm_max_iter: int = 20,
         gmm_tol: float = 1.0e-4,
+        initialize_params: bool = True,
+        check_degenerate_model: bool = True,
+        min_component_separation: float = GMM_MIN_SEPARATION,
+        min_good_component_weight: float = GMM_MIN_GOOD_COMPONENT_WEIGHT,
     ):
         self.model = GaussianMixture(
             n_components=2,
@@ -46,12 +65,17 @@ class RecursiveGMMEstimator(Estimator):
         self.tol = tol
         self.standardize_distances = standardize_distances
         self.space = space
+        self.initialize_params = initialize_params
+        self.check_degenerate_model = check_degenerate_model
+        self.min_component_separation = min_component_separation
+        self.min_good_component_weight = min_good_component_weight
 
         self.gmm_max_iter = gmm_max_iter
         self.gmm_tol = gmm_tol
 
         self.n_its = None
         self.converged = False
+        self.fallback_reason: str | None = None
 
     def _new_model(self) -> GaussianMixture:
         """Create a fresh GMM, resetting any state from previous ``fit`` calls."""
@@ -64,21 +88,22 @@ class RecursiveGMMEstimator(Estimator):
         )
 
     def _initialize_model_params(self, distances: torch.Tensor) -> None:
-        """Initialize component weights and means from the observed distances.
+        """
+        Initialize component weights and means from the observed distances.
 
-        The lower-distance component is initialized with weight 0.8 and its mean at
-        the 0.2 quantile. The higher-distance component is initialized with weight
-        0.2 and its mean at the 0.8 quantile.
+        Uses weights (0.95, 0.05) and means at the (0.50, 0.95) quantiles. Uses
+        existing common empirical variance initialization for sklearn's
+        full-covariance model.
         """
         component_weights = torch.tensor(
-            [0.8, 0.2],
+            [0.95, 0.05],
             dtype=distances.dtype,
             device=distances.device,
         )
 
         component_means = torch.quantile(
             distances.reshape(-1),
-            1.0 - component_weights,
+            torch.tensor([0.5, 0.95], dtype=distances.dtype, device=distances.device),
         )
 
         # Initialize both components with the same empirical variance
@@ -109,18 +134,65 @@ class RecursiveGMMEstimator(Estimator):
         distances_np: np.ndarray,
         dtype: torch.dtype,
         device: torch.device,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Return posterior probabilities of the lower-distance GMM component."""
         good_component = np.argmin(model.means_.mean(axis=1))
         responsibilities = model.predict_proba(distances_np)[:, good_component]
 
-        # .view(-1, 1, 1) allows the weights to broadcast over image batches.
-        # NOTE: this would need to be modified to generalize to other image dimensions.
-        return torch.as_tensor(
-            responsibilities,
-            dtype=dtype,
-            device=device,
-        ).view(-1, 1, 1)
+        order = np.argsort(distances_np.reshape(-1), kind="stable")
+        sorted_raw = responsibilities[order]
+        peak_idx = int(sorted_raw.argmax())
+        sorted_peak = sorted_raw.copy()
+        sorted_peak[:peak_idx] = sorted_raw[peak_idx]
+        sorted_peak[peak_idx:] = np.minimum.accumulate(sorted_raw[peak_idx:])
+        peak_weights = np.empty_like(responsibilities)
+        peak_weights[order] = sorted_peak
+
+        return (
+            torch.as_tensor(responsibilities, dtype=dtype, device=device),
+            torch.as_tensor(peak_weights, dtype=dtype, device=device),
+        )
+
+    def _degeneracy_checks(self) -> tuple[bool, bool]:
+        """Check normalized mean separation and the good component's mass."""
+        means = self.model.means_[:, 0]
+        variances = self.model.covariances_[:, 0, 0]
+        separation = abs(means[1] - means[0]) / np.sqrt(variances.sum())
+        good_component = np.argmin(means)
+
+        return (
+            bool(separation < self.min_component_sepration),
+            bool(self.model.weights_[good_component] < self.min_good_component_weight),
+        )
+
+    def _make_diagnostics(
+        self,
+        reference: torch.Tensor,
+        distances: torch.Tensor,
+        weights: torch.Tensor,
+        next_reference: torch.Tensor,
+        converged: bool = False,
+        model_valid: bool = True,
+    ) -> GMMDiagnostics:
+        """Keep the existing diagnostics schema, including on fallback paths."""
+        missing = np.full(2, np.nan)
+        return GMMDiagnostics(
+            initial_reference=reference,
+            distances=distances,
+            standardized_distances=self.standardize_distances,
+            component_weights=(
+                self.model.weights_.copy() if model_valid else missing.copy()
+            ),
+            means=self.model.means_[:, 0].copy() if model_valid else missing.copy(),
+            variances=(
+                self.model.covariances_[:, 0, 0].copy()
+                if model_valid
+                else missing.copy()
+            ),
+            converged=converged,
+            weights=weights,
+            weighted_average=next_reference,
+        )
 
     def _fit_one_iteration(
         self,
@@ -130,7 +202,34 @@ class RecursiveGMMEstimator(Estimator):
     ) -> GMMDiagnostics:
         """Perform one iteration of the recursive GMM estimation procedure."""
         distances = self.distance_function(images, reference)
-        std_distances, _, _ = self._standardize(distances)
+        weight_shape = (images.shape[0],) + (1,) * (images.ndim - 1)
+
+        def fallback(reason: str, model_valid: bool = False) -> GMMDiagnostics:
+            self.fallback_reason = reason
+            average = images.mean(dim=0)
+            if not torch.isfinite(average).all():
+                raise ValueError("Cannot fall back to a non-finite image mean")
+            return self._make_diagnostics(
+                reference,
+                distances,
+                torch.ones(weight_shape, dtype=images.real.dtype, device=images.device),
+                average,
+                model_valid=model_valid,
+            )
+
+        if distances.numel() < MIN_ELEMENTS_FOR_GMM:
+            return fallback("too_few_distances")
+        if not torch.isfinite(distances).all():
+            return fallback("nonfinite_distances")
+        if (
+            not torch.isfinite(distances.std(unbiased=False))
+            or distances.max() - distances.min() < 1.0e-8
+        ):
+            return fallback("constant_distances")
+
+        std_distances, _, _ = self._standardize(distances.reshape(-1))
+        if not torch.isfinite(std_distances).all():
+            return fallback("nonfinite_distances")
 
         # Prepare distances for sklearn's GaussianMixture
         if std_distances.ndim == 1:
@@ -145,43 +244,66 @@ class RecursiveGMMEstimator(Estimator):
         # recursive iterations start from the previous iteration's fitted model.
         self.model.fit(distances_np)
 
+        parameters = (self.model.means_, self.model.covariances_, self.model.weights_)
+        if not (
+            all(np.isfinite(p).all() for p in parameters)
+            and (self.model.covariances_ > 0).all()
+            and (self.model.weights_ > 0).all()
+            and np.isclose(self.model.weights_.sum(), 1.0)
+        ):
+            return fallback("invalid_gmm")
+
         # Get weights and update reference
-        weights = self._responsibility_weights(
+        raw_responsibilities, weights = self._responsibility_weights(
             self.model,
             distances_np,
             dtype=images.dtype,
             device=images.device,
         )
-        next_reference = weighted_average(images, weights)
+
+        if not all(
+            torch.isfinite(w).all() and bool(((w >= 0) & (w <= 1)).all())
+            for w in (raw_responsibilities, weights)
+        ):
+            return fallback("invalid_weights", model_valid=True)
+
+        if self.check_degenerate_model and any(self._degeneracy_checks()):
+            return fallback("degenerate_components", model_valid=True)
+
+        weight_sum = weights.sum()
+        if (
+            not torch.isfinite(weight_sum)
+            or weights.mean() < 1.0e-4
+            or weight_sum < 0.05 * raw_responsibilities.sum()
+        ):
+            return fallback("collapsed_weights", model_valid=True)
+
+        weights = weights.reshape(weight_shape)
+        next_reference = weighted_average(images, weights, eps=0)
+        if not torch.isfinite(next_reference).all():
+            return fallback("invalid_reference", model_valid=True)
         rel_change = torch.linalg.norm(next_reference - reference) / (
             torch.linalg.norm(reference) + 1.0e-8
         )
 
-        return GMMDiagnostics(
-            initial_reference=reference,
-            distances=distances,
-            standardized_distances=self.standardize_distances,
-            component_weights=self.model.weights_,
-            means=self.model.means_[:, 0],
-            vars=self.model.covariances_[:, 0, 0],
+        return self._make_diagnostics(
+            reference,
+            distances,
+            weights,
+            next_reference,
             converged=bool(rel_change < self.tol),
-            weights=weights,
-            weighted_average=next_reference,
         )
 
     @torch.inference_mode()
-    def solve(
-        self,
-        images: torch.Tensor,
-        reference: torch.Tensor,
-        initialize_params: bool = True,
-    ):
+    def solve(self, images: ImageBatch | torch.Tensor, reference: torch.Tensor | None):
         # Reset the GMM to avoid carrying over state from previous solve() calls
         self.model = self._new_model()
 
         # Select real-space images
         if isinstance(images, ImageBatch):
-            images = images.real
+            images = images.ensure_real()
+        if self.max_iter < 0:
+            raise ValueError("max_iter must be non-negative")
 
         # Get initial reference
         reference = (
@@ -189,11 +311,29 @@ class RecursiveGMMEstimator(Estimator):
         )
 
         self.converged = False
+        self.n_its = 0
+        self.fallback_reason = "no_iterations" if self.max_iter == 0 else None
+
+        if self.max_iter == 0:
+            weights = torch.ones(
+                (images.shape[0],) + (1,) * (images.ndim - 1),
+                dtype=images.real.dtype,
+                device=images.device,
+            )
+            diagnostics = self._make_diagnostics(
+                reference,
+                torch.zeros_like(weights),
+                weights,
+                reference,
+                model_valid=False,
+            )
+
         for i in range(self.max_iter):
+            self.n_its = i + 1
             diagnostics = self._fit_one_iteration(
                 images,
                 reference,
-                initialize_params=initialize_params and i == 0,
+                initialize_params=self.initialize_params and i == 0,
             )
 
             if diagnostics.weighted_average is None:
@@ -201,10 +341,7 @@ class RecursiveGMMEstimator(Estimator):
                     "RecursiveGMMEstimator returned None as its weighted average"
                 )
 
-            # Update reference
             reference = diagnostics.weighted_average
-
-            # Check convergence
             if diagnostics.converged:
                 self.converged = True
                 break
@@ -213,13 +350,10 @@ class RecursiveGMMEstimator(Estimator):
 
     @torch.inference_mode()
     def fit(
-        self,
-        images: ImageBatch | torch.Tensor,
-        reference: torch.Tensor | None = None,
-        initialize_params: bool = False,
+        self, images: ImageBatch | torch.Tensor, reference: torch.Tensor | None = None
     ) -> tuple[EstimatorResult, GMMDiagnostics]:
         """Fit the recursive estimator and return its result."""
-        reference, diagnostics = self.solve(images, reference, initialize_params)
+        reference, diagnostics = self.solve(images, reference)
 
         # Save results using the existing data model
         weight_set = WeightSet(
@@ -238,7 +372,7 @@ class RecursiveGMMEstimator(Estimator):
     def reconstruct_from_weights(
         self, images: ImageBatch, weights: WeightSet
     ) -> torch.Tensor:
-        return weighted_average(images.ensure_real(), weights.real)
+        return weighted_average(images.ensure_real(), weights.real, eps=0.0)
 
 
 class FourierGMM(Estimator):
@@ -252,8 +386,11 @@ class FourierGMM(Estimator):
         reference: torch.Tensor,
         initialize_params: bool = True,
     ) -> EstimatorResult:
+        if not torch.is_complex(reference):
+            reference = torch.fft.rfft2(reference, norm=images.norm)
+
         fourier_estimate, diagnostics = self.solver.solve(
-            images, reference, initialize_params
+            images.ensure_fourier(), reference, initialize_params
         )
         estimate = torch.fft.rfft2(fourier_estimate, norm=images.norm)
 

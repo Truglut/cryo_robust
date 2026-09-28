@@ -154,7 +154,7 @@ class GMMDiagnostics:
     standardized_distances: bool
     component_weights: tuple[float, float]
     means: tuple[float, float]
-    vars: tuple[float, float]
+    variances: tuple[float, float]
     converged: bool
     weights: torch.Tensor | None = None
     weighted_average: torch.Tensor | None = None

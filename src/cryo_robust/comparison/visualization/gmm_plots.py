@@ -77,7 +77,7 @@ def _plot_gmm_fit(
         distances_np=diagnostics.distances.detach().cpu().numpy(),
         standardized_distances=diagnostics.standardized_distances,
         model_means=diagnostics.means,
-        model_vars=diagnostics.vars,
+        model_vars=diagnostics.variances,
         model_component_weights=diagnostics.component_weights,
         idx_good=idx_good,
         idx_bad=idx_bad,
