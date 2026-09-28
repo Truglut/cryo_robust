@@ -142,6 +142,11 @@ def _build_fourier_gmm(params: dict, image_batch: ImageBatch, space: ImageSpace)
             images[:, lowpass_mask], reference[lowpass_mask], std=std, delta=delta
         )
         return -weights.reshape(images.shape[0], 1)
+        # Uncomment for directly using L1 norm as distance
+        # import torch
+        # residuals = (images[:, lowpass_mask] - reference[lowpass_mask]) / std
+        # dims = tuple(range(1, residuals.ndim))
+        # return torch.linalg.vector_norm(residuals[:, lowpass_mask], ord=1, dim=dims)
 
     solver = RecursiveGMMEstimator(
         distance_function=distance_function,

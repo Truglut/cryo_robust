@@ -21,10 +21,13 @@ from cryo_robust.domain import ImageSpace
 MIN_ELEMENTS_FOR_GMM = 50
 GMM_MIN_SEPARATION = 0.20
 GMM_MIN_GOOD_COMPONENT_WEIGHT = 0.50
+GMM_INITIALIZATION_WEIGHTS = [0.95, 0.05]
+GMM_INITIALIZATION_QUANTILES = [0.5, 0.95]
 
 
 class RecursiveGMMEstimator(Estimator):
-    """Recursive robust averaging with peak-corrected GMM responsibilities.
+    """
+    Recursive robust averaging with peak-corrected GMM responsibilities.
 
     Unusable iterations stop the recursion and return the ordinary image mean
     with unit weights. ``fallback_reason`` records why this happened; it is
@@ -96,14 +99,18 @@ class RecursiveGMMEstimator(Estimator):
         full-covariance model.
         """
         component_weights = torch.tensor(
-            [0.95, 0.05],
+            GMM_INITIALIZATION_WEIGHTS,
             dtype=distances.dtype,
             device=distances.device,
         )
 
         component_means = torch.quantile(
             distances.reshape(-1),
-            torch.tensor([0.5, 0.95], dtype=distances.dtype, device=distances.device),
+            torch.tensor(
+                GMM_INITIALIZATION_QUANTILES,
+                dtype=distances.dtype,
+                device=distances.device,
+            ),
         )
 
         # Initialize both components with the same empirical variance
