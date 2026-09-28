@@ -1,22 +1,30 @@
 from typing import Literal, Callable, get_args
+from copy import deepcopy
 
 from cryo_robust.domain import ImageSpace
+from cryo_robust.estimators.data import ImageBatch
+
 from cryo_robust.estimators.base import Estimator
 from cryo_robust.estimators.admm import ADMMSolver
-from cryo_robust.estimators.data import ImageBatch
-from cryo_robust.estimators.distances import get_distance_function
 from cryo_robust.estimators.irls import IRLSSolver
 from cryo_robust.estimators.fourier_irls import (
     FlatteningIRLSFourier,
     IRLSFourier,
     JointIRLSFourier,
 )
-from cryo_robust.estimators.gmm import RecursiveGMMEstimator
+from cryo_robust.estimators.gmm import RecursiveGMMEstimator, FourierGMM
 from cryo_robust.estimators.fourier_masked import MaskedIRLSFourier, ThreeMasksFourier
-from cryo_robust.estimators.weights import get_weight_function
 
+from cryo_robust.estimators.distances import get_distance_function
+from cryo_robust.estimators.weights import (
+    get_weight_function,
+    norm_smooth_redescending_weights,
+)
 
-from copy import deepcopy
+from cryo_robust.utils.masks import create_lowpass_rfft_mask
+
+LOWPASS_NORMALIZED_CUTOFF = 0.3
+DEFAULT_FOURIER_GMM_DELTA = 1.5
 
 EstimatorTypeName = Literal[
     "m_estimator",
@@ -27,6 +35,7 @@ EstimatorTypeName = Literal[
     "admm",
     "masked_fourier",
     "three_masks_fourier",
+    "fourier_gmm",
 ]
 
 
@@ -119,6 +128,31 @@ def _build_three_masks_fourier(
     )
 
 
+def _build_fourier_gmm(params: dict, image_batch: ImageBatch, space: ImageSpace):
+    lowpass_mask = create_lowpass_rfft_mask(
+        image_shape=image_batch.real_shape,
+        cutoff=LOWPASS_NORMALIZED_CUTOFF,
+        unit="normalized",
+    )
+    std = image_batch.real_variance().sqrt()[lowpass_mask]
+    delta = params.pop("delta", DEFAULT_FOURIER_GMM_DELTA)
+
+    def distance_function(images, reference):
+        weights = norm_smooth_redescending_weights(
+            images[lowpass_mask], reference[lowpass_mask], std=std, delta=delta
+        )
+        return -weights.reshape(images.shape[0], 1)
+
+    solver = RecursiveGMMEstimator(
+        distance_function=distance_function,
+        random_state=params.get("random_state", None),
+        max_iter=params.get("max_iter", 10),
+        tol=params.get("tol", 1e-3),
+    )
+
+    return FourierGMM(solver=solver)
+
+
 BUILDER_REGISTRY: dict[
     EstimatorTypeName, Callable[[dict, ImageBatch, ImageSpace], Estimator]
 ] = {
@@ -130,6 +164,7 @@ BUILDER_REGISTRY: dict[
     "admm": _build_admm,
     "masked_fourier": _build_masked_fourier,
     "three_masks_fourier": _build_three_masks_fourier,
+    "fourier_gmm": _build_fourier_gmm,
 }
 
 

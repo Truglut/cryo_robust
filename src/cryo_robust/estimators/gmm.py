@@ -9,8 +9,6 @@ the responsibilities of the closest component as image weights.
 import numpy as np
 import torch
 from sklearn.mixture import GaussianMixture
-import scipy.stats as stats
-import matplotlib.pyplot as plt
 
 from .base import Estimator
 from .weights import weighted_average
@@ -172,14 +170,13 @@ class RecursiveGMMEstimator(Estimator):
         )
 
     @torch.inference_mode()
-    def fit(
+    def solve(
         self,
-        images: ImageBatch | torch.Tensor,
-        reference: torch.Tensor | None = None,
-        initialize_params: bool = False,
-    ) -> tuple[EstimatorResult, GMMDiagnostics]:
-        """Fit the recursive estimator and return its result."""
-        # Reset the GMM to avoid carrying over state from previous fit() calls
+        images: torch.Tensor,
+        reference: torch.Tensor,
+        initialize_params: bool = True,
+    ):
+        # Reset the GMM to avoid carrying over state from previous solve() calls
         self.model = self._new_model()
 
         # Select real-space images
@@ -212,6 +209,18 @@ class RecursiveGMMEstimator(Estimator):
                 self.converged = True
                 break
 
+        return reference, diagnostics
+
+    @torch.inference_mode()
+    def fit(
+        self,
+        images: ImageBatch | torch.Tensor,
+        reference: torch.Tensor | None = None,
+        initialize_params: bool = False,
+    ) -> tuple[EstimatorResult, GMMDiagnostics]:
+        """Fit the recursive estimator and return its result."""
+        reference, diagnostics = self.solve(images, reference, initialize_params)
+
         # Save results using the existing data model
         weight_set = WeightSet(
             real=diagnostics.weights, fourier_real=None, fourier_imag=None
@@ -230,3 +239,34 @@ class RecursiveGMMEstimator(Estimator):
         self, images: ImageBatch, weights: WeightSet
     ) -> torch.Tensor:
         return weighted_average(images.ensure_real(), weights.real)
+
+
+class FourierGMM(Estimator):
+    def __init__(self, solver: RecursiveGMMEstimator):
+        self.solver = solver
+        self.space = ImageSpace.FOURIER_COMPLEX
+
+    def fit(
+        self,
+        images: ImageBatch,
+        reference: torch.Tensor,
+        initialize_params: bool = True,
+    ) -> EstimatorResult:
+        fourier_estimate, diagnostics = self.solver.solve(
+            images, reference, initialize_params
+        )
+        estimate = torch.fft.rfft2(fourier_estimate, norm=images.norm)
+
+        # Save results using the existing data model
+        weight_set = WeightSet(
+            real=None,
+            fourier_real=diagnostics.weights,
+            fourier_imag=diagnostics.weights,
+        )
+
+        return EstimatorResult(
+            average=estimate,
+            estimate=estimate,
+            weights=weight_set,
+            gmm_diagnostics=diagnostics,
+        )
