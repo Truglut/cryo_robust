@@ -1,7 +1,5 @@
 import torch
 
-from cryo_robust.domain import ImageSpace
-
 from .data import ImageBatch
 from .results import EstimatorResult, WeightSet
 

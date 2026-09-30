@@ -1,5 +1,3 @@
-import warnings
-
 import numpy as np
 from scipy import integrate, interpolate
 from scipy.optimize import brentq

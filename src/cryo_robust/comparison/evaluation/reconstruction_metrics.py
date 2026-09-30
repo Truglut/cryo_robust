@@ -3,10 +3,8 @@ import torch
 from sklearn.metrics import root_mean_squared_error
 from scipy.stats import pearsonr
 
-from cryo_robust.estimators.irls import IRLSSolver
 from cryo_robust.estimators.data import ImageBatch
 
-from cryo_robust.domain import ImageSpace
 from cryo_robust.comparison.domain.metrics import ReconstructionMetrics
 from cryo_robust.comparison.domain.runs import AVERAGE_NAME, MethodRun
 

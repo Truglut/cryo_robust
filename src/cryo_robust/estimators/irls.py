@@ -14,7 +14,7 @@ import torch
 from .base import Estimator
 from .results import WeightSet, EstimatorResult
 from .weights import weighted_average, WeightFunction
-from .data import ImageBatch, to_tensor
+from .data import ImageBatch
 
 from cryo_robust.domain import ImageSpace
 
