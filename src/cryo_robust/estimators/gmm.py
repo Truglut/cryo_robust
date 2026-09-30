@@ -424,3 +424,8 @@ class FourierGMM(Estimator):
             weights=weight_set,
             gmm_diagnostics=diagnostics,
         )
+
+    def reconstruct_from_weights(self, images: ImageBatch, weights: WeightSet):
+        fourier_images = images.ensure_fourier()
+        fourier_estimate = weighted_average(fourier_images, weights.fourier_real)
+        return torch.fft.irfft2(fourier_estimate, norm=images.norm)

@@ -309,12 +309,6 @@ class ADMMSolver(Estimator):
             images, weights, space=ImageSpace.REAL
         )
 
-        ref_inverse_fourier = torch.fft.irfft2(
-            self.irls_fourier.reconstruct_from_weights(
-                images, weights, space=ImageSpace.FOURIER_COMPLEX
-            ),
-            norm=images.norm,
-        )
+        ref_ifourier = self.irls_fourier.reconstruct_from_weights(images, weights)
 
-        # Return average of real-space and fourier-space estimates
-        return 0.5 * (ref_real + ref_inverse_fourier)
+        return 0.5 * (ref_real + ref_ifourier)

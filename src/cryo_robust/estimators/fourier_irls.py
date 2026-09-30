@@ -87,16 +87,8 @@ class IRLSFourier(Estimator):
         return reference_real, reference_imag
 
     def reconstruct_from_weights(
-        self,
-        images: ImageBatch,
-        weights: WeightSet,
-        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,  # only present for API compatibility
+        self, images: ImageBatch, weights: WeightSet
     ) -> torch.Tensor:
-        if space != ImageSpace.FOURIER_COMPLEX:
-            raise ValueError(
-                f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
-                f"got {space.name}"
-            )
 
         reconstructed_fourier_real = self.irls_real.reconstruct_from_weights(
             images, weights, space=ImageSpace.FOURIER_REAL
@@ -175,18 +167,7 @@ class JointIRLSFourier(Estimator):
         )
 
     @torch.inference_mode()
-    def reconstruct_from_weights(
-        self,
-        images: ImageBatch,
-        weights: WeightSet,
-        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,  # only present for API compatibility
-    ):
-        if space != ImageSpace.FOURIER_COMPLEX:
-            raise ValueError(
-                f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
-                f"got {space.name}"
-            )
-
+    def reconstruct_from_weights(self, images: ImageBatch, weights: WeightSet):
         fourier_reconstruction = self.solver.reconstruct_from_weights(
             images, weights, space=ImageSpace.FOURIER_COMPLEX
         )
@@ -368,18 +349,7 @@ class FlatteningIRLSFourier(Estimator):
         )
 
     @torch.inference_mode()
-    def reconstruct_from_weights(
-        self,
-        images: ImageBatch,
-        weights: WeightSet,
-        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,  # only present for API compatibility
-    ):
-        if space != ImageSpace.FOURIER_COMPLEX:
-            raise ValueError(
-                f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
-                f"got {space.name}"
-            )
-
+    def reconstruct_from_weights(self, images: ImageBatch, weights: WeightSet):
         fourier_images = images.select_space(ImageSpace.FOURIER_COMPLEX)
         n = images.n_images
 

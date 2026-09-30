@@ -182,18 +182,7 @@ class MaskedIRLSFourier(Estimator):
         )
 
     @torch.inference_mode()
-    def reconstruct_from_weights(
-        self,
-        images: ImageBatch,
-        weights: WeightSet,
-        space: ImageSpace = ImageSpace.FOURIER_COMPLEX,  # only present for API compatibility
-    ):
-        if space != ImageSpace.FOURIER_COMPLEX:
-            raise ValueError(
-                f"Can only set {type(self)} space to {ImageSpace.FOURIER_COMPLEX.name}, "
-                f"got {space.name}"
-            )
-
+    def reconstruct_from_weights(self, images: ImageBatch, weights: WeightSet):
         fourier_reconstruction = self.solver.reconstruct_from_weights(
             images, weights, space=ImageSpace.FOURIER_COMPLEX
         )
@@ -298,3 +287,7 @@ class ThreeMasksFourier(Estimator):
             average=real_estimate,
             weights=averaged_weights,
         )
+
+    @torch.inference_mode()
+    def reconstruct_from_weights(self, images: ImageBatch, weights: WeightSet):
+        return self.solver.reconstruct_from_weights(images, weights)

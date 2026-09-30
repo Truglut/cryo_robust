@@ -13,7 +13,7 @@ class Estimator:
         raise NotImplementedError("Subclasses must implement the fit method.")
 
     def reconstruct_from_weights(
-        self, images: ImageBatch, weights: WeightSet, space: ImageSpace
+        self, images: ImageBatch, weights: WeightSet
     ) -> torch.Tensor:
         raise NotImplementedError(
             "Subclasses must implement the reconstruct from weights method"
