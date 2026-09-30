@@ -10,18 +10,22 @@ def save_figure(fig: Figure, path: Path, dpi: int, **kwargs) -> Path:
     return path
 
 
+INLIER_BLUE = "#083DB0"
+OUTLIER_RED = "#F9290D"
+
 # Helper for consistent coloring in plots with different types of outliers
 LABEL_MAP = {
-    0: {"name": "Genuine", "color": "#083DB0"},
+    0: {"name": "Genuine", "color": INLIER_BLUE},
     1: {"name": "Misaligned", "color": "orange"},
-    2: {"name": "Misclassified", "color": "#F9290D"},
+    2: {"name": "Misclassified", "color": OUTLIER_RED},
     3: {"name": "Noise", "color": "darkorange"},
+    4: {"name": "Shifted", "color": OUTLIER_RED}
 }
 
 # For plots with only good vs. bad images
 GOOD_BAD_PLOT_OPTIONS = {
-    "good": {"label": "Inliers", "color": "#083DB0"},
-    "bad": {"label": "Outliers", "color": "#F9290D"},
+    "good": {"label": "Inliers", "color": INLIER_BLUE},
+    "bad": {"label": "Outliers", "color": OUTLIER_RED},
 }
 
 BASE_PLOT_OPTIONS = {

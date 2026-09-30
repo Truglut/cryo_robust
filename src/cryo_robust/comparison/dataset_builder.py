@@ -9,6 +9,7 @@ LABEL_TYPES = {
     1: "very rotated copies of reference",
     2: "misclassified outliers",
     3: "noise",
+    4: "shifted copies of reference",
 }
 
 
@@ -151,6 +152,72 @@ def apply_random_rotations(
     return output_images
 
 
+def generate_shifted_copies(
+    image: np.ndarray,
+    n_copies: int,
+    min_shift: float,
+    max_shift: float,
+    rng: np.random.Generator,
+    interpolation_order: int = 3,
+):
+    """
+    Generate shifted copies of an image.
+
+    The vertical and horizontal shifts are independently sampled from a
+    uniform distribution over ``[min_shift, max_shift)``.
+
+    Parameters
+    ----------
+    image : np.ndarray
+        Input image of shape ``(height, width)``.
+    n_copies : int
+        Number of shifted copies to generate.
+    min_shift, max_shift : float
+        Minimum and maximum shifts, in pixels.
+    rng : np.random.Generator
+        Random number generator.
+    interpolation_order : int, default=3
+        Spline interpolation order passed to ``scipy.ndimage.shift``.
+
+    Returns
+    -------
+    np.ndarray
+        Array of shape ``(n_copies, height, width)`` containing the shifted
+        images.
+    """
+    output = np.empty(shape=(n_copies, *image.shape), dtype=image.dtype)
+
+    # Spline interpolation of order > 1 requires prefiltering. Since all
+    # shifts use the same source image, compute the spline coefficients once.
+    if interpolation_order > 1:
+        shift_input = scipy.ndimage.spline_filter(
+            image,
+            order=interpolation_order,
+            output=np.float64,
+            mode="constant",
+        )
+    else:
+        shift_input = image
+
+    # Pre-generate all random shifts for slight efficiency gain
+    shift_magnitudes = rng.uniform(min_shift, max_shift, size=(n_copies, 2))
+    shift_signs = rng.choice((-1.0, 1.0), size=(n_copies, 2))
+    shifts = shift_magnitudes * shift_signs
+
+    for i, shift in enumerate(shifts):
+        scipy.ndimage.shift(
+            shift_input,
+            shift,
+            order=interpolation_order,
+            output=output[i],
+            mode="constant",
+            cval=0.0,
+            prefilter=False,
+        )
+
+    return output
+
+
 def load_misclassified_images(
     image_path: str, n_copies: int, rng: np.random.Generator
 ) -> np.ndarray:
@@ -196,7 +263,8 @@ def create_evaluation_dataset(
     n_rot_bad = gen_cfg.get("n_copies_rotated", 0)
     n_misc = gen_cfg.get("n_misclassified", 0)
     n_noise = gen_cfg.get("n_noise", 0)
-    total_copies = n_good + n_rot_bad + n_misc + n_noise
+    n_shifted = gen_cfg.get("n_shifted", 0)
+    total_copies = n_good + n_rot_bad + n_misc + n_noise + n_shifted
 
     # Pre-allocate the dataset array
     dataset = np.empty((total_copies, h, w), dtype=ref_image.dtype)
@@ -265,6 +333,26 @@ def create_evaluation_dataset(
         dataset[current_idx : current_idx + n_noise] = 0.0
         labels[current_idx : current_idx + n_noise] = 3
         current_idx += n_noise
+
+    if n_shifted > 0:
+        min_shift: float | None = gen_cfg.get("min_shift")
+        max_shift: float | None = gen_cfg.get("max_shift")
+
+        if min_shift is None or max_shift is None:
+            raise ValueError(
+                "Requested shifted images but did not provide min and max shifts in the config"
+            )
+
+        dataset[current_idx : current_idx + n_shifted] = generate_shifted_copies(
+            ref_image,
+            n_shifted,
+            min_shift=min_shift,
+            max_shift=max_shift,
+            rng=rng,
+            interpolation_order=3,
+        )
+        labels[current_idx : current_idx + n_shifted] = 4
+        current_idx += n_shifted
 
     # If requested, standardize images before adding noise
     if standardize_before_noise:

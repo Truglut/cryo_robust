@@ -32,7 +32,7 @@ from scripts.estimator_runs.napari_visualization import visualize_results
 
 from cryo_robust.utils.masks import create_fourier_mask
 
-FRC_THRESHOLDS = [FRCThreshold.ONE_HALF, FRCThreshold.HALF_BIT]
+FRC_THRESHOLDS = [FRCThreshold.ONE_OVER_SEVEN]
 RECALL_METHODS = ["huang_tagare", "inlier_avg", "global_avg"]
 
 
